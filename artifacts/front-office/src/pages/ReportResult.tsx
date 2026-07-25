@@ -7,7 +7,6 @@ import { useParams, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { useReportResult, ResultInputDecision } from '@workspace/api-client-react';
 import Header from '@/components/Header';
-import Footer from '@/components/Footer';
 
 // ─── data shape from GET /api/games/:gameId ───────────────────────────────
 
@@ -180,7 +179,6 @@ export default function ReportResult() {
             </p>
           </div>
         </div>
-        <Footer />
       </>
     );
   }
@@ -201,7 +199,6 @@ export default function ReportResult() {
             </p>
           </div>
         </div>
-        <Footer />
       </>
     );
   }
@@ -343,7 +340,6 @@ export default function ReportResult() {
         </form>
       </div>
 
-      <Footer />
 
       <style>{`
         .goal-stepper { display: flex; flex-direction: column; align-items: center; gap: 10px; flex: 1; }

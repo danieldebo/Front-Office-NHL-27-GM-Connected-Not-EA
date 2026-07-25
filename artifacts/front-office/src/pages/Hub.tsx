@@ -1,7 +1,6 @@
 import { useGetMyLeagues, useGetLeagueHub, League } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 import Header from '@/components/Header';
-import Footer from '@/components/Footer';
 import LeagueSlab from '@/components/LeagueSlab';
 import MyWeek from '@/components/MyWeek';
 import Standings from '@/components/Standings';
@@ -56,7 +55,6 @@ export default function Hub() {
           </div>
         </div>
       )}
-      <Footer />
     </>
   );
 }

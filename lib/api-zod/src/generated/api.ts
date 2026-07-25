@@ -109,6 +109,124 @@ export const LogoutMobileSessionResponse = zod.object({
 
 
 /**
+ * @summary Public list of recruiting leagues (no auth required)
+ */
+export const ListOpenLeaguesQueryParams = zod.object({
+  "platform": zod.enum(['psn', 'xbox', 'both']).optional(),
+  "competitiveness": zod.enum(['casual', 'competitive', 'hardcore']).optional(),
+  "seats_open": zod.enum(['true', 'false']).optional(),
+  "health_min": zod.coerce.string().optional()
+})
+
+export const ListOpenLeaguesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "league_id": zod.string(),
+  "slug": zod.string().nullish(),
+  "name": zod.string(),
+  "logo_url": zod.string().nullish(),
+  "blurb": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "competitiveness": zod.string().nullish(),
+  "suggested_division": zod.string().nullish(),
+  "accepting_signups": zod.boolean(),
+  "accepting_waitlist": zod.boolean(),
+  "active_season_id": zod.string().nullish(),
+  "max_seats": zod.number(),
+  "seats_filled": zod.number(),
+  "seats_open": zod.number(),
+  "waitlist_length": zod.number(),
+  "games_confirmed": zod.number().nullish(),
+  "active_gms": zod.number().nullish()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Sign up for an open seat (authenticated)
+ */
+export const SignupForLeagueParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const signupForLeagueBodyCountryCodeMin = 2;
+export const signupForLeagueBodyCountryCodeMax = 2;
+
+
+export const signupForLeagueBodyCountryCodeRegExp = new RegExp('^[A-Z]{2}$');
+export const signupForLeagueBodyLocationMax = 100;
+
+export const signupForLeagueBodyMessageMax = 500;
+
+export const signupForLeagueBodyPreferredClubMax = 100;
+
+
+
+export const SignupForLeagueBody = zod.object({
+  "platform": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "country_code": zod.string().min(signupForLeagueBodyCountryCodeMin).max(signupForLeagueBodyCountryCodeMax).regex(signupForLeagueBodyCountryCodeRegExp).optional(),
+  "location": zod.string().max(signupForLeagueBodyLocationMax).optional(),
+  "stated_division": zod.enum(['bronze', 'silver', 'gold', 'diamond', 'platinum', 'elite', 'ultimate']).optional(),
+  "message": zod.string().max(signupForLeagueBodyMessageMax).optional(),
+  "preferred_club": zod.string().max(signupForLeagueBodyPreferredClubMax).optional()
+})
+
+export const SignupForLeagueResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "user_id": zod.string(),
+  "platform": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "country_code": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "stated_division": zod.string().nullish(),
+  "message": zod.string().nullish(),
+  "preferred_club": zod.string().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Join the waitlist for a league (authenticated)
+ */
+export const JoinLeagueWaitlistParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const JoinLeagueWaitlistResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "user_id": zod.string(),
+  "signup_id": zod.string().nullish(),
+  "status": zod.enum(['waiting', 'invited', 'placed', 'declined', 'withdrawn', 'expired']),
+  "position": zod.number(),
+  "joined_at": zod.coerce.date(),
+  "already_joined": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Submit a feature idea (no auth required)
+ */
+export const createFeatureRequestBodyEmailMax = 254;
+
+export const createFeatureRequestBodyBodyMax = 4000;
+
+
+
+export const CreateFeatureRequestBody = zod.object({
+  "email": zod.string().max(createFeatureRequestBodyEmailMax).optional(),
+  "body": zod.string().min(1).max(createFeatureRequestBodyBodyMax)
+})
+
+export const CreateFeatureRequestResponse = zod.object({
+  "id": zod.string(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
  * @summary Create a new league
  */
 export const createLeagueBodyNameMax = 100;

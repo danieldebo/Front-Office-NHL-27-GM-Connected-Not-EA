@@ -13,6 +13,8 @@ import ReportResult from '@/pages/ReportResult';
 import ConfirmResult from '@/pages/ConfirmResult';
 import LeaguePublic from '@/pages/LeaguePublic';
 import JoinInvite from '@/pages/JoinInvite';
+import OpenLeagues from '@/pages/OpenLeagues';
+import Footer from '@/components/Footer';
 
 const queryClient = new QueryClient();
 
@@ -78,6 +80,7 @@ function Router() {
         </AuthGate>
       </Route>
       {/* Public routes — no AuthGate */}
+      <Route path="/leagues/open" component={OpenLeagues} />
       <Route path="/l/:slug" component={LeaguePublic} />
       <Route path="/join/:token" component={JoinInvite} />
       <Route path="/">
@@ -101,7 +104,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-        <Router />
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1 }}>
+            <Router />
+          </div>
+          <Footer />
+        </div>
       </WouterRouter>
     </QueryClientProvider>
   );

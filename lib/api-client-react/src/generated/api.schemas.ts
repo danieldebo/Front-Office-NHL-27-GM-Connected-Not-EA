@@ -752,6 +752,126 @@ export interface SetAvailabilityBody {
   slots: AvailabilitySlot[];
 }
 
+export interface OpenLeague {
+  league_id: string;
+  /** @nullable */
+  slug?: string | null;
+  name: string;
+  /** @nullable */
+  logo_url?: string | null;
+  /** @nullable */
+  blurb?: string | null;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  competitiveness?: string | null;
+  /** @nullable */
+  suggested_division?: string | null;
+  accepting_signups: boolean;
+  accepting_waitlist: boolean;
+  /** @nullable */
+  active_season_id?: string | null;
+  max_seats: number;
+  seats_filled: number;
+  seats_open: number;
+  waitlist_length: number;
+  /** @nullable */
+  games_confirmed?: number | null;
+  /** @nullable */
+  active_gms?: number | null;
+}
+
+export type LeagueSignupInputStatedDivision = typeof LeagueSignupInputStatedDivision[keyof typeof LeagueSignupInputStatedDivision];
+
+
+export const LeagueSignupInputStatedDivision = {
+  bronze: 'bronze',
+  silver: 'silver',
+  gold: 'gold',
+  diamond: 'diamond',
+  platinum: 'platinum',
+  elite: 'elite',
+  ultimate: 'ultimate',
+} as const;
+
+export interface LeagueSignupInput {
+  platform?: string;
+  timezone?: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     * @pattern ^[A-Z]{2}$
+     */
+  country_code?: string;
+  /** @maxLength 100 */
+  location?: string;
+  stated_division?: LeagueSignupInputStatedDivision;
+  /** @maxLength 500 */
+  message?: string;
+  /** @maxLength 100 */
+  preferred_club?: string;
+}
+
+export interface LeagueSignup {
+  id: string;
+  league_id: string;
+  user_id: string;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  country_code?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  stated_division?: string | null;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  preferred_club?: string | null;
+  created_at: string;
+}
+
+export type WaitlistEntryStatus = typeof WaitlistEntryStatus[keyof typeof WaitlistEntryStatus];
+
+
+export const WaitlistEntryStatus = {
+  waiting: 'waiting',
+  invited: 'invited',
+  placed: 'placed',
+  declined: 'declined',
+  withdrawn: 'withdrawn',
+  expired: 'expired',
+} as const;
+
+export interface WaitlistEntry {
+  id: string;
+  league_id: string;
+  user_id: string;
+  /** @nullable */
+  signup_id?: string | null;
+  status: WaitlistEntryStatus;
+  position: number;
+  joined_at: string;
+  already_joined?: boolean;
+}
+
+export interface FeatureRequestInput {
+  /** @maxLength 254 */
+  email?: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+}
+
+export interface FeatureRequestReceipt {
+  id: string;
+  created_at: string;
+}
+
 export type IdempotencyKeyParameter = string;
 
 export type IfMatchParameter = string;
@@ -773,6 +893,44 @@ iss?: string;
 
 export type LogoutBrowserSessionParams = {
 returnTo?: string;
+};
+
+export type ListOpenLeaguesParams = {
+platform?: ListOpenLeaguesPlatform;
+competitiveness?: ListOpenLeaguesCompetitiveness;
+seats_open?: ListOpenLeaguesSeatsOpen;
+health_min?: string;
+};
+
+export type ListOpenLeaguesPlatform = typeof ListOpenLeaguesPlatform[keyof typeof ListOpenLeaguesPlatform];
+
+
+export const ListOpenLeaguesPlatform = {
+  psn: 'psn',
+  xbox: 'xbox',
+  both: 'both',
+} as const;
+
+export type ListOpenLeaguesCompetitiveness = typeof ListOpenLeaguesCompetitiveness[keyof typeof ListOpenLeaguesCompetitiveness];
+
+
+export const ListOpenLeaguesCompetitiveness = {
+  casual: 'casual',
+  competitive: 'competitive',
+  hardcore: 'hardcore',
+} as const;
+
+export type ListOpenLeaguesSeatsOpen = typeof ListOpenLeaguesSeatsOpen[keyof typeof ListOpenLeaguesSeatsOpen];
+
+
+export const ListOpenLeaguesSeatsOpen = {
+  true: 'true',
+  false: 'false',
+} as const;
+
+export type ListOpenLeagues200 = {
+  data: OpenLeague[];
+  total: number;
 };
 
 export type GetMyLeagues200 = {

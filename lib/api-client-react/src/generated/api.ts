@@ -33,6 +33,8 @@ import type {
   CreateLeagueInput,
   CreateSeasonInput,
   ErrorEnvelope,
+  FeatureRequestInput,
+  FeatureRequestReceipt,
   ForceResolveGameBody,
   GameResult,
   GenerateScheduleBody,
@@ -45,11 +47,15 @@ import type {
   JoinRequest,
   League,
   LeagueHub,
+  LeagueSignup,
+  LeagueSignupInput,
   ListGames200,
   ListGamesParams,
   ListInvites200,
   ListJoinRequests200,
   ListJoinRequestsParams,
+  ListOpenLeagues200,
+  ListOpenLeaguesParams,
   ListRulebookRevisions200,
   ListSeasons200,
   ListSeats200,
@@ -71,6 +77,7 @@ import type {
   SetPublicCodeInput,
   ShiftWindowBody,
   UpdateLeagueInput,
+  WaitlistEntry,
   WeekListEnvelope
 } from './api.schemas';
 
@@ -648,6 +655,304 @@ export const useLogoutMobileSession = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getLogoutMobileSessionMutationOptions(options));
+    }
+
+export const getListOpenLeaguesUrl = (params?: ListOpenLeaguesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/leagues/open?${stringifiedParams}` : `/api/leagues/open`
+}
+
+/**
+ * @summary Public list of recruiting leagues (no auth required)
+ */
+export const listOpenLeagues = async (params?: ListOpenLeaguesParams, options?: RequestInit): Promise<ListOpenLeagues200> => {
+
+  return customFetch<ListOpenLeagues200>(getListOpenLeaguesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOpenLeaguesQueryKey = (params?: ListOpenLeaguesParams,) => {
+    return [
+    `/api/leagues/open`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOpenLeaguesQueryOptions = <TData = Awaited<ReturnType<typeof listOpenLeagues>>, TError = ErrorType<unknown>>(params?: ListOpenLeaguesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpenLeagues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOpenLeaguesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOpenLeagues>>> = ({ signal }) => listOpenLeagues(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOpenLeagues>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOpenLeaguesQueryResult = NonNullable<Awaited<ReturnType<typeof listOpenLeagues>>>
+export type ListOpenLeaguesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Public list of recruiting leagues (no auth required)
+ */
+
+export function useListOpenLeagues<TData = Awaited<ReturnType<typeof listOpenLeagues>>, TError = ErrorType<unknown>>(
+ params?: ListOpenLeaguesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpenLeagues>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOpenLeaguesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSignupForLeagueUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/signup`
+}
+
+/**
+ * @summary Sign up for an open seat (authenticated)
+ */
+export const signupForLeague = async (leagueId: string,
+    leagueSignupInput?: LeagueSignupInput, options?: RequestInit): Promise<LeagueSignup> => {
+
+  return customFetch<LeagueSignup>(getSignupForLeagueUrl(leagueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(leagueSignupInput)
+  }
+);}
+
+
+
+
+
+export const getSignupForLeagueMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signupForLeague>>, TError,{leagueId: string;data?: BodyType<LeagueSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof signupForLeague>>, TError,{leagueId: string;data?: BodyType<LeagueSignupInput>}, TContext> => {
+
+const mutationKey = ['signupForLeague'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof signupForLeague>>, {leagueId: string;data?: BodyType<LeagueSignupInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  signupForLeague(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SignupForLeagueMutationResult = NonNullable<Awaited<ReturnType<typeof signupForLeague>>>
+    export type SignupForLeagueMutationBody = BodyType<LeagueSignupInput> | undefined
+    export type SignupForLeagueMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Sign up for an open seat (authenticated)
+ */
+export const useSignupForLeague = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof signupForLeague>>, TError,{leagueId: string;data?: BodyType<LeagueSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof signupForLeague>>,
+        TError,
+        {leagueId: string;data?: BodyType<LeagueSignupInput>},
+        TContext
+      > => {
+      return useMutation(getSignupForLeagueMutationOptions(options));
+    }
+
+export const getJoinLeagueWaitlistUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/waitlist`
+}
+
+/**
+ * @summary Join the waitlist for a league (authenticated)
+ */
+export const joinLeagueWaitlist = async (leagueId: string, options?: RequestInit): Promise<WaitlistEntry> => {
+
+  return customFetch<WaitlistEntry>(getJoinLeagueWaitlistUrl(leagueId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getJoinLeagueWaitlistMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinLeagueWaitlist>>, TError,{leagueId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinLeagueWaitlist>>, TError,{leagueId: string}, TContext> => {
+
+const mutationKey = ['joinLeagueWaitlist'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinLeagueWaitlist>>, {leagueId: string}> = (props) => {
+          const {leagueId} = props ?? {};
+
+          return  joinLeagueWaitlist(leagueId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinLeagueWaitlistMutationResult = NonNullable<Awaited<ReturnType<typeof joinLeagueWaitlist>>>
+
+    export type JoinLeagueWaitlistMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Join the waitlist for a league (authenticated)
+ */
+export const useJoinLeagueWaitlist = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinLeagueWaitlist>>, TError,{leagueId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinLeagueWaitlist>>,
+        TError,
+        {leagueId: string},
+        TContext
+      > => {
+      return useMutation(getJoinLeagueWaitlistMutationOptions(options));
+    }
+
+export const getCreateFeatureRequestUrl = () => {
+
+
+
+
+  return `/api/feature-requests`
+}
+
+/**
+ * @summary Submit a feature idea (no auth required)
+ */
+export const createFeatureRequest = async (featureRequestInput: FeatureRequestInput, options?: RequestInit): Promise<FeatureRequestReceipt> => {
+
+  return customFetch<FeatureRequestReceipt>(getCreateFeatureRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(featureRequestInput)
+  }
+);}
+
+
+
+
+
+export const getCreateFeatureRequestMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFeatureRequest>>, TError,{data: BodyType<FeatureRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFeatureRequest>>, TError,{data: BodyType<FeatureRequestInput>}, TContext> => {
+
+const mutationKey = ['createFeatureRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFeatureRequest>>, {data: BodyType<FeatureRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createFeatureRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFeatureRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createFeatureRequest>>>
+    export type CreateFeatureRequestMutationBody = BodyType<FeatureRequestInput>
+    export type CreateFeatureRequestMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Submit a feature idea (no auth required)
+ */
+export const useCreateFeatureRequest = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFeatureRequest>>, TError,{data: BodyType<FeatureRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createFeatureRequest>>,
+        TError,
+        {data: BodyType<FeatureRequestInput>},
+        TContext
+      > => {
+      return useMutation(getCreateFeatureRequestMutationOptions(options));
     }
 
 export const getCreateLeagueUrl = () => {

@@ -17,7 +17,6 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
-import Footer from '@/components/Footer';
 
 // ─────────────────────────────────────── status chip colour map
 const STATUS_CHIP: Record<string, string> = {
@@ -323,7 +322,6 @@ export default function Schedule() {
       <div className="wrap" style={{ paddingTop: '24px', paddingBottom: '60px' }}>
         <ScheduleContent leagueId={leagueId ?? ''} isCommissioner={isCommissioner} />
       </div>
-      <Footer />
     </>
   );
 }

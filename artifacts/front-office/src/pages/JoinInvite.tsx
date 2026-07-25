@@ -254,13 +254,6 @@ export default function JoinInvite() {
         )}
       </div>
 
-      {/* Footer */}
-      <footer>
-        <div className="wrap">
-          <span>Front Office · {invite.league_name}</span>
-          <span>Commissioner invite link</span>
-        </div>
-      </footer>
     </>
   );
 }

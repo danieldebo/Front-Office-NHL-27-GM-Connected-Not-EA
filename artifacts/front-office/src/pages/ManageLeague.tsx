@@ -30,7 +30,6 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
-import Footer from '@/components/Footer';
 
 // Helper components
 function SeatsTab({ leagueId }: { leagueId: string }) {
@@ -789,7 +788,6 @@ export default function ManageLeague() {
           <LinksTab leagueId={league.id} leagueSlug={league.slug} />
         )}
       </div>
-      <Footer />
     </>
   );
 }

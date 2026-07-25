@@ -8,7 +8,6 @@ import { useParams, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { useConfirmResult } from '@workspace/api-client-react';
 import Header from '@/components/Header';
-import Footer from '@/components/Footer';
 
 // ─── types (mirrors GET /api/games/:gameId response) ─────────────────────
 
@@ -137,7 +136,6 @@ export default function ConfirmResult() {
             <p style={{ color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px', marginTop: '10px' }}>{loadErr}</p>
           </div>
         </div>
-        <Footer />
       </>
     );
   }
@@ -170,7 +168,6 @@ export default function ConfirmResult() {
             )}
           </div>
         </div>
-        <Footer />
       </>
     );
   }
@@ -300,7 +297,6 @@ export default function ConfirmResult() {
 
       </div>
 
-      <Footer />
     </>
   );
 }

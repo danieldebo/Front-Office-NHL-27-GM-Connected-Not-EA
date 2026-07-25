@@ -25,6 +25,8 @@ export type { CreateLeagueInput } from "./generated/types/createLeagueInput";
 export type { CreateLeagueInputVisibility } from "./generated/types/createLeagueInputVisibility";
 export type { CreateSeasonInput } from "./generated/types/createSeasonInput";
 export type { ErrorEnvelope } from "./generated/types/errorEnvelope";
+// FeatureRequestInput intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// FeatureRequestReceipt intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // ForceResolveGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // ForceResolveGameBodyResolution intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Game } from "./generated/types/game";
@@ -46,6 +48,9 @@ export type { JoinRequest } from "./generated/types/joinRequest";
 export type { JoinRequestStatus } from "./generated/types/joinRequestStatus";
 export type { League } from "./generated/types/league";
 export type { LeagueHub } from "./generated/types/leagueHub";
+// LeagueSignup intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// LeagueSignupInput intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { LeagueSignupInputStatedDivision } from "./generated/types/leagueSignupInputStatedDivision";
 export type { LeagueVisibility } from "./generated/types/leagueVisibility";
 export type { ListGames200 } from "./generated/types/listGames200";
 // ListGamesParams intentionally excluded — collides with Zod const of the same name in generated/api.ts
@@ -53,6 +58,11 @@ export type { ListInvites200 } from "./generated/types/listInvites200";
 export type { ListJoinRequests200 } from "./generated/types/listJoinRequests200";
 export type { ListJoinRequestsParams } from "./generated/types/listJoinRequestsParams";
 export type { ListJoinRequestsStatus } from "./generated/types/listJoinRequestsStatus";
+export type { ListOpenLeagues200 } from "./generated/types/listOpenLeagues200";
+export type { ListOpenLeaguesCompetitiveness } from "./generated/types/listOpenLeaguesCompetitiveness";
+// ListOpenLeaguesParams intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { ListOpenLeaguesPlatform } from "./generated/types/listOpenLeaguesPlatform";
+export type { ListOpenLeaguesSeatsOpen } from "./generated/types/listOpenLeaguesSeatsOpen";
 export type { ListRulebookRevisions200 } from "./generated/types/listRulebookRevisions200";
 export type { ListSeasons200 } from "./generated/types/listSeasons200";
 export type { ListSeats200 } from "./generated/types/listSeats200";
@@ -60,6 +70,7 @@ export type { LogoutBrowserSessionParams } from "./generated/types/logoutBrowser
 export type { LogoutSuccess } from "./generated/types/logoutSuccess";
 export type { MobileTokenExchangeInput } from "./generated/types/mobileTokenExchangeInput";
 export type { MobileTokenExchangeSuccess } from "./generated/types/mobileTokenExchangeSuccess";
+// OpenLeague intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
 export type { ProblemError } from "./generated/types/problemError";
@@ -82,6 +93,8 @@ export type { StandingsRow } from "./generated/types/standingsRow";
 export type { StandingsRowProvenance } from "./generated/types/standingsRowProvenance";
 export type { UpdateLeagueInput } from "./generated/types/updateLeagueInput";
 export type { UpdateLeagueInputVisibility } from "./generated/types/updateLeagueInputVisibility";
+// WaitlistEntry intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { WaitlistEntryStatus } from "./generated/types/waitlistEntryStatus";
 // WeekListEnvelope intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // WeekStatus intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // WeekWindow intentionally excluded — collides with Zod const of the same name in generated/api.ts

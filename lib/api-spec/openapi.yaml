@@ -24,6 +24,10 @@ tags:
     description: Season schedule generation and week-window management.
   - name: Availability
     description: Per-GM availability grids and overlap surfacing.
+  - name: Discovery
+    description: Open-league directory, sign-up, and waitlist intake.
+  - name: Feedback
+    description: Feature request inbox.
 
 paths:
   /healthz:
@@ -167,6 +171,166 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LogoutSuccess'
+
+  # ------------------------------------------------------------------ Discovery
+
+  /leagues/open:
+    get:
+      tags: [Discovery]
+      operationId: listOpenLeagues
+      summary: Public list of recruiting leagues (no auth required)
+      parameters:
+        - name: platform
+          in: query
+          schema:
+            type: string
+            enum: [psn, xbox, both]
+        - name: competitiveness
+          in: query
+          schema:
+            type: string
+            enum: [casual, competitive, hardcore]
+        - name: seats_open
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+        - name: health_min
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Open leagues with seat and waitlist counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OpenLeague'
+                  total:
+                    type: integer
+
+  /leagues/{leagueId}/signup:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Discovery]
+      operationId: signupForLeague
+      summary: Sign up for an open seat (authenticated)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeagueSignupInput'
+      responses:
+        '201':
+          description: Sign-up created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueSignup'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found or not recruiting.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Already signed up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/waitlist:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Discovery]
+      operationId: joinLeagueWaitlist
+      summary: Join the waitlist for a league (authenticated)
+      responses:
+        '201':
+          description: Waitlist entry created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistEntry'
+        '200':
+          description: Already on the waitlist — returns existing entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistEntry'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found or not recruiting.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Waitlist not accepting entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Feedback
+
+  /feature-requests:
+    post:
+      tags: [Feedback]
+      operationId: createFeatureRequest
+      summary: Submit a feature idea (no auth required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureRequestInput'
+      responses:
+        '201':
+          description: Feature request received.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureRequestReceipt'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 
   # ------------------------------------------------------------------ Leagues
 
@@ -2283,6 +2447,147 @@ components:
           items:
             $ref: '#/components/schemas/AvailabilitySlot'
           maxItems: 56
+
+    # ------------------------------------------------------------------ Discovery
+
+    OpenLeague:
+      type: object
+      required: [league_id, name, accepting_signups, accepting_waitlist, max_seats, seats_filled, seats_open, waitlist_length]
+      properties:
+        league_id:
+          type: string
+        slug:
+          type: ["string", "null"]
+        name:
+          type: string
+        logo_url:
+          type: ["string", "null"]
+        blurb:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        competitiveness:
+          type: ["string", "null"]
+        suggested_division:
+          type: ["string", "null"]
+        accepting_signups:
+          type: boolean
+        accepting_waitlist:
+          type: boolean
+        active_season_id:
+          type: ["string", "null"]
+        max_seats:
+          type: integer
+        seats_filled:
+          type: integer
+        seats_open:
+          type: integer
+        waitlist_length:
+          type: integer
+        games_confirmed:
+          type: ["integer", "null"]
+        active_gms:
+          type: ["integer", "null"]
+
+    LeagueSignupInput:
+      type: object
+      properties:
+        platform:
+          type: string
+        timezone:
+          type: string
+        country_code:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        location:
+          type: string
+          maxLength: 100
+        stated_division:
+          type: string
+          enum: [bronze, silver, gold, diamond, platinum, elite, ultimate]
+        message:
+          type: string
+          maxLength: 500
+        preferred_club:
+          type: string
+          maxLength: 100
+
+    LeagueSignup:
+      type: object
+      required: [id, league_id, user_id, created_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        user_id:
+          type: string
+        platform:
+          type: ["string", "null"]
+        timezone:
+          type: ["string", "null"]
+        country_code:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        stated_division:
+          type: ["string", "null"]
+        message:
+          type: ["string", "null"]
+        preferred_club:
+          type: ["string", "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    WaitlistEntry:
+      type: object
+      required: [id, league_id, user_id, status, position, joined_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        user_id:
+          type: string
+        signup_id:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [waiting, invited, placed, declined, withdrawn, expired]
+        position:
+          type: integer
+        joined_at:
+          type: string
+          format: date-time
+        already_joined:
+          type: boolean
+
+    # ------------------------------------------------------------------ Feedback
+
+    FeatureRequestInput:
+      type: object
+      required: [body]
+      properties:
+        email:
+          type: string
+          maxLength: 254
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+
+    FeatureRequestReceipt:
+      type: object
+      required: [id, created_at]
+      properties:
+        id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
 
     # ------------------------------------------------------------------ Competition (existing)
 

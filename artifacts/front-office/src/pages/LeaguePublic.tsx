@@ -165,13 +165,6 @@ export default function LeaguePublic() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer>
-        <div className="wrap">
-          <span>Front Office · {league.name}</span>
-          <span>Standings derived from confirmed game results · never edited directly</span>
-        </div>
-      </footer>
     </>
   );
 }

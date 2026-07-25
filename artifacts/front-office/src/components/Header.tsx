@@ -1,10 +1,11 @@
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { League, useGetCurrentAuthUser } from '@workspace/api-client-react';
 
 export default function Header({ league }: { league?: League }) {
   const { data: userResponse } = useGetCurrentAuthUser();
   const user = userResponse?.user;
   const isOwner = user && league && user.id === league.owner_user_id;
+  const [location] = useLocation();
 
   return (
     <header className="masthead">
@@ -16,8 +17,17 @@ export default function Header({ league }: { league?: League }) {
             {league ? `Visibility: ${league.visibility} · NHL 27` : 'NHL 27 Connected Franchise Hub'}
           </div>
         </div>
-        <nav>
-          <Link href="/" className="nav-link" aria-current="page">Hub</Link>
+        <nav className="mast-nav">
+          <Link
+            href="/leagues/open"
+            className="nav-link"
+            aria-current={location === '/leagues/open' ? 'page' : undefined}
+          >
+            Open Leagues
+          </Link>
+          <Link href="/" className="nav-link" aria-current={location === '/' ? 'page' : undefined}>
+            Hub
+          </Link>
           {league && <a href="#standings">Standings</a>}
           {league && <a href="#">Schedule</a>}
           {league && <a href="#wire">Wire</a>}
