@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
+  version: 0.2.0
   description: Front Office API — league management, results, and standings.
 servers:
   - url: /api
@@ -14,6 +14,10 @@ tags:
     description: Browser and mobile authentication endpoints.
   - name: Leagues
     description: League and season metadata.
+  - name: Seats
+    description: Seat management — invites, join requests, GM assignment.
+  - name: Rulebook
+    description: Versioned league bylaws.
   - name: Competition
     description: Schedule, results, and derived standings.
 
@@ -162,6 +166,37 @@ paths:
 
   # ------------------------------------------------------------------ Leagues
 
+  /leagues:
+    post:
+      tags: [Leagues]
+      operationId: createLeague
+      summary: Create a new league
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeagueInput'
+      responses:
+        '201':
+          description: League created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Slug already taken.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
   /leagues/me:
     get:
       tags: [Leagues]
@@ -201,6 +236,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/League'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      tags: [Leagues]
+      operationId: updateLeague
+      summary: Update league settings (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeagueInput'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '404':
           description: Not found.
           content:
@@ -251,6 +315,437 @@ paths:
                       $ref: '#/components/schemas/Season'
         '404':
           description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags: [Leagues]
+      operationId: createSeason
+      summary: Create a new season and generate 32 franchise seats (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSeasonInput'
+      responses:
+        '201':
+          description: Season created with 32 franchise seats.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Season'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Seats
+
+  /leagues/{leagueId}/invites:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Seats]
+      operationId: listInvites
+      summary: List active invite links (commissioner only)
+      responses:
+        '200':
+          description: Active invite links.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InviteLink'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags: [Seats]
+      operationId: createInvite
+      summary: Generate an invite link (commissioner only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInviteInput'
+      responses:
+        '201':
+          description: Invite link created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteLink'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /invites/{token}:
+    parameters:
+      - $ref: '#/components/parameters/InviteToken'
+    get:
+      tags: [Seats]
+      operationId: getInvite
+      summary: Preview an invite link before joining
+      responses:
+        '200':
+          description: Invite details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteLink'
+        '404':
+          description: Not found or expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    delete:
+      tags: [Seats]
+      operationId: revokeInvite
+      summary: Revoke an invite link (commissioner only)
+      responses:
+        '204':
+          description: Revoked.
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /invites/{token}/join:
+    parameters:
+      - $ref: '#/components/parameters/InviteToken'
+    post:
+      tags: [Seats]
+      operationId: joinViaInvite
+      summary: Submit a join request via invite link
+      responses:
+        '201':
+          description: Join request created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+        '200':
+          description: Already requested — returns existing request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+        '400':
+          description: Invite expired or exhausted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Invite not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/join-requests:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Seats]
+      operationId: listJoinRequests
+      summary: List join requests for a league (commissioner only)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        '200':
+          description: Join requests.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JoinRequest'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/join-requests/{requestId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - $ref: '#/components/parameters/JoinRequestId'
+    post:
+      tags: [Seats]
+      operationId: approveJoinRequest
+      summary: Approve a join request and add the user to the league (commissioner only)
+      responses:
+        '200':
+          description: Approved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Already reviewed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/join-requests/{requestId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - $ref: '#/components/parameters/JoinRequestId'
+    post:
+      tags: [Seats]
+      operationId: rejectJoinRequest
+      summary: Reject a join request (commissioner only)
+      responses:
+        '200':
+          description: Rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/seats:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Seats]
+      operationId: listSeats
+      summary: List all franchise seats in the active season
+      responses:
+        '200':
+          description: All seats with current GM info.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Seat'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /team-seasons/{teamSeasonId}/gm:
+    parameters:
+      - $ref: '#/components/parameters/TeamSeasonId'
+    put:
+      tags: [Seats]
+      operationId: assignGm
+      summary: Assign a GM to a franchise seat (commissioner only)
+      description: |
+        Closes the current active gm_assignment (if any) and opens a new one.
+        The franchise record is untouched — only the assignment changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignGmInput'
+      responses:
+        '200':
+          description: GM assigned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seat'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Team season or user not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    delete:
+      tags: [Seats]
+      operationId: revokeGm
+      summary: Remove the current GM from a seat (commissioner only)
+      parameters:
+        - name: reason
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: GM removed — seat is now open.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seat'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Rulebook
+
+  /leagues/{leagueId}/rulebook:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Rulebook]
+      operationId: getLatestRulebook
+      summary: Get the current rulebook revision
+      responses:
+        '200':
+          description: Latest revision.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RulebookRevision'
+        '404':
+          description: No rulebook yet or league not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    put:
+      tags: [Rulebook]
+      operationId: publishRulebook
+      summary: Publish a new rulebook revision (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishRulebookInput'
+      responses:
+        '201':
+          description: New revision created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RulebookRevision'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/rulebook/revisions:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Rulebook]
+      operationId: listRulebookRevisions
+      summary: List all rulebook revisions in reverse-chronological order
+      responses:
+        '200':
+          description: All revisions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RulebookRevision'
+        '404':
+          description: League not found.
           content:
             application/json:
               schema:
@@ -471,6 +966,24 @@ components:
       required: true
       schema:
         type: string
+    TeamSeasonId:
+      name: teamSeasonId
+      in: path
+      required: true
+      schema:
+        type: string
+    InviteToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+    JoinRequestId:
+      name: requestId
+      in: path
+      required: true
+      schema:
+        type: string
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -633,6 +1146,96 @@ components:
           type: string
           format: date-time
 
+    CreateLeagueInput:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        slug:
+          type: string
+          minLength: 2
+          maxLength: 40
+          pattern: '^[a-z0-9][a-z0-9-]*[a-z0-9]$'
+        visibility:
+          type: string
+          enum: [public, unlisted, private]
+          default: public
+        primary_color:
+          type: ["string", "null"]
+        secondary_color:
+          type: ["string", "null"]
+        logo_url:
+          type: ["string", "null"]
+
+    UpdateLeagueInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        visibility:
+          type: string
+          enum: [public, unlisted, private]
+        primary_color:
+          type: ["string", "null"]
+        secondary_color:
+          type: ["string", "null"]
+        logo_url:
+          type: ["string", "null"]
+
+    CreateSeasonInput:
+      type: object
+      required: [label, game_title]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 100
+        game_title:
+          type: string
+          minLength: 1
+          maxLength: 50
+        starts_on:
+          type: ["string", "null"]
+          format: date
+        ends_on:
+          type: ["string", "null"]
+          format: date
+        salary_cap_cents:
+          type: ["integer", "null"]
+          minimum: 0
+        roster_min:
+          type: ["integer", "null"]
+          minimum: 1
+        roster_max:
+          type: ["integer", "null"]
+          minimum: 1
+        games_per_matchup:
+          type: integer
+          minimum: 1
+          default: 1
+        points_win:
+          type: integer
+          minimum: 0
+          default: 2
+        points_ot_loss:
+          type: integer
+          minimum: 0
+          default: 1
+        points_reg_loss:
+          type: integer
+          minimum: 0
+          default: 0
+        tiebreakers:
+          type: array
+          items:
+            type: string
+          default: ["points", "row", "wins", "goal_diff", "goals_for"]
+
     LeagueHub:
       type: object
       description: Summary stats for the league hub slab.
@@ -698,6 +1301,163 @@ components:
             type: string
         is_active:
           type: boolean
+
+    # ------------------------------------------------------------------ Seats
+
+    InviteLink:
+      type: object
+      required: [id, token, league_id, created_at]
+      properties:
+        id:
+          type: string
+        token:
+          type: string
+        league_id:
+          type: string
+        max_uses:
+          type: ["integer", "null"]
+        use_count:
+          type: integer
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: ["string", "null"]
+          format: date-time
+        league_name:
+          type: ["string", "null"]
+
+    CreateInviteInput:
+      type: object
+      properties:
+        max_uses:
+          type: ["integer", "null"]
+          minimum: 1
+        expires_in_hours:
+          type: ["integer", "null"]
+          minimum: 1
+
+    JoinRequest:
+      type: object
+      required: [id, league_id, status, created_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        user_id:
+          type: string
+        display_name:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        reviewed_by:
+          type: ["string", "null"]
+        reviewed_at:
+          type: ["string", "null"]
+          format: date-time
+        note:
+          type: ["string", "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    Seat:
+      type: object
+      required: [team_season_id, franchise_id, seat_status]
+      properties:
+        team_season_id:
+          type: string
+        franchise_id:
+          type: string
+        franchise_name:
+          type: string
+        nhl_club_id:
+          type: ["string", "null"]
+        club_abbrev:
+          type: ["string", "null"]
+        club_name:
+          type: ["string", "null"]
+        conference:
+          type: ["string", "null"]
+        division:
+          type: ["string", "null"]
+        seat_status:
+          type: string
+          enum: [open, pending, filled, suspended, vacated]
+        gm:
+          oneOf:
+            - $ref: '#/components/schemas/AssignedGm'
+            - type: 'null'
+
+    AssignedGm:
+      type: object
+      required: [assignment_id, user_id]
+      properties:
+        assignment_id:
+          type: string
+        user_id:
+          type: string
+        display_name:
+          type: ["string", "null"]
+        started_at:
+          type: string
+          format: date-time
+        role:
+          type: string
+
+    AssignGmInput:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+        role:
+          type: string
+          enum: [gm, assistant_commissioner]
+          default: gm
+        end_reason:
+          type: ["string", "null"]
+          description: Reason for closing the previous GM assignment (if any).
+
+    # ------------------------------------------------------------------ Rulebook
+
+    RulebookRevision:
+      type: object
+      required: [id, league_id, version, body_md, authored_by, effective_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        version:
+          type: string
+        body_md:
+          type: string
+        change_note:
+          type: ["string", "null"]
+        authored_by:
+          type: string
+        effective_at:
+          type: string
+          format: date-time
+
+    PublishRulebookInput:
+      type: object
+      required: [body_md]
+      properties:
+        body_md:
+          type: string
+          minLength: 1
+        change_note:
+          type: ["string", "null"]
+          maxLength: 500
+
+    # ------------------------------------------------------------------ Competition
 
     GameStatus:
       type: string

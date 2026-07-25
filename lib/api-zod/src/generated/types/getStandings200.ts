@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Front Office API — league management, results, and standings.
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import type { StandingsRow } from './standingsRow';
 

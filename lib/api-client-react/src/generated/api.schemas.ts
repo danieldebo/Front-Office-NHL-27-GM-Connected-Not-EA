@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Front Office API — league management, results, and standings.
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 export interface HealthStatus {
   status: string;
@@ -92,6 +92,101 @@ export interface League {
   secondary_color?: string | null;
   owner_user_id?: string;
   created_at?: string;
+}
+
+export type CreateLeagueInputVisibility = typeof CreateLeagueInputVisibility[keyof typeof CreateLeagueInputVisibility];
+
+
+export const CreateLeagueInputVisibility = {
+  public: 'public',
+  unlisted: 'unlisted',
+  private: 'private',
+} as const;
+
+export interface CreateLeagueInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+  /**
+     * @minLength 2
+     * @maxLength 40
+     * @pattern ^[a-z0-9][a-z0-9-]*[a-z0-9]$
+     */
+  slug: string;
+  visibility?: CreateLeagueInputVisibility;
+  /** @nullable */
+  primary_color?: string | null;
+  /** @nullable */
+  secondary_color?: string | null;
+  /** @nullable */
+  logo_url?: string | null;
+}
+
+export type UpdateLeagueInputVisibility = typeof UpdateLeagueInputVisibility[keyof typeof UpdateLeagueInputVisibility];
+
+
+export const UpdateLeagueInputVisibility = {
+  public: 'public',
+  unlisted: 'unlisted',
+  private: 'private',
+} as const;
+
+export interface UpdateLeagueInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name?: string;
+  visibility?: UpdateLeagueInputVisibility;
+  /** @nullable */
+  primary_color?: string | null;
+  /** @nullable */
+  secondary_color?: string | null;
+  /** @nullable */
+  logo_url?: string | null;
+}
+
+export interface CreateSeasonInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  label: string;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  game_title: string;
+  /** @nullable */
+  starts_on?: string | null;
+  /** @nullable */
+  ends_on?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  salary_cap_cents?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  roster_min?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  roster_max?: number | null;
+  /** @minimum 1 */
+  games_per_matchup?: number;
+  /** @minimum 0 */
+  points_win?: number;
+  /** @minimum 0 */
+  points_ot_loss?: number;
+  /** @minimum 0 */
+  points_reg_loss?: number;
+  tiebreakers?: string[];
 }
 
 export type GameStatus = typeof GameStatus[keyof typeof GameStatus];
@@ -232,6 +327,137 @@ export interface Season {
   is_active?: boolean;
 }
 
+export interface InviteLink {
+  id: string;
+  token: string;
+  league_id: string;
+  /** @nullable */
+  max_uses?: number | null;
+  use_count?: number;
+  /** @nullable */
+  expires_at?: string | null;
+  created_at: string;
+  /** @nullable */
+  revoked_at?: string | null;
+  /** @nullable */
+  league_name?: string | null;
+}
+
+export interface CreateInviteInput {
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  max_uses?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  expires_in_hours?: number | null;
+}
+
+export type JoinRequestStatus = typeof JoinRequestStatus[keyof typeof JoinRequestStatus];
+
+
+export const JoinRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export interface JoinRequest {
+  id: string;
+  league_id: string;
+  user_id?: string;
+  /** @nullable */
+  display_name?: string | null;
+  status: JoinRequestStatus;
+  /** @nullable */
+  reviewed_by?: string | null;
+  /** @nullable */
+  reviewed_at?: string | null;
+  /** @nullable */
+  note?: string | null;
+  created_at: string;
+}
+
+export type SeatSeatStatus = typeof SeatSeatStatus[keyof typeof SeatSeatStatus];
+
+
+export const SeatSeatStatus = {
+  open: 'open',
+  pending: 'pending',
+  filled: 'filled',
+  suspended: 'suspended',
+  vacated: 'vacated',
+} as const;
+
+export interface AssignedGm {
+  assignment_id: string;
+  user_id: string;
+  /** @nullable */
+  display_name?: string | null;
+  started_at?: string;
+  role?: string;
+}
+
+export interface Seat {
+  team_season_id: string;
+  franchise_id: string;
+  franchise_name?: string;
+  /** @nullable */
+  nhl_club_id?: string | null;
+  /** @nullable */
+  club_abbrev?: string | null;
+  /** @nullable */
+  club_name?: string | null;
+  /** @nullable */
+  conference?: string | null;
+  /** @nullable */
+  division?: string | null;
+  seat_status: SeatSeatStatus;
+  gm?: AssignedGm | null;
+}
+
+export type AssignGmInputRole = typeof AssignGmInputRole[keyof typeof AssignGmInputRole];
+
+
+export const AssignGmInputRole = {
+  gm: 'gm',
+  assistant_commissioner: 'assistant_commissioner',
+} as const;
+
+export interface AssignGmInput {
+  user_id: string;
+  role?: AssignGmInputRole;
+  /**
+     * Reason for closing the previous GM assignment (if any).
+     * @nullable
+     */
+  end_reason?: string | null;
+}
+
+export interface RulebookRevision {
+  id: string;
+  league_id: string;
+  version: string;
+  body_md: string;
+  /** @nullable */
+  change_note?: string | null;
+  authored_by: string;
+  effective_at: string;
+}
+
+export interface PublishRulebookInput {
+  /** @minLength 1 */
+  body_md: string;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  change_note?: string | null;
+}
+
 export type ResultInputDecision = typeof ResultInputDecision[keyof typeof ResultInputDecision];
 
 
@@ -319,6 +545,39 @@ export type GetMyLeagues200 = {
 
 export type ListSeasons200 = {
   data: Season[];
+};
+
+export type ListInvites200 = {
+  data: InviteLink[];
+};
+
+export type ListJoinRequestsParams = {
+status?: ListJoinRequestsStatus;
+};
+
+export type ListJoinRequestsStatus = typeof ListJoinRequestsStatus[keyof typeof ListJoinRequestsStatus];
+
+
+export const ListJoinRequestsStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type ListJoinRequests200 = {
+  data: JoinRequest[];
+};
+
+export type ListSeats200 = {
+  data: Seat[];
+};
+
+export type RevokeGmParams = {
+reason?: string;
+};
+
+export type ListRulebookRevisions200 = {
+  data: RulebookRevision[];
 };
 
 export type GetStandings200 = {

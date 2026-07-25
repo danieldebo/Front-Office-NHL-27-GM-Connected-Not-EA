@@ -1,9 +1,9 @@
 /**
- * League and season routes.
+ * Read-only league and season routes.
  *
  * GET /leagues/me        — leagues the current user belongs to
  * GET /leagues/:leagueId — get a single league
- * GET /leagues/:leagueId/hub — hub summary (wow endpoint)
+ * GET /leagues/:leagueId/hub — hub summary
  * GET /leagues/:leagueId/seasons — list seasons
  */
 import { Router, type IRouter, type Request, type Response } from "express";
@@ -22,6 +22,8 @@ router.get("/leagues/me", async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
+  // A user is "in" a league if they have an active gm_assignment on any
+  // team_season in that league, OR if they are the league owner.
   const { rows } = await pool.query<{
     id: string;
     slug: string;
@@ -33,15 +35,19 @@ router.get("/leagues/me", async (req: Request, res: Response): Promise<void> => 
     owner_user_id: string;
     created_at: Date;
   }>(
-    `SELECT l.id, l.slug, l.name, l.visibility, l.logo_url,
+    `SELECT DISTINCT l.id, l.slug, l.name, l.visibility, l.logo_url,
             l.primary_color, l.secondary_color, l.owner_user_id, l.created_at
        FROM league l
-       JOIN franchise f ON f.league_id = l.id
-       JOIN gm_assignment g ON g.franchise_id = f.id
-       JOIN app_user u ON u.id = g.user_id
-      WHERE u.replit_id = $1
-        AND g.is_active = TRUE
-      ORDER BY l.name`,
+       JOIN app_user u ON u.replit_id = $1
+       WHERE l.owner_user_id = u.id
+          OR EXISTS (
+            SELECT 1
+              FROM franchise fr
+              JOIN team_season ts ON ts.franchise_id = fr.id
+              JOIN gm_assignment ga ON ga.team_season_id = ts.id AND ga.ended_at IS NULL
+             WHERE fr.league_id = l.id AND ga.user_id = u.id
+          )
+       ORDER BY l.name`,
     [user.id]
   );
 
@@ -51,7 +57,6 @@ router.get("/leagues/me", async (req: Request, res: Response): Promise<void> => 
 // GET /leagues/:leagueId
 router.get(
   "/leagues/:leagueId",
-  rateLimiter({ getLeagueId: (r) => r.params.leagueId }),
   async (req: Request, res: Response): Promise<void> => {
     const { leagueId } = req.params;
 
@@ -90,7 +95,6 @@ router.get(
     const { leagueId } = req.params;
     const user = getCurrentUser(req);
 
-    // Verify league exists
     const leagueRow = await pool.query(
       `SELECT id FROM league WHERE id = $1`,
       [leagueId]
@@ -101,83 +105,71 @@ router.get(
     }
 
     // Active season
-    const seasonRow = await pool.query<{
-      id: string;
-      label: string;
-    }>(
+    const seasonRow = await pool.query<{ id: string; label: string }>(
       `SELECT id, label FROM season WHERE league_id = $1 AND is_active = TRUE LIMIT 1`,
       [leagueId]
     );
     const activeSeason = seasonRow.rows[0] ?? null;
 
-    // Game stats
     let gamesScheduled = 0;
     let gamesConfirmed = 0;
     if (activeSeason) {
-      const statsRow = await pool.query<{
-        total: string;
-        confirmed: string;
-      }>(
+      const statsRow = await pool.query<{ total: string; confirmed: string }>(
         `SELECT
             COUNT(*) FILTER (WHERE status NOT IN ('voided','simulated')) AS total,
             COUNT(*) FILTER (WHERE status = 'confirmed') AS confirmed
-           FROM game
-          WHERE season_id = $1`,
+           FROM game WHERE season_id = $1`,
         [activeSeason.id]
       );
       gamesScheduled = parseInt(statsRow.rows[0]?.total ?? "0", 10);
       gamesConfirmed = parseInt(statsRow.rows[0]?.confirmed ?? "0", 10);
     }
 
-    // Open seats (franchises without an active GM assignment)
+    // Open seats
     const seatsRow = await pool.query<{ open_seats: string }>(
       `SELECT COUNT(*) AS open_seats
-         FROM franchise f
+         FROM team_season ts
+         JOIN franchise f ON f.id = ts.franchise_id
+         JOIN season s ON s.id = ts.season_id AND s.is_active = TRUE
         WHERE f.league_id = $1
-          AND NOT EXISTS (
-            SELECT 1 FROM gm_assignment g
-             WHERE g.franchise_id = f.id
-               AND g.is_active = TRUE
-          )`,
+          AND ts.seat_status = 'open'`,
       [leagueId]
     );
     const openSeats = parseInt(seatsRow.rows[0]?.open_seats ?? "0", 10);
 
-    // Active GMs
+    // Active GMs (users with active assignments in any team_season of this league)
     const gmRow = await pool.query<{ active_gms: string }>(
-      `SELECT COUNT(DISTINCT g.user_id) AS active_gms
-         FROM gm_assignment g
-         JOIN franchise f ON f.id = g.franchise_id
-        WHERE f.league_id = $1
-          AND g.is_active = TRUE`,
+      `SELECT COUNT(DISTINCT ga.user_id) AS active_gms
+         FROM gm_assignment ga
+         JOIN team_season ts ON ts.id = ga.team_season_id
+         JOIN franchise f ON f.id = ts.franchise_id
+        WHERE f.league_id = $1 AND ga.ended_at IS NULL`,
       [leagueId]
     );
     const activeGms = parseInt(gmRow.rows[0]?.active_gms ?? "0", 10);
 
-    // My games this week (requires auth + active season)
+    // My pending games
     let myGamesThisWeek: unknown[] = [];
     if (user && activeSeason) {
       const myGamesRow = await pool.query(
         `SELECT g.id, g.season_id, g.week_number, g.status,
                 g.window_opens_at, g.window_closes_at, g.played_at,
-                -- home side
-                hts.id AS home_team_season_id,
-                hf.id AS home_franchise_id,
+                g.home_team_season_id, hf.id AS home_franchise_id,
                 hf.name AS home_franchise_name,
-                hf.club_abbrev AS home_club_abbrev,
-                -- away side
-                ats.id AS away_team_season_id,
-                af.id AS away_franchise_id,
+                hn.abbrev AS home_club_abbrev,
+                g.away_team_season_id, af.id AS away_franchise_id,
                 af.name AS away_franchise_name,
-                af.club_abbrev AS away_club_abbrev
+                an.abbrev AS away_club_abbrev
            FROM game g
            JOIN team_season hts ON hts.id = g.home_team_season_id
            JOIN franchise hf ON hf.id = hts.franchise_id
+           LEFT JOIN nhl_club hn ON hn.id = hts.nhl_club_id
+           JOIN gm_assignment hga ON hga.team_season_id = g.home_team_season_id AND hga.ended_at IS NULL
+           JOIN app_user hu ON hu.id = hga.user_id
            JOIN team_season ats ON ats.id = g.away_team_season_id
            JOIN franchise af ON af.id = ats.franchise_id
-           JOIN gm_assignment hga ON hga.franchise_id = hf.id AND hga.is_active = TRUE
-           JOIN app_user hu ON hu.id = hga.user_id
-           JOIN gm_assignment aga ON aga.franchise_id = af.id AND aga.is_active = TRUE
+           LEFT JOIN nhl_club an ON an.id = ats.nhl_club_id
+           JOIN gm_assignment aga ON aga.team_season_id = g.away_team_season_id AND aga.ended_at IS NULL
            JOIN app_user au ON au.id = aga.user_id
           WHERE g.season_id = $1
             AND g.status NOT IN ('confirmed','voided','simulated')
@@ -199,7 +191,7 @@ router.get(
           team_season_id: r.home_team_season_id,
           franchise_id: r.home_franchise_id,
           franchise_name: r.home_franchise_name,
-          club_abbrev: r.home_club_abbrev,
+          club_abbrev: r.home_club_abbrev ?? null,
           goals: null,
           gm_display_name: null,
         },
@@ -207,7 +199,7 @@ router.get(
           team_season_id: r.away_team_season_id,
           franchise_id: r.away_franchise_id,
           franchise_name: r.away_franchise_name,
-          club_abbrev: r.away_club_abbrev,
+          club_abbrev: r.away_club_abbrev ?? null,
           goals: null,
           gm_display_name: null,
         },
@@ -232,7 +224,6 @@ router.get(
 // GET /leagues/:leagueId/seasons
 router.get(
   "/leagues/:leagueId/seasons",
-  rateLimiter({ getLeagueId: (r) => r.params.leagueId }),
   async (req: Request, res: Response): Promise<void> => {
     const { leagueId } = req.params;
 

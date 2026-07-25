@@ -10,16 +10,21 @@ import type { AuthUser } from "@workspace/api-zod";
 
 export type Action =
   | "league:read"
+  | "league:write"           // update league settings
   | "season:read"
+  | "season:create"          // commissioner creates a season
   | "game:read"
   | "result:report"
   | "result:confirm"
-  | "result:dispute";
+  | "result:dispute"
+  | "seat:manage"            // assign / revoke GM, approve join requests
+  | "invite:manage"          // create / revoke invite links
+  | "rulebook:write";        // publish a new revision
 
 export interface LeagueResource {
   kind: "league";
   ownerId: string;
-  memberIds: string[];
+  memberIds?: string[];
 }
 
 export interface GameResource {
@@ -49,7 +54,6 @@ export function can(
   action: Action,
   resource: Resource
 ): boolean {
-  // Unauthenticated users can never do anything.
   if (!user) return false;
 
   switch (action) {
@@ -59,9 +63,18 @@ export function can(
       // All authenticated users can read league/season/game data.
       return true;
 
+    case "league:write":
+    case "season:create":
+    case "seat:manage":
+    case "invite:manage":
+    case "rulebook:write": {
+      if (resource.kind !== "league") return false;
+      // Only the league owner (commissioner) may write.
+      return resource.ownerId === user.id;
+    }
+
     case "result:report": {
       if (resource.kind !== "game") return false;
-      // Only the home or away GM can report a result for their game.
       return (
         resource.homeGmUserId === user.id ||
         resource.awayGmUserId === user.id
@@ -85,7 +98,6 @@ export function can(
 
 /**
  * Convenience: throws if the user is not authenticated.
- * Call this at the top of any authenticated route handler.
  */
 export function requireAuth(
   user: AuthUser | null | undefined

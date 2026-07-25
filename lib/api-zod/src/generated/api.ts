@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Front Office API — league management, results, and standings.
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import * as zod from 'zod';
 
@@ -109,6 +109,40 @@ export const LogoutMobileSessionResponse = zod.object({
 
 
 /**
+ * @summary Create a new league
+ */
+export const createLeagueBodyNameMax = 100;
+
+export const createLeagueBodySlugMin = 2;
+export const createLeagueBodySlugMax = 40;
+
+
+export const createLeagueBodySlugRegExp = new RegExp('^[a-z0-9][a-z0-9-]*[a-z0-9]$');
+export const createLeagueBodyVisibilityDefault = `public`;
+
+export const CreateLeagueBody = zod.object({
+  "name": zod.string().min(1).max(createLeagueBodyNameMax),
+  "slug": zod.string().min(createLeagueBodySlugMin).max(createLeagueBodySlugMax).regex(createLeagueBodySlugRegExp),
+  "visibility": zod.enum(['public', 'unlisted', 'private']).default(createLeagueBodyVisibilityDefault),
+  "primary_color": zod.string().nullish(),
+  "secondary_color": zod.string().nullish(),
+  "logo_url": zod.string().nullish()
+})
+
+export const CreateLeagueResponse = zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "logo_url": zod.string().nullish(),
+  "primary_color": zod.string().nullish(),
+  "secondary_color": zod.string().nullish(),
+  "owner_user_id": zod.string().optional(),
+  "created_at": zod.coerce.date().optional()
+})
+
+
+/**
  * @summary List leagues the current user belongs to
  */
 export const GetMyLeaguesResponse = zod.object({
@@ -134,6 +168,38 @@ export const GetLeagueParams = zod.object({
 })
 
 export const GetLeagueResponse = zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "logo_url": zod.string().nullish(),
+  "primary_color": zod.string().nullish(),
+  "secondary_color": zod.string().nullish(),
+  "owner_user_id": zod.string().optional(),
+  "created_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Update league settings (commissioner only)
+ */
+export const UpdateLeagueParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const updateLeagueBodyNameMax = 100;
+
+
+
+export const UpdateLeagueBody = zod.object({
+  "name": zod.string().min(1).max(updateLeagueBodyNameMax).optional(),
+  "visibility": zod.enum(['public', 'unlisted', 'private']).optional(),
+  "primary_color": zod.string().nullish(),
+  "secondary_color": zod.string().nullish(),
+  "logo_url": zod.string().nullish()
+})
+
+export const UpdateLeagueResponse = zod.object({
   "id": zod.string(),
   "slug": zod.string(),
   "name": zod.string(),
@@ -244,6 +310,404 @@ export const ListSeasonsResponse = zod.object({
   "points_reg_loss": zod.number().optional(),
   "tiebreakers": zod.array(zod.string()).optional(),
   "is_active": zod.boolean().optional()
+}))
+})
+
+
+/**
+ * @summary Create a new season and generate 32 franchise seats (commissioner only)
+ */
+export const CreateSeasonParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const createSeasonBodyLabelMax = 100;
+
+export const createSeasonBodyGameTitleMax = 50;
+
+export const createSeasonBodySalaryCapCentsMin = 0;
+
+
+
+export const createSeasonBodyGamesPerMatchupDefault = 1;
+
+export const createSeasonBodyPointsWinDefault = 2;
+export const createSeasonBodyPointsWinMin = 0;
+
+export const createSeasonBodyPointsOtLossDefault = 1;
+export const createSeasonBodyPointsOtLossMin = 0;
+
+export const createSeasonBodyPointsRegLossDefault = 0;
+export const createSeasonBodyPointsRegLossMin = 0;
+
+export const createSeasonBodyTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
+
+export const CreateSeasonBody = zod.object({
+  "label": zod.string().min(1).max(createSeasonBodyLabelMax),
+  "game_title": zod.string().min(1).max(createSeasonBodyGameTitleMax),
+  "starts_on": zod.coerce.date().nullish(),
+  "ends_on": zod.coerce.date().nullish(),
+  "salary_cap_cents": zod.number().min(createSeasonBodySalaryCapCentsMin).nullish(),
+  "roster_min": zod.number().min(1).nullish(),
+  "roster_max": zod.number().min(1).nullish(),
+  "games_per_matchup": zod.number().min(1).default(createSeasonBodyGamesPerMatchupDefault),
+  "points_win": zod.number().min(createSeasonBodyPointsWinMin).default(createSeasonBodyPointsWinDefault),
+  "points_ot_loss": zod.number().min(createSeasonBodyPointsOtLossMin).default(createSeasonBodyPointsOtLossDefault),
+  "points_reg_loss": zod.number().min(createSeasonBodyPointsRegLossMin).default(createSeasonBodyPointsRegLossDefault),
+  "tiebreakers": zod.array(zod.string()).default(createSeasonBodyTiebreakersDefault)
+})
+
+
+
+
+export const CreateSeasonResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string().optional(),
+  "ordinal": zod.number().min(1),
+  "label": zod.string(),
+  "game_title": zod.string(),
+  "starts_on": zod.string().nullish(),
+  "ends_on": zod.string().nullish(),
+  "salary_cap_cents": zod.number().nullish(),
+  "roster_min": zod.number().nullish(),
+  "roster_max": zod.number().nullish(),
+  "games_per_matchup": zod.number().optional(),
+  "points_win": zod.number().optional(),
+  "points_ot_loss": zod.number().optional(),
+  "points_reg_loss": zod.number().optional(),
+  "tiebreakers": zod.array(zod.string()).optional(),
+  "is_active": zod.boolean().optional()
+})
+
+
+/**
+ * @summary List active invite links (commissioner only)
+ */
+export const ListInvitesParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListInvitesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "token": zod.string(),
+  "league_id": zod.string(),
+  "max_uses": zod.number().nullish(),
+  "use_count": zod.number().optional(),
+  "expires_at": zod.coerce.date().nullish(),
+  "created_at": zod.coerce.date(),
+  "revoked_at": zod.coerce.date().nullish(),
+  "league_name": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Generate an invite link (commissioner only)
+ */
+export const CreateInviteParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+
+
+
+
+export const CreateInviteBody = zod.object({
+  "max_uses": zod.number().min(1).nullish(),
+  "expires_in_hours": zod.number().min(1).nullish()
+})
+
+export const CreateInviteResponse = zod.object({
+  "id": zod.string(),
+  "token": zod.string(),
+  "league_id": zod.string(),
+  "max_uses": zod.number().nullish(),
+  "use_count": zod.number().optional(),
+  "expires_at": zod.coerce.date().nullish(),
+  "created_at": zod.coerce.date(),
+  "revoked_at": zod.coerce.date().nullish(),
+  "league_name": zod.string().nullish()
+})
+
+
+/**
+ * @summary Preview an invite link before joining
+ */
+export const GetInviteParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetInviteResponse = zod.object({
+  "id": zod.string(),
+  "token": zod.string(),
+  "league_id": zod.string(),
+  "max_uses": zod.number().nullish(),
+  "use_count": zod.number().optional(),
+  "expires_at": zod.coerce.date().nullish(),
+  "created_at": zod.coerce.date(),
+  "revoked_at": zod.coerce.date().nullish(),
+  "league_name": zod.string().nullish()
+})
+
+
+/**
+ * @summary Revoke an invite link (commissioner only)
+ */
+export const RevokeInviteParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const RevokeInviteResponse = zod.void()
+
+
+/**
+ * @summary Submit a join request via invite link
+ */
+export const JoinViaInviteParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const JoinViaInviteResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "user_id": zod.string().optional(),
+  "display_name": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.coerce.date().nullish(),
+  "note": zod.string().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary List join requests for a league (commissioner only)
+ */
+export const ListJoinRequestsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListJoinRequestsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'approved', 'rejected']).optional()
+})
+
+export const ListJoinRequestsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "user_id": zod.string().optional(),
+  "display_name": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.coerce.date().nullish(),
+  "note": zod.string().nullish(),
+  "created_at": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Approve a join request and add the user to the league (commissioner only)
+ */
+export const ApproveJoinRequestParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "requestId": zod.coerce.string()
+})
+
+export const ApproveJoinRequestResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "user_id": zod.string().optional(),
+  "display_name": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.coerce.date().nullish(),
+  "note": zod.string().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reject a join request (commissioner only)
+ */
+export const RejectJoinRequestParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "requestId": zod.coerce.string()
+})
+
+export const RejectJoinRequestResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "user_id": zod.string().optional(),
+  "display_name": zod.string().nullish(),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.coerce.date().nullish(),
+  "note": zod.string().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary List all franchise seats in the active season
+ */
+export const ListSeatsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListSeatsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "team_season_id": zod.string(),
+  "franchise_id": zod.string(),
+  "franchise_name": zod.string().optional(),
+  "nhl_club_id": zod.string().nullish(),
+  "club_abbrev": zod.string().nullish(),
+  "club_name": zod.string().nullish(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "gm": zod.union([zod.object({
+  "assignment_id": zod.string(),
+  "user_id": zod.string(),
+  "display_name": zod.string().nullish(),
+  "started_at": zod.coerce.date().optional(),
+  "role": zod.string().optional()
+}),zod.null()]).optional()
+}))
+})
+
+
+/**
+ * Closes the current active gm_assignment (if any) and opens a new one.
+ * The franchise record is untouched — only the assignment changes.
+ * @summary Assign a GM to a franchise seat (commissioner only)
+ */
+export const AssignGmParams = zod.object({
+  "teamSeasonId": zod.coerce.string()
+})
+
+export const assignGmBodyRoleDefault = `gm`;
+
+export const AssignGmBody = zod.object({
+  "user_id": zod.string(),
+  "role": zod.enum(['gm', 'assistant_commissioner']).default(assignGmBodyRoleDefault),
+  "end_reason": zod.string().nullish().describe('Reason for closing the previous GM assignment (if any).')
+})
+
+export const AssignGmResponse = zod.object({
+  "team_season_id": zod.string(),
+  "franchise_id": zod.string(),
+  "franchise_name": zod.string().optional(),
+  "nhl_club_id": zod.string().nullish(),
+  "club_abbrev": zod.string().nullish(),
+  "club_name": zod.string().nullish(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "gm": zod.union([zod.object({
+  "assignment_id": zod.string(),
+  "user_id": zod.string(),
+  "display_name": zod.string().nullish(),
+  "started_at": zod.coerce.date().optional(),
+  "role": zod.string().optional()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Remove the current GM from a seat (commissioner only)
+ */
+export const RevokeGmParams = zod.object({
+  "teamSeasonId": zod.coerce.string()
+})
+
+export const RevokeGmQueryParams = zod.object({
+  "reason": zod.coerce.string().optional()
+})
+
+export const RevokeGmResponse = zod.object({
+  "team_season_id": zod.string(),
+  "franchise_id": zod.string(),
+  "franchise_name": zod.string().optional(),
+  "nhl_club_id": zod.string().nullish(),
+  "club_abbrev": zod.string().nullish(),
+  "club_name": zod.string().nullish(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "gm": zod.union([zod.object({
+  "assignment_id": zod.string(),
+  "user_id": zod.string(),
+  "display_name": zod.string().nullish(),
+  "started_at": zod.coerce.date().optional(),
+  "role": zod.string().optional()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Get the current rulebook revision
+ */
+export const GetLatestRulebookParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const GetLatestRulebookResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "version": zod.string(),
+  "body_md": zod.string(),
+  "change_note": zod.string().nullish(),
+  "authored_by": zod.string(),
+  "effective_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Publish a new rulebook revision (commissioner only)
+ */
+export const PublishRulebookParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+
+export const publishRulebookBodyChangeNoteMax = 500;
+
+
+
+export const PublishRulebookBody = zod.object({
+  "body_md": zod.string().min(1),
+  "change_note": zod.string().max(publishRulebookBodyChangeNoteMax).nullish()
+})
+
+export const PublishRulebookResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "version": zod.string(),
+  "body_md": zod.string(),
+  "change_note": zod.string().nullish(),
+  "authored_by": zod.string(),
+  "effective_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary List all rulebook revisions in reverse-chronological order
+ */
+export const ListRulebookRevisionsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListRulebookRevisionsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "version": zod.string(),
+  "body_md": zod.string(),
+  "change_note": zod.string().nullish(),
+  "authored_by": zod.string(),
+  "effective_at": zod.coerce.date()
 }))
 })
 

@@ -4,6 +4,9 @@ import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
 import Hub from '@/pages/Hub';
 import Login from '@/pages/Login';
+import CreateLeague from '@/pages/CreateLeague';
+import ManageLeague from '@/pages/ManageLeague';
+import CreateSeason from '@/pages/CreateSeason';
 
 const queryClient = new QueryClient();
 
@@ -33,6 +36,21 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/leagues/new">
+        <AuthGate>
+          <CreateLeague />
+        </AuthGate>
+      </Route>
+      <Route path="/leagues/:id/manage">
+        <AuthGate>
+          <ManageLeague />
+        </AuthGate>
+      </Route>
+      <Route path="/leagues/:id/season/new">
+        <AuthGate>
+          <CreateSeason />
+        </AuthGate>
+      </Route>
       <Route path="/">
         <AuthGate>
           <Hub />

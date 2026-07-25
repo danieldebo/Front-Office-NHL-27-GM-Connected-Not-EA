@@ -1,4 +1,5 @@
 import { useGetMyLeagues, useGetLeagueHub, League } from '@workspace/api-client-react';
+import { Link } from 'wouter';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import LeagueSlab from '@/components/LeagueSlab';
@@ -49,6 +50,9 @@ export default function Hub() {
           <div className="empty-state">
             <h2>Welcome to Front Office</h2>
             <p style={{color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px', marginTop: '10px', textTransform: 'uppercase', letterSpacing: '.1em'}}>You aren't in any leagues yet.</p>
+            <div style={{ marginTop: '20px' }}>
+              <Link href="/leagues/new" className="btn">Create League</Link>
+            </div>
           </div>
         </div>
       )}
