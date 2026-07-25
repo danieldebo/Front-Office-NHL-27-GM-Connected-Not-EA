@@ -1,0 +1,44 @@
+Read these three files first, in order, before doing anything:
+  1. replit.md        — the permanent contract. Fourteen hard rules.
+  2. docs/review-fixes.md — what a pre-build review already fixed in the schema
+     and API. Do NOT revert any of it, and do NOT build the "deferred" items early.
+  3. PHASE_1_SCOPE.md — the checkpoints. You are building Checkpoint 1 ONLY.
+
+Then build Checkpoint 1 and stop. Do not start Checkpoint 2. Do not build
+anything under "Out of scope" in replit.md.
+
+Checkpoint 1 is the foundation, and it deliberately includes the safety
+primitives the rest of the app leans on:
+
+- Vite + React client and Express + TypeScript server running together. Strict
+  mode with noUncheckedIndexedAccess. Zero `any`.
+- Drizzle wired to Replit Postgres, with a bounded connection pool (Replit
+  restarts exhaust unpooled connections).
+- Apply db/schema.sql EXACTLY as written and generate Drizzle types from it. The
+  SQL is the source of truth. Do not let the ORM rewrite it. Do not "improve" or
+  "simplify" the schema — in particular, the version column on game_result, the
+  idempotency_key and outbox tables, and the gm_assignment_one_active unique
+  index are there on purpose (see docs/review-fixes.md). Leaving them out is a bug.
+- An auth adapter at server/auth/index.ts exposing getCurrentUser(), backed by
+  Replit Auth for now. Everything imports the adapter, never Replit Auth directly.
+- server/errors.ts producing RFC 9457 problem+json, every response carrying a
+  trace_id.
+- server/authz.ts exposing can(user, action, resource). The ONLY place
+  permission logic lives. No inline ownership checks in handlers, ever.
+- Durable idempotency middleware backed by the idempotency_key table: a POST
+  replaying the same Idempotency-Key returns the stored response; the same key
+  with a different body returns 422. In-memory does not count — it must survive a
+  restart.
+- Rate-limit middleware (per-user, per-league) returning 429 with Retry-After.
+- A health endpoint.
+
+Before you write any code:
+  a. Tell me your plan.
+  b. Confirm db/schema.sql applies cleanly to Replit Postgres, and flag anything
+     that won't (extensions, syntax, role assumptions).
+  c. Tell me explicitly how you'll make idempotency durable across restarts.
+
+Do not implement Postgres row-level security in this checkpoint. Replit's default
+connection runs as the owner role and bypasses RLS, so it would be security
+theater — enforce tenancy in server/authz.ts and we add RLS in Phase 2. This is
+in docs/review-fixes.md; if you think you need RLS now, ask first.
