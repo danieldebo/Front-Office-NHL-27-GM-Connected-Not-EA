@@ -14,6 +14,9 @@ import {
   useListRulebookRevisions,
   useListInvites,
   useCreateInvite,
+  useListSeasons,
+  useListWeeks,
+  useGenerateSchedule,
   Seat,
   JoinRequest,
   InviteLink,
@@ -305,9 +308,157 @@ function RulebookTab({ leagueId }: { leagueId: string }) {
   );
 }
 
+function ScheduleTab({ leagueId }: { leagueId: string }) {
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
+  const { data: seasonsData, isLoading: seasonsLoading } = useListSeasons(leagueId);
+  const seasons = seasonsData?.data ?? [];
+  const qc = useQueryClient();
+
+  // Pick first season by default
+  React.useEffect(() => {
+    if (!selectedSeasonId && seasons.length > 0 && seasons[0]) {
+      setSelectedSeasonId(seasons[0].id);
+    }
+  }, [seasons, selectedSeasonId]);
+
+  const activeSeason = seasons.find(s => s.id === selectedSeasonId) ?? seasons[0] ?? null;
+
+  const { data: weeksData, isLoading: weeksLoading } = useListWeeks(
+    activeSeason?.id ?? '',
+    { query: { enabled: !!activeSeason?.id } }
+  );
+  const weeks = (weeksData as any)?.data ?? [];
+
+  const generate = useGenerateSchedule();
+  const [genError, setGenError] = useState<string | null>(null);
+
+  const handleGenerate = () => {
+    if (!activeSeason) return;
+    setGenError(null);
+    const startDate = activeSeason.starts_on
+      ? activeSeason.starts_on.slice(0, 10)
+      : new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    if (!confirm(`Generate schedule for this season?\n\nStarts: ${startDate}\nWindow: 7 days each\n\nThis cannot be undone.`)) return;
+    generate.mutate(
+      { seasonId: activeSeason.id, data: { week_duration_days: 7, start_date: startDate } },
+      {
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['/api/seasons', activeSeason.id, 'weeks'] as any }),
+        onError: (err: unknown) => setGenError(err instanceof Error ? err.message : 'Failed'),
+      }
+    );
+  };
+
+  if (seasonsLoading) {
+    return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>Loading seasons…</div>;
+  }
+
+  if (seasons.length === 0) {
+    return (
+      <div className="empty-state" style={{ marginTop: 0 }}>
+        <h2>No Season Yet</h2>
+        <p style={{ color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px', marginTop: '10px', textTransform: 'uppercase', letterSpacing: '.1em' }}>
+          Create a season before generating a schedule.
+        </p>
+        <div style={{ marginTop: '20px' }}>
+          <Link href={`/leagues/${leagueId}/season/new`} className="btn">New Season</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const noSchedule = !weeksLoading && weeks.length === 0;
+
+  return (
+    <div>
+      {seasons.length > 1 && (
+        <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <span style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.1em' }}>Season:</span>
+          {seasons.map((s: any) => (
+            <button key={s.id} className={`btn ${s.id === selectedSeasonId ? '' : 'ghost'}`}
+              onClick={() => setSelectedSeasonId(s.id)} style={{ fontSize: '12px', padding: '5px 12px' }}>
+              {s.name || s.id.slice(0, 8)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {noSchedule && (
+        <div className="panel" style={{ maxWidth: '480px' }}>
+          <div className="panel-head"><h2>No Schedule Yet</h2></div>
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', lineHeight: 1.6 }}>
+              Generate a balanced round-robin schedule. Every franchise plays every other franchise, home/away balanced within 1 game.
+            </div>
+            {genError && (
+              <div style={{ background: '#FCF2F0', border: '1px solid #E5B8B1', borderRadius: '3px', padding: '10px 14px', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--goal)' }}>
+                {genError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button className="btn" onClick={handleGenerate} disabled={generate.isPending}>
+                {generate.isPending ? 'Generating…' : 'Generate Schedule'}
+              </button>
+              <Link href={`/leagues/${leagueId}/schedule`} className="btn ghost">
+                Advanced Options
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {weeks.length > 0 && (
+        <div className="panel">
+          <div className="panel-head">
+            <h2>Week Windows</h2>
+            <span className="note">{weeks.length} weeks · {weeks.reduce((s: number, w: any) => s + (w.games?.total ?? 0), 0)} games</span>
+            <Link href={`/leagues/${leagueId}/schedule`} className="btn ghost" style={{ fontSize: '11px', padding: '4px 10px', marginLeft: 'auto' }}>
+              Full View
+            </Link>
+          </div>
+          {weeks.slice(0, 8).map((week: any) => {
+            const opens  = new Date(week.window_opens_at);
+            const closes = new Date(week.window_closes_at);
+            const now    = new Date();
+            const active = opens <= now && closes > now;
+            return (
+              <div key={week.week_number} className="matchup" style={{ alignItems: 'center' }}>
+                <span className="mu-teams" style={{ minWidth: '60px', fontFamily: 'var(--display)', fontSize: '18px' }}>
+                  Wk {week.week_number}
+                </span>
+                <span className="mu-when">
+                  {opens.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  {' – '}
+                  {closes.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </span>
+                {active && <span className="chip ea" style={{ fontSize: '10px' }}>Live</span>}
+                <span style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', marginLeft: 'auto' }}>
+                  {week.games?.confirmed ?? 0}/{week.games?.total ?? 0} done
+                </span>
+              </div>
+            );
+          })}
+          {weeks.length > 8 && (
+            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--rule)', textAlign: 'center' }}>
+              <Link href={`/leagues/${leagueId}/schedule`} style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--crease)' }}>
+                View all {weeks.length} weeks →
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
+      {weeksLoading && (
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
+          Loading schedule…
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'>('seats');
+  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'>('seats');
   
   const { data: userResponse, isLoading: isLoadingUser } = useGetCurrentAuthUser();
   const { data: league, isLoading: isLoadingLeague } = useGetLeague(id || '');
@@ -360,6 +511,12 @@ export default function ManageLeague() {
           >
             Rulebook
           </button>
+          <button 
+            onClick={() => setActiveTab('schedule')}
+            className={`btn ${activeTab !== 'schedule' ? 'ghost' : ''}`}
+          >
+            Schedule
+          </button>
           
           <div style={{ marginLeft: 'auto' }}>
             <Link href={`/leagues/${league.id}/season/new`} className="btn ghost" style={{ borderColor: 'var(--steel)' }}>
@@ -371,6 +528,9 @@ export default function ManageLeague() {
         {activeTab === 'seats' && <SeatsTab leagueId={league.id} />}
         {activeTab === 'requests' && <JoinRequestsTab leagueId={league.id} />}
         {activeTab === 'rulebook' && <RulebookTab leagueId={league.id} />}
+        {activeTab === 'schedule' && (
+          <ScheduleTab leagueId={league.id} />
+        )}
       </div>
       <Footer />
     </>

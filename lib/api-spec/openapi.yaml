@@ -2,8 +2,8 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.2.0
-  description: Front Office API — league management, results, and standings.
+  version: 0.3.0
+  description: Front Office API — league management, results, standings, and scheduling.
 servers:
   - url: /api
     description: Base API path
@@ -20,6 +20,10 @@ tags:
     description: Versioned league bylaws.
   - name: Competition
     description: Schedule, results, and derived standings.
+  - name: Schedule
+    description: Season schedule generation and week-window management.
+  - name: Availability
+    description: Per-GM availability grids and overlap surfacing.
 
 paths:
   /healthz:
@@ -939,6 +943,174 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  # ------------------------------------------------------------------ Schedule
+
+  /seasons/{seasonId}/schedule:
+    post:
+      tags: [Schedule]
+      operationId: generateSchedule
+      summary: Generate a balanced round-robin schedule for a season
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateScheduleBody'
+      responses:
+        '201':
+          description: Schedule created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateScheduleResult'
+        '409':
+          description: Schedule already exists for this season.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /seasons/{seasonId}/weeks:
+    get:
+      tags: [Schedule]
+      operationId: listWeeks
+      summary: List week windows with game status counts
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Week window list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekListEnvelope'
+
+  /games/{gameId}/window:
+    patch:
+      tags: [Schedule]
+      operationId: shiftWindow
+      summary: Shift a game's scheduling window (commissioner)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShiftWindowBody'
+      responses:
+        '200':
+          description: Window updated.
+
+  /games/{gameId}/postpone:
+    post:
+      tags: [Schedule]
+      operationId: postponeGame
+      summary: Postpone a game (commissioner)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostponeGameBody'
+      responses:
+        '200':
+          description: Game postponed.
+
+  /games/{gameId}/force-resolve:
+    post:
+      tags: [Schedule]
+      operationId: forceResolveGame
+      summary: Force-resolve a game at window close (commissioner)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForceResolveGameBody'
+      responses:
+        '200':
+          description: Game force-resolved.
+
+  # ------------------------------------------------------------------ Availability
+
+  /leagues/{leagueId}/availability:
+    put:
+      tags: [Availability]
+      operationId: setAvailability
+      summary: Set my availability grid for a league
+      parameters:
+        - name: leagueId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAvailabilityBody'
+      responses:
+        '200':
+          description: Availability saved.
+
+  /leagues/{leagueId}/availability/me:
+    get:
+      tags: [Availability]
+      operationId: getMyAvailability
+      summary: Get my availability grid for a league
+      parameters:
+        - name: leagueId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Availability record.
+
+  /games/{gameId}/overlap:
+    get:
+      tags: [Availability]
+      operationId: getGameOverlap
+      summary: Get overlapping availability for a game's two GMs
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Overlap computation result.
+
 components:
 
   parameters:
@@ -1581,6 +1753,142 @@ components:
         dispute_reason:
           type: ["string", "null"]
           maxLength: 500
+
+    # ------------------------------------------------------------------ Schedule
+
+    GenerateScheduleBody:
+      type: object
+      properties:
+        week_duration_days:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+        start_date:
+          type: string
+          format: date
+
+    GenerateScheduleResult:
+      type: object
+      required: [games_created, total_weeks, total_rounds]
+      properties:
+        games_created:
+          type: integer
+        total_weeks:
+          type: integer
+        total_rounds:
+          type: integer
+        season_start:
+          type: string
+          format: date-time
+        week_duration_days:
+          type: integer
+
+    WeekStatus:
+      type: object
+      required: [total, scheduled, in_window, reported, confirmed, disputed, forfeited, postponed, voided]
+      properties:
+        total:      { type: integer }
+        scheduled:  { type: integer }
+        in_window:  { type: integer }
+        reported:   { type: integer }
+        confirmed:  { type: integer }
+        disputed:   { type: integer }
+        forfeited:  { type: integer }
+        postponed:  { type: integer }
+        voided:     { type: integer }
+
+    WeekWindow:
+      type: object
+      required: [week_number, window_opens_at, window_closes_at, games]
+      properties:
+        week_number:
+          type: integer
+        window_opens_at:
+          type: string
+          format: date-time
+        window_closes_at:
+          type: string
+          format: date-time
+        games:
+          $ref: '#/components/schemas/WeekStatus'
+
+    WeekListEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeekWindow'
+
+    ShiftWindowBody:
+      type: object
+      required: [window_opens_at, window_closes_at, reason]
+      properties:
+        window_opens_at:
+          type: string
+          format: date-time
+        window_closes_at:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    PostponeGameBody:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    ForceResolveGameBody:
+      type: object
+      required: [resolution, reason]
+      properties:
+        resolution:
+          type: string
+          enum: [forfeit_home, forfeit_away, void]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    # ------------------------------------------------------------------ Availability
+
+    AvailabilitySlot:
+      type: object
+      required: [dow, block]
+      properties:
+        dow:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: "0 = Sunday, 6 = Saturday"
+        block:
+          type: string
+          enum: [morning, afternoon, evening, night]
+
+    SetAvailabilityBody:
+      type: object
+      required: [timezone, slots]
+      properties:
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: IANA timezone string (e.g. America/New_York)
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilitySlot'
+          maxItems: 56
+
+    # ------------------------------------------------------------------ Competition (existing)
 
     StandingsRow:
       type: object

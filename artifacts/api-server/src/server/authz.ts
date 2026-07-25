@@ -14,6 +14,8 @@ export type Action =
   | "season:read"
   | "season:create"          // commissioner creates a season
   | "game:read"
+  | "game:manage"            // commissioner: shift window, postpone, force-resolve
+  | "schedule:generate"      // commissioner: generate the season schedule
   | "result:report"
   | "result:confirm"
   | "result:dispute"
@@ -65,6 +67,8 @@ export function can(
 
     case "league:write":
     case "season:create":
+    case "game:manage":
+    case "schedule:generate":
     case "seat:manage":
     case "invite:manage":
     case "rulebook:write": {

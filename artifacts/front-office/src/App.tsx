@@ -7,6 +7,8 @@ import Login from '@/pages/Login';
 import CreateLeague from '@/pages/CreateLeague';
 import ManageLeague from '@/pages/ManageLeague';
 import CreateSeason from '@/pages/CreateSeason';
+import Schedule from '@/pages/Schedule';
+import Availability from '@/pages/Availability';
 
 const queryClient = new QueryClient();
 
@@ -49,6 +51,16 @@ function Router() {
       <Route path="/leagues/:id/season/new">
         <AuthGate>
           <CreateSeason />
+        </AuthGate>
+      </Route>
+      <Route path="/leagues/:id/schedule">
+        <AuthGate>
+          <Schedule />
+        </AuthGate>
+      </Route>
+      <Route path="/leagues/:id/availability">
+        <AuthGate>
+          <Availability />
         </AuthGate>
       </Route>
       <Route path="/">

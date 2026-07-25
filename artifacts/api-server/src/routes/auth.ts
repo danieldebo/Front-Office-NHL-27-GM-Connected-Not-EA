@@ -119,6 +119,24 @@ async function upsertUser(claims: Record<string, unknown>) {
       },
     })
     .returning();
+
+  // Provision app_user — the domain-level profile linked by replit_id.
+  // This is the row all route handlers resolve to via WHERE replit_id = $1.
+  // Uses pool (raw SQL) because app_user is not in the Drizzle schema.
+  const { pool } = await import('@workspace/db');
+  const displayName = [userData.firstName, userData.lastName].filter(Boolean).join(' ')
+    || userData.email?.split('@')[0]
+    || 'GM';
+  const email = userData.email ?? `${userData.id}@replit.noreply`;
+
+  await pool.query(
+    `INSERT INTO app_user (replit_id, display_name, email, external_ids)
+     VALUES ($1, $2, $3, '{}'::jsonb)
+     ON CONFLICT (replit_id) DO UPDATE
+       SET display_name = EXCLUDED.display_name`,
+    [userData.id, displayName, email]
+  );
+
   return user;
 }
 

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team Admin — Keepers — Rust Belt Hockey League</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ice:#EDF1F4; --paper:#FFFFFF; --slab:#16202A; --slab-2:#1E2C39;
+  --steel:#5C6B78; --bulb:#F2A93B; --crease:#2F6FB5; --goal:#B33A2B;
+  --rule:#D3DBE2; --ink:#0E1620; --pos:#1F7A4C;
+  --display:'Anton',Impact,sans-serif; --body:'Public Sans',system-ui,sans-serif; --data:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box} html,body{margin:0;padding:0}
+body{background:var(--ice);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+a{color:var(--crease)}
+
+/* masthead */
+.masthead{border-bottom:1px solid var(--rule);background:var(--paper)}
+.masthead .wrap{display:flex;align-items:center;gap:14px;height:58px}
+.crest{width:32px;height:32px;flex:none;border-radius:3px;background:var(--slab);color:var(--bulb);font-family:var(--display);font-size:18px;display:grid;place-items:center}
+.mast-name{font-family:var(--display);font-size:18px;letter-spacing:.04em;text-transform:uppercase;line-height:1}
+.mast-meta{font-family:var(--data);font-size:10.5px;color:var(--steel);letter-spacing:.06em;text-transform:uppercase}
+.breadcrumb{margin-left:auto;font-family:var(--data);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--steel)}
+.breadcrumb b{color:var(--ink)}
+
+/* header slab */
+.slab{background:var(--slab);color:#E8EEF3;position:relative;overflow:hidden}
+.slab::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 80% at 82% -30%,rgba(242,169,59,.15),transparent 60%)}
+.slab .wrap{position:relative;z-index:1;padding:26px 20px 30px;display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap}
+.team-badge{width:52px;height:52px;border-radius:4px;background:linear-gradient(135deg,#CE1126,#7a0a17);display:grid;place-items:center;font-family:var(--display);color:#fff;font-size:22px;flex:none}
+.eyebrow{font-family:var(--data);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--bulb)}
+.slab h1{font-family:var(--display);font-size:clamp(28px,4.4vw,42px);line-height:.95;letter-spacing:.01em;text-transform:uppercase;margin:6px 0 2px}
+.slab .gm{color:#9FB1BF;font-size:13px}
+
+/* slot meter */
+.slots{margin-left:auto;text-align:right}
+.slot-count{font-family:var(--display);font-size:40px;line-height:1;color:var(--bulb)}
+.slot-count small{font-size:22px;color:#7A8B99}
+.slot-label{font-family:var(--data);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#8296A5;margin-top:4px}
+.pips{display:flex;gap:5px;justify-content:flex-end;margin-top:9px}
+.pip{width:26px;height:6px;border-radius:2px;background:rgba(255,255,255,.14)}
+.pip.filled{background:var(--bulb)}
+
+/* commissioner override banner */
+.override{background:#FDF7EA;border:1px solid #EBD3A1;border-radius:3px;padding:9px 14px;margin:18px 0 0;display:flex;align-items:center;gap:10px;font-size:12.5px;color:#6b4e12}
+.override .tag{font-family:var(--data);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;background:var(--bulb);color:#3a2c07;padding:2px 7px;border-radius:2px;font-weight:600}
+
+/* layout */
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;padding:22px 0 60px}
+.panel{background:var(--paper);border:1px solid var(--rule);border-radius:3px;margin-bottom:20px}
+.panel-head{display:flex;align-items:baseline;gap:12px;padding:13px 16px 11px;border-bottom:1px solid var(--rule)}
+.panel-head h2{font-family:var(--display);font-size:15px;letter-spacing:.08em;text-transform:uppercase;margin:0}
+.panel-head .note{font-family:var(--data);font-size:10.5px;color:var(--steel);margin-left:auto}
+
+/* keeper row + stat card */
+.keeper{border-bottom:1px solid #EDF1F4}
+.keeper:last-child{border-bottom:0}
+.keeper-main{display:flex;align-items:center;gap:13px;padding:13px 16px}
+.pos-chip{width:30px;height:30px;border-radius:50%;background:var(--slab);color:#fff;font-family:var(--data);font-size:11px;font-weight:600;display:grid;place-items:center;flex:none}
+.pos-chip.G{background:var(--crease)}
+.k-name{font-weight:600;font-size:15px}
+.k-sub{font-family:var(--data);font-size:11px;color:var(--steel);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.matched{color:var(--pos)}
+.manual{color:#8A6100}
+.tenure{font-family:var(--data);font-size:10px;letter-spacing:.05em;text-transform:uppercase;background:#F1F8F4;color:var(--pos);border:1px solid #B7D9C6;border-radius:2px;padding:2px 6px}
+.tenure.y3{background:#FDF7EA;color:#8A6100;border-color:#EBD3A1}
+.ovr-flag{font-family:var(--data);font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:#FDF7EA;color:#8A6100;border:1px solid #EBD3A1;border-radius:2px;padding:1px 5px}
+.k-actions{margin-left:auto;display:flex;gap:7px}
+.icon-btn{font-family:var(--data);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--rule);background:var(--paper);color:var(--steel);padding:6px 10px;border-radius:2px;cursor:pointer}
+.icon-btn:hover{border-color:var(--slab);color:var(--slab)}
+.icon-btn.danger:hover{border-color:var(--goal);color:var(--goal)}
+
+/* 1/3/5 stat cards */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);border-top:1px solid var(--rule)}
+.card{background:var(--paper);padding:11px 13px}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.card-win{font-family:var(--display);font-size:15px;letter-spacing:.05em}
+.card-span{font-family:var(--data);font-size:9px;color:var(--steel)}
+.statline{display:grid;grid-template-columns:repeat(4,1fr);gap:6px 4px}
+.stat{text-align:center}
+.stat .v{font-family:var(--data);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1}
+.stat .k{font-family:var(--data);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);margin-top:3px}
+.card-src{font-family:var(--data);font-size:8.5px;color:var(--steel);margin-top:9px;text-align:right;font-style:italic}
+.no-card{padding:12px 16px;background:#FBFCFD;border-top:1px solid #EDF1F4;font-size:12px;color:var(--steel);display:flex;align-items:center;gap:10px}
+.no-card .btn-match{font-family:var(--data);font-size:10px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--crease);color:var(--crease);background:transparent;padding:5px 10px;border-radius:2px;cursor:pointer}
+
+/* empty slot */
+.empty-slot{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid #EDF1F4;color:var(--steel)}
+.empty-dot{width:30px;height:30px;border-radius:50%;border:1.5px dashed var(--rule);flex:none}
+.empty-slot .add{margin-left:auto;font-family:var(--data);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--slab);background:var(--slab);color:#fff;padding:7px 12px;border-radius:2px;cursor:pointer}
+
+/* add keeper / search panel */
+.search-box{padding:14px 16px}
+.search-input{width:100%;font-family:var(--body);font-size:14px;padding:10px 12px;border:1px solid var(--rule);border-radius:3px}
+.search-input:focus{outline:2px solid var(--bulb);outline-offset:1px;border-color:var(--slab)}
+.hint{font-family:var(--data);font-size:10.5px;color:var(--steel);margin-top:8px}
+.result{display:flex;align-items:center;gap:10px;padding:9px 16px;border-top:1px solid #EDF1F4;cursor:pointer}
+.result:hover{background:#F6F9FB}
+.result .rpos{width:24px;height:24px;border-radius:50%;background:var(--ice);color:var(--slab);font-family:var(--data);font-size:10px;font-weight:600;display:grid;place-items:center;flex:none}
+.result .rname{font-weight:600;font-size:13.5px}
+.result .rmeta{font-family:var(--data);font-size:10.5px;color:var(--steel)}
+.result .radd{margin-left:auto;font-family:var(--data);font-size:16px;color:var(--crease)}
+.manual-cta{padding:11px 16px;border-top:1px solid var(--rule);background:#FBFCFD;font-size:12px;color:var(--steel)}
+.manual-cta b{color:var(--crease);cursor:pointer}
+
+.legend{padding:11px 16px;border-top:1px solid var(--rule);background:#FAFCFD;font-family:var(--data);font-size:10.5px;color:var(--steel);line-height:1.7}
+.legend .tenure{margin-right:4px}
+
+footer{border-top:1px solid var(--rule);background:var(--paper)}
+footer .wrap{padding:18px 20px;font-family:var(--data);font-size:10px;letter-spacing:.05em;color:var(--steel);display:flex;flex-wrap:wrap;gap:14px}
+
+@media (max-width:900px){
+  .cols{grid-template-columns:1fr}
+  .cards{grid-template-columns:1fr}
+  .slots{margin-left:0;text-align:left}
+  .pips{justify-content:flex-start}
+}
+@media (max-width:560px){
+  .statline{grid-template-columns:repeat(4,1fr)}
+  .k-actions{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crest">RB</div>
+    <div>
+      <div class="mast-name">Rust Belt Hockey League</div>
+      <div class="mast-meta">Season 3 · NHL 27</div>
+    </div>
+    <div class="breadcrumb">Team Admin / <b>Keepers</b></div>
+  </div>
+</header>
+
+<section class="slab">
+  <div class="wrap">
+    <div class="team-badge">CHI</div>
+    <div>
+      <div class="eyebrow">Franchise · founded Season 1</div>
+      <h1>Chicago Blackhawks</h1>
+      <div class="gm">GM: you · <span style="color:#F2A93B">viewing as commissioner</span></div>
+    </div>
+    <div class="slots">
+      <div class="slot-count">2<small> / 3</small></div>
+      <div class="slot-label">Keepers used</div>
+      <div class="pips"><span class="pip filled"></span><span class="pip filled"></span><span class="pip"></span></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="override">
+    <span class="tag">Commissioner</span>
+    You're editing another team's keepers. Changes are logged and flagged as an override on each keeper.
+  </div>
+
+  <div class="cols">
+    <main>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Current keepers</h2>
+          <span class="note">2 of 3 · 1 slot open</span>
+        </div>
+
+        <!-- Keeper 1 — registry matched, 3-year tenure -->
+        <div class="keeper">
+          <div class="keeper-main">
+            <div class="pos-chip">C</div>
+            <div>
+              <div class="k-name">Connor Bedard</div>
+              <div class="k-sub">
+                <span class="matched">● Registry matched</span>
+                <span class="tenure y3">Kept 3 seasons</span>
+                <span>since Oct 2 2024</span>
+              </div>
+            </div>
+            <div class="k-actions">
+              <button class="icon-btn">Edit</button>
+              <button class="icon-btn danger">Release</button>
+            </div>
+          </div>
+          <div class="cards">
+            <div class="card">
+              <div class="card-head"><span class="card-win">1 YR</span><span class="card-span">2024-25</span></div>
+              <div class="statline">
+                <div class="stat"><div class="v">82</div><div class="k">GP</div></div>
+                <div class="stat"><div class="v">37</div><div class="k">G</div></div>
+                <div class="stat"><div class="v">61</div><div class="k">A</div></div>
+                <div class="stat"><div class="v">98</div><div class="k">PTS</div></div>
+              </div>
+              <div class="card-src">NHL stats as of Jul 22</div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span class="card-win">3 YR</span><span class="card-span">2022-25</span></div>
+              <div class="statline">
+                <div class="stat"><div class="v">228</div><div class="k">GP</div></div>
+                <div class="stat"><div class="v">94</div><div class="k">G</div></div>
+                <div class="stat"><div class="v">160</div><div class="k">A</div></div>
+                <div class="stat"><div class="v">254</div><div class="k">PTS</div></div>
+              </div>
+              <div class="card-src">NHL stats as of Jul 22</div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span class="card-win">5 YR</span><span class="card-span">2022-25 · 3 seasons</span></div>
+              <div class="statline">
+                <div class="stat"><div class="v">228</div><div class="k">GP</div></div>
+                <div class="stat"><div class="v">94</div><div class="k">G</div></div>
+                <div class="stat"><div class="v">160</div><div class="k">A</div></div>
+                <div class="stat"><div class="v">254</div><div class="k">PTS</div></div>
+              </div>
+              <div class="card-src">Only 3 seasons in NHL</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Keeper 2 — commissioner override, registry matched -->
+        <div class="keeper">
+          <div class="keeper-main">
+            <div class="pos-chip G">G</div>
+            <div>
+              <div class="k-name">Spencer Knight</div>
+              <div class="k-sub">
+                <span class="matched">● Registry matched</span>
+                <span class="tenure">Kept 1 season</span>
+                <span class="ovr-flag">Commish added</span>
+                <span>since Sep 28 2026</span>
+              </div>
+            </div>
+            <div class="k-actions">
+              <button class="icon-btn">Edit</button>
+              <button class="icon-btn danger">Release</button>
+            </div>
+          </div>
+          <div class="cards">
+            <div class="card">
+              <div class="card-head"><span class="card-win">1 YR</span><span class="card-span">2024-25</span></div>
+              <div class="statline">
+                <div class="stat"><div class="v">32</div><div class="k">GP</div></div>
+                <div class="stat"><div class="v">.913</div><div class="k">SV%</div></div>
+                <div class="stat"><div class="v">2.48</div><div class="k">GAA</div></div>
+                <div class="stat"><div class="v">3</div><div class="k">SO</div></div>
+              </div>
+              <div class="card-src">NHL stats as of Jul 22</div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span class="card-win">3 YR</span><span class="card-span">2022-25</span></div>
+              <div class="statline">
+                <div class="stat"><div class="v">71</div><div class="k">GP</div></div>
+                <div class="stat"><div class="v">.910</div><div class="k">SV%</div></div>
+                <div class="stat"><div class="v">2.61</div><div class="k">GAA</div></div>
+                <div class="stat"><div class="v">5</div><div class="k">SO</div></div>
+              </div>
+              <div class="card-src">NHL stats as of Jul 22</div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span class="card-win">5 YR</span><span class="card-span">2020-25</span></div>
+              <div class="statline">
+                <div class="stat"><div class="v">88</div><div class="k">GP</div></div>
+                <div class="stat"><div class="v">.911</div><div class="k">SV%</div></div>
+                <div class="stat"><div class="v">2.58</div><div class="k">GAA</div></div>
+                <div class="stat"><div class="v">6</div><div class="k">SO</div></div>
+              </div>
+              <div class="card-src">NHL stats as of Jul 22</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Open slot -->
+        <div class="empty-slot">
+          <div class="empty-dot"></div>
+          <div>Slot 3 open — add a keeper from the registry or enter one manually</div>
+          <button class="add" onclick="document.getElementById('kw').focus()">+ Add keeper</button>
+        </div>
+
+        <div class="legend">
+          <span class="tenure">Kept N</span> seasons kept by this franchise, carried across GM changes ·
+          <span class="tenure y3">amber</span> nearing the league's keeper-tenure limit ·
+          <span class="ovr-flag">Commish added</span> designated by commissioner override
+        </div>
+      </section>
+    </main>
+
+    <aside>
+      <section class="panel">
+        <div class="panel-head"><h2>Add a keeper</h2><span class="note">1 slot left</span></div>
+        <div class="search-box">
+          <input id="kw" class="search-input" placeholder="Start typing a player name…" value="frank">
+          <div class="hint">Indexed across every NHL player · tolerant of typos</div>
+        </div>
+
+        <!-- live results -->
+        <div class="result">
+          <div class="rpos">LW</div>
+          <div>
+            <div class="rname">Frank Nazar</div>
+            <div class="rmeta">CHI · #91</div>
+          </div>
+          <div class="radd">＋</div>
+        </div>
+        <div class="result">
+          <div class="rpos">C</div>
+          <div>
+            <div class="rname">Frank Vatrano</div>
+            <div class="rmeta">ANA · #77</div>
+          </div>
+          <div class="radd">＋</div>
+        </div>
+        <div class="result">
+          <div class="rpos">D</div>
+          <div>
+            <div class="rname">Franklin Djurasevic</div>
+            <div class="rmeta">Prospect · no NHL games</div>
+          </div>
+          <div class="radd">＋</div>
+        </div>
+
+        <div class="manual-cta">
+          Not finding them? <b>Enter manually →</b><br>
+          A manually-added player is a valid keeper — it just won't show a stat card until it's matched to the registry.
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Keeper rules</h2></div>
+        <div style="padding:13px 16px;font-size:13px;line-height:1.7">
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--steel)">Keepers per team</span><b>3</b></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--steel)">Max seasons as keeper</span><b>3</b></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--steel)">Deadline</span><b>Sep 1</b></div>
+          <div style="font-family:var(--data);font-size:10.5px;color:var(--steel);margin-top:10px">Set by commissioner · rulebook v1.2</div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Team admin · keeper page mockup v1.0</span>
+    <span>Tenure tracked from original designation, across seasons</span>
+    <span>NHL stats are reference data — cached, dated, never league standings</span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -39,4 +39,24 @@ The `idempotency_key` table is used (not in-memory). Survives Replit restarts. A
 From `design/league-hub-mockup.html`: fonts Anton (display), IBM Plex Mono (data), Public Sans (body). Colors: `--ice` (#EDF1F4), `--slab` (#16202A), `--slab-2` (#1E2C39), `--steel` (#5C6B78), `--bulb` (#F2A93B), `--crease` (#2F6FB5), `--goal` (#B33A2B), `--rule` (#D3DBE2), `--ink` (#0E1620), `--paper` (#FFFFFF). No Tailwind, no component library.
 
 ## Checkpoint scope
-Only Checkpoint 1 of `docs/PHASE_1_SCOPE.md` is built. Do not start Checkpoint 2.
+Checkpoints 1, 2, and 3 are complete. CP4+ not yet started.
+
+## CP3: app_user.replit_id provisioning
+`app_user` was missing a `replit_id CITEXT UNIQUE` column that all route handlers rely on for `WHERE replit_id = $1` lookups. Added in migration v1.1.0 via `executeSql`. The OIDC `upsertUser()` in `routes/auth.ts` now also upserts `app_user` after writing to the Drizzle `usersTable`, using `ON CONFLICT (replit_id) DO UPDATE`.
+
+**Why:** `users` (Drizzle auth table, id = Replit OIDC sub) and `app_user` (domain table, id = UUID) are separate. All routes need the UUID via `replit_id`. Without provisioning on login, every domain route 404s.
+
+## CP3: Orval COLLIDING_NAMES — must add ALL new body schemas
+The patch script `lib/api-spec/patch-api-zod-index.mjs` maintains `COLLIDING_NAMES`. Any schema that Orval generates as BOTH a Zod const in `generated/api.ts` AND as a TypeScript type in `generated/types/` must be added here. Body schemas (e.g. `GenerateScheduleBody`, `ShiftWindowBody`) always collide. Symptom: "only refers to a type, but is being used as a value" in route files.
+
+## CP3: idempotency_key uses request_digest, not body_hash
+The DB column is `request_digest` (not `body_hash`). The middleware SELECT must query `request_digest`. User UUID (`app_user.id`) is looked up by `replit_id` before the SELECT so the (user_id, key) PK is properly scoped.
+
+## CP3: counts_toward_standings column added to game_result
+Added via migration v1.1.0. `competition.ts` INSERTs `FALSE` on report; set to `TRUE` on confirm. Force-resolve synthetic results use `TRUE`. The `v_active_result` view uses game status to determine standings inclusion independently.
+
+## CP3: pure functions in server/core/
+`server/core/schedule.ts` — circle-method round-robin, no DB/Express imports. `server/core/availability.ts` — IANA timezone overlap using `Intl.DateTimeFormat`. Both are pure and independently testable. New actions in authz: `schedule:generate`, `game:manage`.
+
+## CP3: Season hook naming
+The hook for listing a league's seasons is `useListSeasons(leagueId)` from `@workspace/api-client-react`, not `useGetLeagueSeasons`.

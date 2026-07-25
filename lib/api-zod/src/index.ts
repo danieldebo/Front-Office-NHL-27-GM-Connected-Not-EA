@@ -10,6 +10,8 @@ export type { AssignedGm } from "./generated/types/assignedGm";
 export type { AuthUser } from "./generated/types/authUser";
 export type { AuthUserEnvelope } from "./generated/types/authUserEnvelope";
 export type { AuthorizationSessionHeaderParameter } from "./generated/types/authorizationSessionHeaderParameter";
+// AvailabilitySlot intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// AvailabilitySlotBlock intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { BeginBrowserLoginParams } from "./generated/types/beginBrowserLoginParams";
 export type { ConfirmInput } from "./generated/types/confirmInput";
 export type { CreateInviteInput } from "./generated/types/createInviteInput";
@@ -17,12 +19,16 @@ export type { CreateLeagueInput } from "./generated/types/createLeagueInput";
 export type { CreateLeagueInputVisibility } from "./generated/types/createLeagueInputVisibility";
 export type { CreateSeasonInput } from "./generated/types/createSeasonInput";
 export type { ErrorEnvelope } from "./generated/types/errorEnvelope";
+// ForceResolveGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// ForceResolveGameBodyResolution intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Game } from "./generated/types/game";
 export type { GameResult } from "./generated/types/gameResult";
 export type { GameResultDataSource } from "./generated/types/gameResultDataSource";
 export type { GameResultDecision } from "./generated/types/gameResultDecision";
 export type { GameSide } from "./generated/types/gameSide";
 export type { GameStatus } from "./generated/types/gameStatus";
+// GenerateScheduleBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// GenerateScheduleResult intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { GetMyLeagues200 } from "./generated/types/getMyLeagues200";
 export type { GetStandings200 } from "./generated/types/getStandings200";
 export type { HandleBrowserLoginCallbackParams } from "./generated/types/handleBrowserLoginCallbackParams";
@@ -48,6 +54,7 @@ export type { LogoutBrowserSessionParams } from "./generated/types/logoutBrowser
 export type { LogoutSuccess } from "./generated/types/logoutSuccess";
 export type { MobileTokenExchangeInput } from "./generated/types/mobileTokenExchangeInput";
 export type { MobileTokenExchangeSuccess } from "./generated/types/mobileTokenExchangeSuccess";
+// PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
 export type { ProblemError } from "./generated/types/problemError";
 export type { PublishRulebookInput } from "./generated/types/publishRulebookInput";
@@ -58,6 +65,11 @@ export type { RulebookRevision } from "./generated/types/rulebookRevision";
 export type { Season } from "./generated/types/season";
 export type { Seat } from "./generated/types/seat";
 export type { SeatSeatStatus } from "./generated/types/seatSeatStatus";
+// SetAvailabilityBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// ShiftWindowBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { StandingsRow } from "./generated/types/standingsRow";
 export type { UpdateLeagueInput } from "./generated/types/updateLeagueInput";
 export type { UpdateLeagueInputVisibility } from "./generated/types/updateLeagueInputVisibility";
+// WeekListEnvelope intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// WeekStatus intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// WeekWindow intentionally excluded — collides with Zod const of the same name in generated/api.ts
