@@ -689,6 +689,10 @@ export interface PublicCodeResult {
   public_code: string | null;
 }
 
+export interface PublicCodeLookup {
+  slug: string;
+}
+
 export interface CommissionerInvitePublic {
   invite_id: string;
   token: string;

@@ -306,6 +306,29 @@ router.patch(
   }
 );
 
+// ────────────────────────────────────────────── Public code lookup
+
+// GET /j/:code — resolve a league public code to its slug, no auth required
+router.get(
+  "/j/:code",
+  rateLimiter(),
+  async (req: Request, res: Response): Promise<void> => {
+    const code = String(req.params["code"]).toUpperCase();
+
+    const { rows } = await pool.query<{ slug: string }>(
+      `SELECT slug FROM league WHERE UPPER(public_code) = $1 LIMIT 1`,
+      [code]
+    );
+
+    if (!rows[0]) {
+      notFound(res, `No league found with public code '${code}'.`);
+      return;
+    }
+
+    res.json({ slug: rows[0].slug });
+  }
+);
+
 // ────────────────────────────────────────────── Public join endpoints
 
 // GET /join/:token — public landing page, no auth required

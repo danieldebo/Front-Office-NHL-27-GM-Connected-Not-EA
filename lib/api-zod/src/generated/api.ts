@@ -1366,6 +1366,18 @@ export const SetPublicCodeResponse = zod.object({
 
 
 /**
+ * @summary Resolve a league public code to its slug (no auth required)
+ */
+export const ResolvePublicCodeParams = zod.object({
+  "code": zod.coerce.string().describe('League public code (case-insensitive, e.g. RUSTBELT)')
+})
+
+export const ResolvePublicCodeResponse = zod.object({
+  "slug": zod.string()
+})
+
+
+/**
  * @summary Public landing page data for a commissioner invite link
  */
 export const GetCommissionerInvitePublicParams = zod.object({

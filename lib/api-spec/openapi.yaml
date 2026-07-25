@@ -1426,6 +1426,38 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /j/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+        description: League public code (case-insensitive, e.g. RUSTBELT)
+    get:
+      tags: [Discovery]
+      operationId: resolvePublicCode
+      summary: Resolve a league public code to its slug (no auth required)
+      responses:
+        '200':
+          description: League slug resolved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicCodeLookup'
+        '404':
+          description: No league with that public code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
   /join/{token}:
     parameters:
       - $ref: '#/components/parameters/CommissionerInviteToken'
@@ -2379,6 +2411,13 @@ components:
       properties:
         public_code:
           type: ["string", "null"]
+
+    PublicCodeLookup:
+      type: object
+      required: [slug]
+      properties:
+        slug:
+          type: string
 
     CommissionerInvitePublic:
       type: object

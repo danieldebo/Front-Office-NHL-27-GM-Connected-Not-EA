@@ -346,12 +346,16 @@ function LinksTab({ leagueId, leagueSlug }: { leagueId: string; leagueSlug: stri
 
   const inviteUrl = invite ? `${window.location.origin}/join/${invite.token}` : null;
   const publicUrl = `${window.location.origin}/l/${leagueSlug}`;
+  const publicCodeUrl = publicCode ? `${window.location.origin}/j/${publicCode}` : null;
 
   const handleCopyInvite = () => {
     if (inviteUrl) { navigator.clipboard.writeText(inviteUrl); alert('Invite link copied!'); }
   };
   const handleCopyCode = () => {
     navigator.clipboard.writeText(publicCode); alert('Public code copied!');
+  };
+  const handleCopyPublicUrl = () => {
+    if (publicCodeUrl) { navigator.clipboard.writeText(publicCodeUrl); alert('Public URL copied!'); }
   };
 
   const handleSavePublicCode = () => {
@@ -450,9 +454,12 @@ function LinksTab({ leagueId, leagueSlug }: { leagueId: string; leagueSlug: stri
           )}
 
           {publicCode && (
-            <div style={{ borderTop: '1px solid var(--rule)', paddingTop: '10px' }}>
-              <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '4px' }}>Public URL</div>
-              <code style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--ink)', wordBreak: 'break-all' }}>{publicUrl}</code>
+            <div style={{ borderTop: '1px solid var(--rule)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Shareable URL</div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <code style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--crease)', wordBreak: 'break-all', flex: 1 }}>{publicCodeUrl}</code>
+                <button onClick={handleCopyPublicUrl} className="btn ghost" style={{ fontSize: '11px', padding: '4px 10px', whiteSpace: 'nowrap' }}>Copy URL</button>
+              </div>
             </div>
           )}
         </div>

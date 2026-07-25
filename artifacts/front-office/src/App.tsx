@@ -13,6 +13,7 @@ import ReportResult from '@/pages/ReportResult';
 import ConfirmResult from '@/pages/ConfirmResult';
 import LeaguePublic from '@/pages/LeaguePublic';
 import JoinInvite from '@/pages/JoinInvite';
+import JoinByCode from '@/pages/JoinByCode';
 import OpenLeagues from '@/pages/OpenLeagues';
 import Footer from '@/components/Footer';
 
@@ -83,6 +84,7 @@ function Router() {
       <Route path="/leagues/open" component={OpenLeagues} />
       <Route path="/l/:slug" component={LeaguePublic} />
       <Route path="/join/:token" component={JoinInvite} />
+      <Route path="/j/:code" component={JoinByCode} />
       <Route path="/">
         <AuthGate>
           <Hub />

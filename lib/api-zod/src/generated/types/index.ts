@@ -76,6 +76,7 @@ export * from './openLeague';
 export * from './postponeGameBody';
 export * from './problem';
 export * from './problemError';
+export * from './publicCodeLookup';
 export * from './publicCodeResult';
 export * from './publicLeagueEnvelope';
 export * from './publicLeagueEnvelopeLeague';

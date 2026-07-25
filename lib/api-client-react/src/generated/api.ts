@@ -65,6 +65,7 @@ import type {
   MobileTokenExchangeSuccess,
   PostponeGameBody,
   Problem,
+  PublicCodeLookup,
   PublicCodeResult,
   PublicLeagueEnvelope,
   PublishRulebookInput,
@@ -3733,6 +3734,83 @@ export const useSetPublicCode = <TError = ErrorType<Problem>,
       > => {
       return useMutation(getSetPublicCodeMutationOptions(options));
     }
+
+export const getResolvePublicCodeUrl = (code: string,) => {
+
+
+
+
+  return `/api/j/${code}`
+}
+
+/**
+ * @summary Resolve a league public code to its slug (no auth required)
+ */
+export const resolvePublicCode = async (code: string, options?: RequestInit): Promise<PublicCodeLookup> => {
+
+  return customFetch<PublicCodeLookup>(getResolvePublicCodeUrl(code),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getResolvePublicCodeQueryKey = (code: string,) => {
+    return [
+    `/api/j/${code}`
+    ] as const;
+    }
+
+
+export const getResolvePublicCodeQueryOptions = <TData = Awaited<ReturnType<typeof resolvePublicCode>>, TError = ErrorType<Problem>>(code: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof resolvePublicCode>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getResolvePublicCodeQueryKey(code);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof resolvePublicCode>>> = ({ signal }) => resolvePublicCode(code, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof resolvePublicCode>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ResolvePublicCodeQueryResult = NonNullable<Awaited<ReturnType<typeof resolvePublicCode>>>
+export type ResolvePublicCodeQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary Resolve a league public code to its slug (no auth required)
+ */
+
+export function useResolvePublicCode<TData = Awaited<ReturnType<typeof resolvePublicCode>>, TError = ErrorType<Problem>>(
+ code: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof resolvePublicCode>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getResolvePublicCodeQueryOptions(code,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetCommissionerInvitePublicUrl = (token: string,) => {
 

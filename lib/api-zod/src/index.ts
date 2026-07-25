@@ -74,6 +74,7 @@ export type { MobileTokenExchangeSuccess } from "./generated/types/mobileTokenEx
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
 export type { ProblemError } from "./generated/types/problemError";
+export type { PublicCodeLookup } from "./generated/types/publicCodeLookup";
 export type { PublicCodeResult } from "./generated/types/publicCodeResult";
 export type { PublicLeagueEnvelope } from "./generated/types/publicLeagueEnvelope";
 export type { PublicLeagueEnvelopeLeague } from "./generated/types/publicLeagueEnvelopeLeague";
