@@ -638,6 +638,89 @@ export interface ForceResolveGameBody {
   reason: string;
 }
 
+export interface CommissionerInvite {
+  id: string;
+  league_id: string;
+  token: string;
+  created_by: string;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  max_uses?: number | null;
+  /** @minimum 0 */
+  uses: number;
+  /** @nullable */
+  expires_at?: string | null;
+  is_active: boolean;
+  /** @nullable */
+  revoked_at?: string | null;
+  created_at: string;
+}
+
+export interface CommissionerInviteEnvelope {
+  /** @nullable */
+  public_code: string | null;
+  invite: CommissionerInvite | null;
+}
+
+export interface CommissionerInviteInput {
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  max_uses?: number | null;
+  /** @nullable */
+  expires_at?: string | null;
+}
+
+export interface SetPublicCodeInput {
+  /**
+     * @minLength 5
+     * @maxLength 12
+     * @nullable
+     * @pattern ^[A-Z0-9]{5,12}$
+     */
+  public_code?: string | null;
+}
+
+export interface PublicCodeResult {
+  /** @nullable */
+  public_code: string | null;
+}
+
+export interface CommissionerInvitePublic {
+  invite_id: string;
+  token: string;
+  league_id: string;
+  league_name: string;
+  league_slug?: string;
+  /** @nullable */
+  platform?: string | null;
+  usable: boolean;
+  /** @nullable */
+  reason?: string | null;
+  uses?: number;
+  /** @nullable */
+  max_uses?: number | null;
+  /** @nullable */
+  expires_at?: string | null;
+}
+
+export type ClaimOutcomeOutcome = typeof ClaimOutcomeOutcome[keyof typeof ClaimOutcomeOutcome];
+
+
+export const ClaimOutcomeOutcome = {
+  member: 'member',
+  waitlist: 'waitlist',
+} as const;
+
+export interface ClaimOutcome {
+  outcome: ClaimOutcomeOutcome;
+  league_id: string;
+  invite_id: string;
+}
+
 export type AvailabilitySlotBlock = typeof AvailabilitySlotBlock[keyof typeof AvailabilitySlotBlock];
 
 

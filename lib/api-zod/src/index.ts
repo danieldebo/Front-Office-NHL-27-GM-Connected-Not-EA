@@ -13,6 +13,12 @@ export type { AuthorizationSessionHeaderParameter } from "./generated/types/auth
 // AvailabilitySlot intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // AvailabilitySlotBlock intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { BeginBrowserLoginParams } from "./generated/types/beginBrowserLoginParams";
+export type { ClaimOutcome } from "./generated/types/claimOutcome";
+export type { ClaimOutcomeOutcome } from "./generated/types/claimOutcomeOutcome";
+export type { CommissionerInvite } from "./generated/types/commissionerInvite";
+export type { CommissionerInviteEnvelope } from "./generated/types/commissionerInviteEnvelope";
+export type { CommissionerInviteInput } from "./generated/types/commissionerInviteInput";
+export type { CommissionerInvitePublic } from "./generated/types/commissionerInvitePublic";
 export type { ConfirmInput } from "./generated/types/confirmInput";
 export type { CreateInviteInput } from "./generated/types/createInviteInput";
 export type { CreateLeagueInput } from "./generated/types/createLeagueInput";
@@ -57,6 +63,7 @@ export type { MobileTokenExchangeSuccess } from "./generated/types/mobileTokenEx
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
 export type { ProblemError } from "./generated/types/problemError";
+export type { PublicCodeResult } from "./generated/types/publicCodeResult";
 export type { PublicLeagueEnvelope } from "./generated/types/publicLeagueEnvelope";
 export type { PublicLeagueEnvelopeLeague } from "./generated/types/publicLeagueEnvelopeLeague";
 export type { PublicLeagueEnvelopeSeason } from "./generated/types/publicLeagueEnvelopeSeason";
@@ -69,6 +76,7 @@ export type { Season } from "./generated/types/season";
 export type { Seat } from "./generated/types/seat";
 export type { SeatSeatStatus } from "./generated/types/seatSeatStatus";
 // SetAvailabilityBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { SetPublicCodeInput } from "./generated/types/setPublicCodeInput";
 // ShiftWindowBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { StandingsRow } from "./generated/types/standingsRow";
 export type { StandingsRowProvenance } from "./generated/types/standingsRowProvenance";

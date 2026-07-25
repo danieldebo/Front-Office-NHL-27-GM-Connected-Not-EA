@@ -116,6 +116,11 @@ export default function LeaguePublic() {
             <div className="league-name">{league.name}</div>
             <div className="league-meta">
               {season ? `${season.label} · ` : ''}Public standings
+              {(league as any).public_code ? (
+                <span style={{ marginLeft: '10px', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--crease)', background: '#EDF4FC', border: '1px solid #BDD5EE', borderRadius: '3px', padding: '2px 7px', letterSpacing: '.05em' }}>
+                  Join code: {(league as any).public_code}
+                </span>
+              ) : null}
             </div>
           </div>
           <nav style={{ marginLeft: 'auto' }}>

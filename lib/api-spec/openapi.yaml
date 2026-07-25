@@ -1084,6 +1084,232 @@ paths:
         '200':
           description: Game force-resolved.
 
+  # ------------------------------------------------------------------ Commissioner Links
+
+  /leagues/{leagueId}/commissioner-invite:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: getCommissionerInvite
+      summary: Get the active commissioner invite and public code (commissioner only)
+      responses:
+        '200':
+          description: Active commissioner invite and public code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInviteEnvelope'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags: [Leagues]
+      operationId: createCommissionerInvite
+      summary: Create the first commissioner invite link (commissioner only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionerInviteInput'
+      responses:
+        '201':
+          description: Invite created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInvite'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: An active invite already exists — rotate instead.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      tags: [Leagues]
+      operationId: updateCommissionerInvite
+      summary: Update max_uses / expires_at on the active commissioner invite (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionerInviteInput'
+      responses:
+        '200':
+          description: Updated invite.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInvite'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No active invite.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    delete:
+      tags: [Leagues]
+      operationId: revokeCommissionerInvite
+      summary: Revoke the active commissioner invite (commissioner only)
+      responses:
+        '204':
+          description: Revoked.
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No active invite.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/commissioner-invite/rotate:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Leagues]
+      operationId: rotateCommissionerInvite
+      summary: Rotate the commissioner invite — revoke old, issue new (commissioner only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionerInviteInput'
+      responses:
+        '200':
+          description: New invite issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInvite'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/public-code:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    patch:
+      tags: [Leagues]
+      operationId: setPublicCode
+      summary: Set or update the league public code (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPublicCodeInput'
+      responses:
+        '200':
+          description: Public code updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicCodeResult'
+        '400':
+          description: Invalid format.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Public code already taken.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /join/{token}:
+    parameters:
+      - $ref: '#/components/parameters/CommissionerInviteToken'
+    get:
+      tags: [Seats]
+      operationId: getCommissionerInvitePublic
+      summary: Public landing page data for a commissioner invite link
+      responses:
+        '200':
+          description: Invite info and usability.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInvitePublic'
+        '410':
+          description: Invite no longer active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /join/{token}/claim:
+    parameters:
+      - $ref: '#/components/parameters/CommissionerInviteToken'
+    post:
+      tags: [Seats]
+      operationId: claimCommissionerInvite
+      summary: Claim a seat via commissioner invite (authenticated)
+      responses:
+        '200':
+          description: Claim recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimOutcome'
+        '409':
+          description: Already claimed this invite.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '410':
+          description: Invite no longer active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
   # ------------------------------------------------------------------ Availability
 
   /leagues/{leagueId}/availability:
@@ -1171,6 +1397,12 @@ components:
       schema:
         type: string
     InviteToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+    CommissionerInviteToken:
       name: token
       in: path
       required: true
@@ -1916,6 +2148,113 @@ components:
           maxLength: 500
 
     # ------------------------------------------------------------------ Availability
+
+    CommissionerInvite:
+      type: object
+      required: [id, league_id, token, created_by, uses, is_active, created_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        token:
+          type: string
+        created_by:
+          type: string
+        max_uses:
+          type: ["integer", "null"]
+          minimum: 1
+        uses:
+          type: integer
+          minimum: 0
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+        is_active:
+          type: boolean
+        revoked_at:
+          type: ["string", "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CommissionerInviteEnvelope:
+      type: object
+      required: [public_code, invite]
+      properties:
+        public_code:
+          type: ["string", "null"]
+        invite:
+          oneOf:
+            - $ref: '#/components/schemas/CommissionerInvite'
+            - type: 'null'
+
+    CommissionerInviteInput:
+      type: object
+      properties:
+        max_uses:
+          type: ["integer", "null"]
+          minimum: 1
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+
+    SetPublicCodeInput:
+      type: object
+      properties:
+        public_code:
+          type: ["string", "null"]
+          minLength: 5
+          maxLength: 12
+          pattern: '^[A-Z0-9]{5,12}$'
+
+    PublicCodeResult:
+      type: object
+      required: [public_code]
+      properties:
+        public_code:
+          type: ["string", "null"]
+
+    CommissionerInvitePublic:
+      type: object
+      required: [invite_id, token, league_id, league_name, usable]
+      properties:
+        invite_id:
+          type: string
+        token:
+          type: string
+        league_id:
+          type: string
+        league_name:
+          type: string
+        league_slug:
+          type: string
+        platform:
+          type: ["string", "null"]
+        usable:
+          type: boolean
+        reason:
+          type: ["string", "null"]
+        uses:
+          type: integer
+        max_uses:
+          type: ["integer", "null"]
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+
+    ClaimOutcome:
+      type: object
+      required: [outcome, league_id, invite_id]
+      properties:
+        outcome:
+          type: string
+          enum: [member, waitlist]
+        league_id:
+          type: string
+        invite_id:
+          type: string
 
     AvailabilitySlot:
       type: object

@@ -23,6 +23,11 @@ import type {
   AssignGmInput,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
+  ClaimOutcome,
+  CommissionerInvite,
+  CommissionerInviteEnvelope,
+  CommissionerInviteInput,
+  CommissionerInvitePublic,
   ConfirmInput,
   CreateInviteInput,
   CreateLeagueInput,
@@ -54,6 +59,7 @@ import type {
   MobileTokenExchangeSuccess,
   PostponeGameBody,
   Problem,
+  PublicCodeResult,
   PublicLeagueEnvelope,
   PublishRulebookInput,
   ResultInput,
@@ -62,6 +68,7 @@ import type {
   Season,
   Seat,
   SetAvailabilityBody,
+  SetPublicCodeInput,
   ShiftWindowBody,
   UpdateLeagueInput,
   WeekListEnvelope
@@ -2984,6 +2991,590 @@ export const useForceResolveGame = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getForceResolveGameMutationOptions(options));
+    }
+
+export const getGetCommissionerInviteUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/commissioner-invite`
+}
+
+/**
+ * @summary Get the active commissioner invite and public code (commissioner only)
+ */
+export const getCommissionerInvite = async (leagueId: string, options?: RequestInit): Promise<CommissionerInviteEnvelope> => {
+
+  return customFetch<CommissionerInviteEnvelope>(getGetCommissionerInviteUrl(leagueId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommissionerInviteQueryKey = (leagueId: string,) => {
+    return [
+    `/api/leagues/${leagueId}/commissioner-invite`
+    ] as const;
+    }
+
+
+export const getGetCommissionerInviteQueryOptions = <TData = Awaited<ReturnType<typeof getCommissionerInvite>>, TError = ErrorType<Problem>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionerInvite>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommissionerInviteQueryKey(leagueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommissionerInvite>>> = ({ signal }) => getCommissionerInvite(leagueId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommissionerInvite>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommissionerInviteQueryResult = NonNullable<Awaited<ReturnType<typeof getCommissionerInvite>>>
+export type GetCommissionerInviteQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary Get the active commissioner invite and public code (commissioner only)
+ */
+
+export function useGetCommissionerInvite<TData = Awaited<ReturnType<typeof getCommissionerInvite>>, TError = ErrorType<Problem>>(
+ leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionerInvite>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommissionerInviteQueryOptions(leagueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCommissionerInviteUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/commissioner-invite`
+}
+
+/**
+ * @summary Create the first commissioner invite link (commissioner only)
+ */
+export const createCommissionerInvite = async (leagueId: string,
+    commissionerInviteInput?: CommissionerInviteInput, options?: RequestInit): Promise<CommissionerInvite> => {
+
+  return customFetch<CommissionerInvite>(getCreateCommissionerInviteUrl(leagueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commissionerInviteInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCommissionerInviteMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommissionerInvite>>, TError,{leagueId: string;data?: BodyType<CommissionerInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCommissionerInvite>>, TError,{leagueId: string;data?: BodyType<CommissionerInviteInput>}, TContext> => {
+
+const mutationKey = ['createCommissionerInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCommissionerInvite>>, {leagueId: string;data?: BodyType<CommissionerInviteInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  createCommissionerInvite(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCommissionerInviteMutationResult = NonNullable<Awaited<ReturnType<typeof createCommissionerInvite>>>
+    export type CreateCommissionerInviteMutationBody = BodyType<CommissionerInviteInput> | undefined
+    export type CreateCommissionerInviteMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Create the first commissioner invite link (commissioner only)
+ */
+export const useCreateCommissionerInvite = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommissionerInvite>>, TError,{leagueId: string;data?: BodyType<CommissionerInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCommissionerInvite>>,
+        TError,
+        {leagueId: string;data?: BodyType<CommissionerInviteInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCommissionerInviteMutationOptions(options));
+    }
+
+export const getUpdateCommissionerInviteUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/commissioner-invite`
+}
+
+/**
+ * @summary Update max_uses / expires_at on the active commissioner invite (commissioner only)
+ */
+export const updateCommissionerInvite = async (leagueId: string,
+    commissionerInviteInput: CommissionerInviteInput, options?: RequestInit): Promise<CommissionerInvite> => {
+
+  return customFetch<CommissionerInvite>(getUpdateCommissionerInviteUrl(leagueId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commissionerInviteInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCommissionerInviteMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommissionerInvite>>, TError,{leagueId: string;data: BodyType<CommissionerInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCommissionerInvite>>, TError,{leagueId: string;data: BodyType<CommissionerInviteInput>}, TContext> => {
+
+const mutationKey = ['updateCommissionerInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCommissionerInvite>>, {leagueId: string;data: BodyType<CommissionerInviteInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  updateCommissionerInvite(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCommissionerInviteMutationResult = NonNullable<Awaited<ReturnType<typeof updateCommissionerInvite>>>
+    export type UpdateCommissionerInviteMutationBody = BodyType<CommissionerInviteInput>
+    export type UpdateCommissionerInviteMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Update max_uses / expires_at on the active commissioner invite (commissioner only)
+ */
+export const useUpdateCommissionerInvite = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCommissionerInvite>>, TError,{leagueId: string;data: BodyType<CommissionerInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCommissionerInvite>>,
+        TError,
+        {leagueId: string;data: BodyType<CommissionerInviteInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCommissionerInviteMutationOptions(options));
+    }
+
+export const getRevokeCommissionerInviteUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/commissioner-invite`
+}
+
+/**
+ * @summary Revoke the active commissioner invite (commissioner only)
+ */
+export const revokeCommissionerInvite = async (leagueId: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRevokeCommissionerInviteUrl(leagueId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeCommissionerInviteMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeCommissionerInvite>>, TError,{leagueId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeCommissionerInvite>>, TError,{leagueId: string}, TContext> => {
+
+const mutationKey = ['revokeCommissionerInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeCommissionerInvite>>, {leagueId: string}> = (props) => {
+          const {leagueId} = props ?? {};
+
+          return  revokeCommissionerInvite(leagueId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeCommissionerInviteMutationResult = NonNullable<Awaited<ReturnType<typeof revokeCommissionerInvite>>>
+
+    export type RevokeCommissionerInviteMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Revoke the active commissioner invite (commissioner only)
+ */
+export const useRevokeCommissionerInvite = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeCommissionerInvite>>, TError,{leagueId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeCommissionerInvite>>,
+        TError,
+        {leagueId: string},
+        TContext
+      > => {
+      return useMutation(getRevokeCommissionerInviteMutationOptions(options));
+    }
+
+export const getRotateCommissionerInviteUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/commissioner-invite/rotate`
+}
+
+/**
+ * @summary Rotate the commissioner invite — revoke old, issue new (commissioner only)
+ */
+export const rotateCommissionerInvite = async (leagueId: string,
+    commissionerInviteInput?: CommissionerInviteInput, options?: RequestInit): Promise<CommissionerInvite> => {
+
+  return customFetch<CommissionerInvite>(getRotateCommissionerInviteUrl(leagueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commissionerInviteInput)
+  }
+);}
+
+
+
+
+
+export const getRotateCommissionerInviteMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateCommissionerInvite>>, TError,{leagueId: string;data?: BodyType<CommissionerInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rotateCommissionerInvite>>, TError,{leagueId: string;data?: BodyType<CommissionerInviteInput>}, TContext> => {
+
+const mutationKey = ['rotateCommissionerInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rotateCommissionerInvite>>, {leagueId: string;data?: BodyType<CommissionerInviteInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  rotateCommissionerInvite(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RotateCommissionerInviteMutationResult = NonNullable<Awaited<ReturnType<typeof rotateCommissionerInvite>>>
+    export type RotateCommissionerInviteMutationBody = BodyType<CommissionerInviteInput> | undefined
+    export type RotateCommissionerInviteMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Rotate the commissioner invite — revoke old, issue new (commissioner only)
+ */
+export const useRotateCommissionerInvite = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateCommissionerInvite>>, TError,{leagueId: string;data?: BodyType<CommissionerInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rotateCommissionerInvite>>,
+        TError,
+        {leagueId: string;data?: BodyType<CommissionerInviteInput>},
+        TContext
+      > => {
+      return useMutation(getRotateCommissionerInviteMutationOptions(options));
+    }
+
+export const getSetPublicCodeUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/public-code`
+}
+
+/**
+ * @summary Set or update the league public code (commissioner only)
+ */
+export const setPublicCode = async (leagueId: string,
+    setPublicCodeInput: SetPublicCodeInput, options?: RequestInit): Promise<PublicCodeResult> => {
+
+  return customFetch<PublicCodeResult>(getSetPublicCodeUrl(leagueId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setPublicCodeInput)
+  }
+);}
+
+
+
+
+
+export const getSetPublicCodeMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPublicCode>>, TError,{leagueId: string;data: BodyType<SetPublicCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setPublicCode>>, TError,{leagueId: string;data: BodyType<SetPublicCodeInput>}, TContext> => {
+
+const mutationKey = ['setPublicCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setPublicCode>>, {leagueId: string;data: BodyType<SetPublicCodeInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  setPublicCode(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetPublicCodeMutationResult = NonNullable<Awaited<ReturnType<typeof setPublicCode>>>
+    export type SetPublicCodeMutationBody = BodyType<SetPublicCodeInput>
+    export type SetPublicCodeMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Set or update the league public code (commissioner only)
+ */
+export const useSetPublicCode = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPublicCode>>, TError,{leagueId: string;data: BodyType<SetPublicCodeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setPublicCode>>,
+        TError,
+        {leagueId: string;data: BodyType<SetPublicCodeInput>},
+        TContext
+      > => {
+      return useMutation(getSetPublicCodeMutationOptions(options));
+    }
+
+export const getGetCommissionerInvitePublicUrl = (token: string,) => {
+
+
+
+
+  return `/api/join/${token}`
+}
+
+/**
+ * @summary Public landing page data for a commissioner invite link
+ */
+export const getCommissionerInvitePublic = async (token: string, options?: RequestInit): Promise<CommissionerInvitePublic> => {
+
+  return customFetch<CommissionerInvitePublic>(getGetCommissionerInvitePublicUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommissionerInvitePublicQueryKey = (token: string,) => {
+    return [
+    `/api/join/${token}`
+    ] as const;
+    }
+
+
+export const getGetCommissionerInvitePublicQueryOptions = <TData = Awaited<ReturnType<typeof getCommissionerInvitePublic>>, TError = ErrorType<Problem>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionerInvitePublic>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommissionerInvitePublicQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommissionerInvitePublic>>> = ({ signal }) => getCommissionerInvitePublic(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommissionerInvitePublic>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommissionerInvitePublicQueryResult = NonNullable<Awaited<ReturnType<typeof getCommissionerInvitePublic>>>
+export type GetCommissionerInvitePublicQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary Public landing page data for a commissioner invite link
+ */
+
+export function useGetCommissionerInvitePublic<TData = Awaited<ReturnType<typeof getCommissionerInvitePublic>>, TError = ErrorType<Problem>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommissionerInvitePublic>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommissionerInvitePublicQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getClaimCommissionerInviteUrl = (token: string,) => {
+
+
+
+
+  return `/api/join/${token}/claim`
+}
+
+/**
+ * @summary Claim a seat via commissioner invite (authenticated)
+ */
+export const claimCommissionerInvite = async (token: string, options?: RequestInit): Promise<ClaimOutcome> => {
+
+  return customFetch<ClaimOutcome>(getClaimCommissionerInviteUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getClaimCommissionerInviteMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimCommissionerInvite>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimCommissionerInvite>>, TError,{token: string}, TContext> => {
+
+const mutationKey = ['claimCommissionerInvite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimCommissionerInvite>>, {token: string}> = (props) => {
+          const {token} = props ?? {};
+
+          return  claimCommissionerInvite(token,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClaimCommissionerInviteMutationResult = NonNullable<Awaited<ReturnType<typeof claimCommissionerInvite>>>
+
+    export type ClaimCommissionerInviteMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Claim a seat via commissioner invite (authenticated)
+ */
+export const useClaimCommissionerInvite = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimCommissionerInvite>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof claimCommissionerInvite>>,
+        TError,
+        {token: string},
+        TContext
+      > => {
+      return useMutation(getClaimCommissionerInviteMutationOptions(options));
     }
 
 export const getSetAvailabilityUrl = (leagueId: string,) => {

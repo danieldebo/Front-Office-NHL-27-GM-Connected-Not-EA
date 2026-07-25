@@ -8,6 +8,7 @@ import rulebookRouter from "./rulebook";
 import competitionRouter from "./competition";
 import scheduleRouter from "./schedule";
 import availabilityRouter from "./availability";
+import commissionerLinksRouter from "./commissioner-links";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(rulebookRouter);
 router.use(competitionRouter);
 router.use(scheduleRouter);
 router.use(availabilityRouter);
+router.use(commissionerLinksRouter);
 
 export default router;

@@ -279,9 +279,9 @@ router.get(
     const { slug } = req.params;
 
     const leagueRow = await pool.query<{
-      id: string; slug: string; name: string; visibility: string;
+      id: string; slug: string; name: string; visibility: string; public_code: string | null;
     }>(
-      `SELECT id, slug, name, visibility FROM league WHERE slug = $1`,
+      `SELECT id, slug, name, visibility, public_code FROM league WHERE slug = $1`,
       [slug]
     );
 

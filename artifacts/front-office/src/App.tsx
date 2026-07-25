@@ -12,6 +12,7 @@ import Availability from '@/pages/Availability';
 import ReportResult from '@/pages/ReportResult';
 import ConfirmResult from '@/pages/ConfirmResult';
 import LeaguePublic from '@/pages/LeaguePublic';
+import JoinInvite from '@/pages/JoinInvite';
 
 const queryClient = new QueryClient();
 
@@ -76,8 +77,9 @@ function Router() {
           <ConfirmResult />
         </AuthGate>
       </Route>
-      {/* Public route — no AuthGate */}
+      {/* Public routes — no AuthGate */}
       <Route path="/l/:slug" component={LeaguePublic} />
+      <Route path="/join/:token" component={JoinInvite} />
       <Route path="/">
         <AuthGate>
           <Hub />

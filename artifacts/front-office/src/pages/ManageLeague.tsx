@@ -17,6 +17,12 @@ import {
   useListSeasons,
   useListWeeks,
   useGenerateSchedule,
+  useGetCommissionerInvite,
+  useCreateCommissionerInvite,
+  useRotateCommissionerInvite,
+  useUpdateCommissionerInvite,
+  useRevokeCommissionerInvite,
+  useSetPublicCode,
   Seat,
   JoinRequest,
   InviteLink,
@@ -308,6 +314,248 @@ function RulebookTab({ leagueId }: { leagueId: string }) {
   );
 }
 
+function LinksTab({ leagueId, leagueSlug }: { leagueId: string; leagueSlug: string }) {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useGetCommissionerInvite(leagueId);
+
+  const createInvite = useCreateCommissionerInvite();
+  const rotateInvite = useRotateCommissionerInvite();
+  const updateInvite = useUpdateCommissionerInvite();
+  const revokeInvite = useRevokeCommissionerInvite();
+  const setPublicCode = useSetPublicCode();
+
+  const [publicCodeInput, setPublicCodeInput] = useState('');
+  const [publicCodeEditing, setPublicCodeEditing] = useState(false);
+  const [publicCodeError, setPublicCodeError] = useState<string | null>(null);
+
+  const [maxUsesInput, setMaxUsesInput] = useState('');
+  const [expiresAtInput, setExpiresAtInput] = useState('');
+  const [capEditing, setCapEditing] = useState(false);
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'commissioner-invite'] as any });
+
+  React.useEffect(() => {
+    if (data?.public_code && !publicCodeEditing) {
+      setPublicCodeInput(data.public_code ?? '');
+    }
+  }, [data?.public_code]);
+
+  if (isLoading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading links…</div>;
+
+  const invite = data?.invite ?? null;
+  const publicCode = data?.public_code ?? '';
+
+  const inviteUrl = invite ? `${window.location.origin}/join/${invite.token}` : null;
+  const publicUrl = `${window.location.origin}/l/${leagueSlug}`;
+
+  const handleCopyInvite = () => {
+    if (inviteUrl) { navigator.clipboard.writeText(inviteUrl); alert('Invite link copied!'); }
+  };
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(publicCode); alert('Public code copied!');
+  };
+
+  const handleSavePublicCode = () => {
+    const code = publicCodeInput.trim().toUpperCase();
+    if (!/^[A-Z0-9]{5,12}$/.test(code)) {
+      setPublicCodeError('Must be 5–12 uppercase letters/digits (e.g. RUSTBELT)');
+      return;
+    }
+    setPublicCodeError(null);
+    setPublicCode.mutate({ leagueId, data: { public_code: code } }, {
+      onSuccess: () => { setPublicCodeEditing(false); invalidate(); },
+      onError: (err: unknown) => setPublicCodeError(err instanceof Error ? err.message : 'Error saving code'),
+    });
+  };
+
+  const handleCreateInvite = () => {
+    createInvite.mutate({ leagueId }, {
+      onSuccess: () => invalidate(),
+    });
+  };
+
+  const handleRotate = () => {
+    if (!confirm('Rotate the invite link? The old URL will stop working immediately.')) return;
+    rotateInvite.mutate({ leagueId }, {
+      onSuccess: () => invalidate(),
+    });
+  };
+
+  const handleRevoke = () => {
+    if (!confirm('Revoke the invite link? Anyone with the old URL will no longer be able to join.')) return;
+    revokeInvite.mutate({ leagueId }, {
+      onSuccess: () => invalidate(),
+    });
+  };
+
+  const handleSaveCap = () => {
+    const maxUses = maxUsesInput ? parseInt(maxUsesInput, 10) : null;
+    const expiresAt = expiresAtInput || null;
+    updateInvite.mutate({
+      leagueId,
+      data: { max_uses: maxUses, expires_at: expiresAt ?? undefined },
+    }, {
+      onSuccess: () => { setCapEditing(false); invalidate(); },
+    });
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '26px' }}>
+      {/* ── Public Code */}
+      <div className="panel">
+        <div className="panel-head">
+          <h2>League Public Code</h2>
+          {publicCode && (
+            <button onClick={handleCopyCode} className="btn ghost" style={{ fontSize: '11px', padding: '4px 10px' }}>Copy Code</button>
+          )}
+        </div>
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', lineHeight: 1.5 }}>
+            A short, stable code fans can type to find your league publicly (e.g.&nbsp;<code>RUSTBELT</code>). It won't break if you rename the league slug later.
+          </div>
+
+          {publicCode && !publicCodeEditing && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <code style={{ fontFamily: 'var(--data)', fontSize: '18px', fontWeight: 700, letterSpacing: '.1em', color: 'var(--crease)' }}>{publicCode}</code>
+              <button onClick={() => setPublicCodeEditing(true)} className="btn ghost" style={{ fontSize: '11px', padding: '4px 10px' }}>Edit</button>
+            </div>
+          )}
+
+          {(!publicCode || publicCodeEditing) && (
+            <>
+              <input
+                type="text"
+                value={publicCodeInput}
+                onChange={e => setPublicCodeInput(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                placeholder="RUSTBELT"
+                maxLength={12}
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  fontFamily: 'var(--data)', fontSize: '16px', letterSpacing: '.1em',
+                  border: '1px solid var(--rule)', borderRadius: '3px',
+                  textTransform: 'uppercase',
+                }}
+              />
+              {publicCodeError && (
+                <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--goal)' }}>{publicCodeError}</div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={handleSavePublicCode} className="btn" disabled={setPublicCode.isPending}>
+                  {setPublicCode.isPending ? 'Saving…' : 'Save Code'}
+                </button>
+                {publicCodeEditing && (
+                  <button onClick={() => { setPublicCodeEditing(false); setPublicCodeInput(publicCode); setPublicCodeError(null); }} className="btn ghost">Cancel</button>
+                )}
+              </div>
+            </>
+          )}
+
+          {publicCode && (
+            <div style={{ borderTop: '1px solid var(--rule)', paddingTop: '10px' }}>
+              <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '4px' }}>Public URL</div>
+              <code style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--ink)', wordBreak: 'break-all' }}>{publicUrl}</code>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Commissioner Invite Link */}
+      <div className="panel">
+        <div className="panel-head">
+          <h2>Reusable Invite Link</h2>
+          {invite && (
+            <span className="chip conf" style={{ fontSize: '10px' }}>Active</span>
+          )}
+        </div>
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', lineHeight: 1.5 }}>
+            Share one link to let anyone claim a seat. Rotate it to revoke the old URL and get a fresh one.
+          </div>
+
+          {!invite && (
+            <button onClick={handleCreateInvite} className="btn" disabled={createInvite.isPending}>
+              {createInvite.isPending ? 'Creating…' : 'Generate Invite Link'}
+            </button>
+          )}
+
+          {invite && (
+            <>
+              {/* URL row */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  readOnly
+                  value={inviteUrl ?? ''}
+                  style={{
+                    flex: 1, padding: '8px 10px', fontFamily: 'var(--data)', fontSize: '11px',
+                    border: '1px solid var(--rule)', borderRadius: '3px', background: '#F6F8FA',
+                    color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}
+                />
+                <button onClick={handleCopyInvite} className="btn ghost" style={{ whiteSpace: 'nowrap', fontSize: '11px', padding: '6px 12px' }}>Copy</button>
+              </div>
+
+              {/* Use counter + expiry */}
+              <div style={{ display: 'flex', gap: '16px', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>
+                <span>
+                  Uses: <strong style={{ color: 'var(--ink)' }}>{invite.uses}{invite.max_uses ? ` / ${invite.max_uses}` : ''}</strong>
+                </span>
+                {invite.expires_at && (
+                  <span>
+                    Expires: <strong style={{ color: 'var(--ink)' }}>{new Date(invite.expires_at).toLocaleDateString()}</strong>
+                  </span>
+                )}
+                {!invite.expires_at && !invite.max_uses && (
+                  <span style={{ color: 'var(--bulb)' }}>No cap or expiry set</span>
+                )}
+              </div>
+
+              {/* Cap / Expiry edit */}
+              {capEditing ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--rule)', borderRadius: '3px', padding: '12px', background: '#FAFCFD' }}>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <label style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', minWidth: '70px' }}>Max uses</label>
+                    <input type="number" min={1} value={maxUsesInput} onChange={e => setMaxUsesInput(e.target.value)}
+                      placeholder="unlimited" style={{ flex: 1, padding: '6px 8px', fontFamily: 'var(--data)', fontSize: '12px', border: '1px solid var(--rule)', borderRadius: '3px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <label style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', minWidth: '70px' }}>Expires at</label>
+                    <input type="datetime-local" value={expiresAtInput} onChange={e => setExpiresAtInput(e.target.value)}
+                      style={{ flex: 1, padding: '6px 8px', fontFamily: 'var(--data)', fontSize: '12px', border: '1px solid var(--rule)', borderRadius: '3px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={handleSaveCap} className="btn" style={{ fontSize: '12px', padding: '5px 12px' }} disabled={updateInvite.isPending}>
+                      {updateInvite.isPending ? 'Saving…' : 'Save'}
+                    </button>
+                    <button onClick={() => setCapEditing(false)} className="btn ghost" style={{ fontSize: '12px', padding: '5px 12px' }}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => {
+                  setMaxUsesInput(invite.max_uses ? String(invite.max_uses) : '');
+                  setExpiresAtInput(invite.expires_at ? new Date(invite.expires_at).toISOString().slice(0, 16) : '');
+                  setCapEditing(true);
+                }} className="btn ghost" style={{ fontSize: '12px', padding: '5px 12px', alignSelf: 'flex-start' }}>
+                  Set Cap / Expiry
+                </button>
+              )}
+
+              {/* Danger actions */}
+              <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--rule)', paddingTop: '10px' }}>
+                <button onClick={handleRotate} className="btn ghost" style={{ fontSize: '12px', padding: '5px 12px' }} disabled={rotateInvite.isPending}>
+                  {rotateInvite.isPending ? 'Rotating…' : '↻ Rotate'}
+                </button>
+                <button onClick={handleRevoke} className="btn ghost" style={{ fontSize: '12px', padding: '5px 12px', color: 'var(--goal)', borderColor: 'var(--goal)' }} disabled={revokeInvite.isPending}>
+                  {revokeInvite.isPending ? 'Revoking…' : 'Revoke'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ScheduleTab({ leagueId }: { leagueId: string }) {
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const { data: seasonsData, isLoading: seasonsLoading } = useListSeasons(leagueId);
@@ -458,7 +706,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
 
 export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'>('seats');
+  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'links'>('seats');
   
   const { data: userResponse, isLoading: isLoadingUser } = useGetCurrentAuthUser();
   const { data: league, isLoading: isLoadingLeague } = useGetLeague(id || '');
@@ -517,6 +765,12 @@ export default function ManageLeague() {
           >
             Schedule
           </button>
+          <button 
+            onClick={() => setActiveTab('links')}
+            className={`btn ${activeTab !== 'links' ? 'ghost' : ''}`}
+          >
+            Links
+          </button>
           
           <div style={{ marginLeft: 'auto' }}>
             <Link href={`/leagues/${league.id}/season/new`} className="btn ghost" style={{ borderColor: 'var(--steel)' }}>
@@ -530,6 +784,9 @@ export default function ManageLeague() {
         {activeTab === 'rulebook' && <RulebookTab leagueId={league.id} />}
         {activeTab === 'schedule' && (
           <ScheduleTab leagueId={league.id} />
+        )}
+        {activeTab === 'links' && (
+          <LinksTab leagueId={league.id} leagueSlug={league.slug} />
         )}
       </div>
       <Footer />

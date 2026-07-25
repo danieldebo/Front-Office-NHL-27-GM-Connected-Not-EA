@@ -1084,6 +1084,206 @@ export const ForceResolveGameResponse = zod.unknown()
 
 
 /**
+ * @summary Get the active commissioner invite and public code (commissioner only)
+ */
+export const GetCommissionerInviteParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+
+export const getCommissionerInviteResponseInviteOneUsesMin = 0;
+
+
+
+export const GetCommissionerInviteResponse = zod.object({
+  "public_code": zod.string().nullable(),
+  "invite": zod.union([zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "token": zod.string(),
+  "created_by": zod.string(),
+  "max_uses": zod.number().min(1).nullish(),
+  "uses": zod.number().min(getCommissionerInviteResponseInviteOneUsesMin),
+  "expires_at": zod.coerce.date().nullish(),
+  "is_active": zod.boolean(),
+  "revoked_at": zod.coerce.date().nullish(),
+  "created_at": zod.coerce.date()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Create the first commissioner invite link (commissioner only)
+ */
+export const CreateCommissionerInviteParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+
+
+
+export const CreateCommissionerInviteBody = zod.object({
+  "max_uses": zod.number().min(1).nullish(),
+  "expires_at": zod.coerce.date().nullish()
+})
+
+
+export const createCommissionerInviteResponseUsesMin = 0;
+
+
+
+export const CreateCommissionerInviteResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "token": zod.string(),
+  "created_by": zod.string(),
+  "max_uses": zod.number().min(1).nullish(),
+  "uses": zod.number().min(createCommissionerInviteResponseUsesMin),
+  "expires_at": zod.coerce.date().nullish(),
+  "is_active": zod.boolean(),
+  "revoked_at": zod.coerce.date().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update max_uses / expires_at on the active commissioner invite (commissioner only)
+ */
+export const UpdateCommissionerInviteParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+
+
+
+export const UpdateCommissionerInviteBody = zod.object({
+  "max_uses": zod.number().min(1).nullish(),
+  "expires_at": zod.coerce.date().nullish()
+})
+
+
+export const updateCommissionerInviteResponseUsesMin = 0;
+
+
+
+export const UpdateCommissionerInviteResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "token": zod.string(),
+  "created_by": zod.string(),
+  "max_uses": zod.number().min(1).nullish(),
+  "uses": zod.number().min(updateCommissionerInviteResponseUsesMin),
+  "expires_at": zod.coerce.date().nullish(),
+  "is_active": zod.boolean(),
+  "revoked_at": zod.coerce.date().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Revoke the active commissioner invite (commissioner only)
+ */
+export const RevokeCommissionerInviteParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const RevokeCommissionerInviteResponse = zod.void()
+
+
+/**
+ * @summary Rotate the commissioner invite — revoke old, issue new (commissioner only)
+ */
+export const RotateCommissionerInviteParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+
+
+
+export const RotateCommissionerInviteBody = zod.object({
+  "max_uses": zod.number().min(1).nullish(),
+  "expires_at": zod.coerce.date().nullish()
+})
+
+
+export const rotateCommissionerInviteResponseUsesMin = 0;
+
+
+
+export const RotateCommissionerInviteResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "token": zod.string(),
+  "created_by": zod.string(),
+  "max_uses": zod.number().min(1).nullish(),
+  "uses": zod.number().min(rotateCommissionerInviteResponseUsesMin),
+  "expires_at": zod.coerce.date().nullish(),
+  "is_active": zod.boolean(),
+  "revoked_at": zod.coerce.date().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Set or update the league public code (commissioner only)
+ */
+export const SetPublicCodeParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const setPublicCodeBodyPublicCodeMin = 5;
+export const setPublicCodeBodyPublicCodeMax = 12;
+
+
+export const setPublicCodeBodyPublicCodeRegExp = new RegExp('^[A-Z0-9]{5,12}$');
+
+
+export const SetPublicCodeBody = zod.object({
+  "public_code": zod.string().min(setPublicCodeBodyPublicCodeMin).max(setPublicCodeBodyPublicCodeMax).regex(setPublicCodeBodyPublicCodeRegExp).nullish()
+})
+
+export const SetPublicCodeResponse = zod.object({
+  "public_code": zod.string().nullable()
+})
+
+
+/**
+ * @summary Public landing page data for a commissioner invite link
+ */
+export const GetCommissionerInvitePublicParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetCommissionerInvitePublicResponse = zod.object({
+  "invite_id": zod.string(),
+  "token": zod.string(),
+  "league_id": zod.string(),
+  "league_name": zod.string(),
+  "league_slug": zod.string().optional(),
+  "platform": zod.string().nullish(),
+  "usable": zod.boolean(),
+  "reason": zod.string().nullish(),
+  "uses": zod.number().optional(),
+  "max_uses": zod.number().nullish(),
+  "expires_at": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Claim a seat via commissioner invite (authenticated)
+ */
+export const ClaimCommissionerInviteParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const ClaimCommissionerInviteResponse = zod.object({
+  "outcome": zod.enum(['member', 'waitlist']),
+  "league_id": zod.string(),
+  "invite_id": zod.string()
+})
+
+
+/**
  * @summary Set my availability grid for a league
  */
 export const SetAvailabilityParams = zod.object({
