@@ -217,6 +217,86 @@ router.get(
   }
 );
 
+// ────────────────────────────────────────────── Single game
+
+router.get(
+  "/games/:gameId",
+  rateLimiter(),
+  async (req: Request, res: Response): Promise<void> => {
+    const { gameId } = req.params;
+
+    const { rows } = await pool.query(
+      `SELECT
+         g.id, g.season_id, g.week_number, g.status,
+         g.window_opens_at, g.window_closes_at, g.played_at,
+         g.home_team_season_id,
+         hf.id  AS home_franchise_id, hf.name AS home_franchise_name,
+         hn.abbrev AS home_club_abbrev,
+         g.away_team_season_id,
+         af.id  AS away_franchise_id, af.name AS away_franchise_name,
+         an.abbrev AS away_club_abbrev,
+         gr.id   AS result_id,
+         gr.home_goals, gr.away_goals, gr.decision,
+         gr.version, gr.data_source, gr.counts_toward_standings,
+         gr.reported_by, gr.verified_by, gr.verified_at,
+         gr.superseded_by, gr.supersede_reason, gr.created_at AS result_created_at
+       FROM game g
+       JOIN team_season hts ON hts.id = g.home_team_season_id
+       JOIN franchise hf ON hf.id = hts.franchise_id
+       LEFT JOIN nhl_club hn ON hn.id = hts.nhl_club_id
+       JOIN team_season ats ON ats.id = g.away_team_season_id
+       JOIN franchise af ON af.id = ats.franchise_id
+       LEFT JOIN nhl_club an ON an.id = ats.nhl_club_id
+       LEFT JOIN game_result gr ON gr.game_id = g.id AND gr.superseded_by IS NULL
+      WHERE g.id = $1`,
+      [gameId]
+    );
+
+    if (!rows[0]) { notFound(res, "Game not found"); return; }
+
+    const r = rows[0];
+    res.json({
+      id: r.id,
+      season_id: r.season_id,
+      week_number: r.week_number,
+      status: r.status,
+      window_opens_at: r.window_opens_at,
+      window_closes_at: r.window_closes_at,
+      played_at: r.played_at ?? null,
+      home: {
+        team_season_id: r.home_team_season_id,
+        franchise_id: r.home_franchise_id,
+        franchise_name: r.home_franchise_name,
+        club_abbrev: r.home_club_abbrev ?? null,
+        goals: r.home_goals ?? null,
+      },
+      away: {
+        team_season_id: r.away_team_season_id,
+        franchise_id: r.away_franchise_id,
+        franchise_name: r.away_franchise_name,
+        club_abbrev: r.away_club_abbrev ?? null,
+        goals: r.away_goals ?? null,
+      },
+      result: r.result_id ? {
+        id: r.result_id,
+        game_id: r.id,
+        home_goals: r.home_goals,
+        away_goals: r.away_goals,
+        decision: r.decision,
+        version: r.version,
+        data_source: r.data_source,
+        counts_toward_standings: r.counts_toward_standings,
+        reported_by: r.reported_by ?? null,
+        verified_by: r.verified_by ?? null,
+        verified_at: r.verified_at ?? null,
+        superseded_by: r.superseded_by ?? null,
+        supersede_reason: r.supersede_reason ?? null,
+        created_at: r.result_created_at,
+      } : null,
+    });
+  }
+);
+
 // ────────────────────────────────────────────── Report result
 
 router.post(
@@ -292,21 +372,25 @@ router.post(
     try {
       await client.query("BEGIN");
 
-      if (supersede_result_id) {
-        await client.query(
-          `UPDATE game_result SET superseded_by = gen_random_uuid(), supersede_reason = $1
-            WHERE id = $2`,
-          [supersede_reason ?? "Corrected by GM", supersede_result_id]
-        );
-      }
+      // Pre-generate the new result ID so we can point superseded_by at it
+      // (FK must reference an existing row; we INSERT first, then UPDATE the old row)
+      const uuidRow = await client.query<{ new_id: string }>(`SELECT gen_random_uuid() AS new_id`);
+      const newResultId = uuidRow.rows[0]!.new_id;
 
       const insertRow = await client.query<{ id: string; version: number; created_at: Date }>(
         `INSERT INTO game_result
-           (game_id, home_goals, away_goals, decision, data_source, reported_by, counts_toward_standings)
-         VALUES ($1, $2, $3, $4, 'manual', $5, FALSE)
+           (id, game_id, home_goals, away_goals, decision, data_source, reported_by, counts_toward_standings)
+         VALUES ($1, $2, $3, $4, $5, 'manual', $6, FALSE)
          RETURNING id, version, created_at`,
-        [gameId, home_goals, away_goals, decision, reporterAppUserId]
+        [newResultId, gameId, home_goals, away_goals, decision, reporterAppUserId]
       );
+
+      if (supersede_result_id) {
+        await client.query(
+          `UPDATE game_result SET superseded_by = $1, supersede_reason = $2 WHERE id = $3`,
+          [newResultId, supersede_reason ?? "Corrected by GM", supersede_result_id]
+        );
+      }
 
       await client.query(
         `UPDATE game SET status = 'reported', played_at = NOW() WHERE id = $1`,

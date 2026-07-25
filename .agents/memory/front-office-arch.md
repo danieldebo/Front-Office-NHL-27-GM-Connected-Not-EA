@@ -60,3 +60,15 @@ Added via migration v1.1.0. `competition.ts` INSERTs `FALSE` on report; set to `
 
 ## CP3: Season hook naming
 The hook for listing a league's seasons is `useListSeasons(leagueId)` from `@workspace/api-client-react`, not `useGetLeagueSeasons`.
+
+## CP4: Supersede FK — INSERT before UPDATE
+`game_result.superseded_by` is a self-referencing FK with no DEFERRABLE. When correcting a result: pre-generate the new ID with `SELECT gen_random_uuid()`, INSERT the new result with that ID first, then UPDATE the old row's `superseded_by` to point at it. Reversed order violates the FK constraint.
+
+## CP4: GET /games/:gameId — raw route, not in OpenAPI
+Added `GET /api/games/:gameId` to `competition.ts` as a plain Express route (not in `lib/api-spec/openapi.yaml` and not codegen'd). Frontend loads it with a raw `fetch` + `useQuery`. Use this pattern when a read endpoint is needed quickly without the codegen overhead. Add to OpenAPI when building CP5 game-detail view.
+
+## CP4: ConfirmResult gets gameId from URL query param
+Route is `/results/:resultId/confirm?gameId=...`. The gameId is passed as a search param so the page can load game context without being in the React Router state. wouter doesn't pass navigation state natively.
+
+## CP4: Idempotency key on report — stable per session
+`ReportResult.tsx` generates the idempotency key once with `useRef(crypto.randomUUID())` — same key if the component re-renders, new key on fresh mount. If the user navigates away and back, they get a new key (which is correct — new submission intent).
