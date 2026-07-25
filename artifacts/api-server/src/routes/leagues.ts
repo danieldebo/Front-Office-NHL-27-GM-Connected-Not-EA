@@ -90,7 +90,7 @@ router.get(
 // GET /leagues/:leagueId/hub — summary stats for the slab
 router.get(
   "/leagues/:leagueId/hub",
-  rateLimiter({ getLeagueId: (r) => r.params.leagueId }),
+  rateLimiter({ getLeagueId: (r) => r.params.leagueId as string }),
   async (req: Request, res: Response): Promise<void> => {
     const { leagueId } = req.params;
     const user = getCurrentUser(req);

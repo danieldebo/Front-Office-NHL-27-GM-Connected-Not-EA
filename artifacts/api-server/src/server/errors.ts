@@ -88,7 +88,6 @@ export function tooManyRequests(
 export function injectTraceId(req: Request): string {
   const id =
     (req.headers["x-trace-id"] as string | undefined) ?? randomUUID();
-  // @ts-expect-error – pino-http sets req.id; we augment it
   req.id = id;
   return id;
 }

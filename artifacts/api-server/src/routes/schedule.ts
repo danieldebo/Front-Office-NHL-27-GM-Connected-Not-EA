@@ -84,7 +84,7 @@ async function writeAuditLog(client: any, opts: {
   // Look up app_user.id from replit_id for the actor
   let appUserId: string | null = null;
   if (opts.actorUserId) {
-    const r = await client.query<{ id: string }>(
+    const r = await client.query(
       `SELECT id FROM app_user WHERE replit_id = $1`,
       [opts.actorUserId]
     );
@@ -118,7 +118,7 @@ router.post(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res, "Authentication required"); return; }
 
-    const { seasonId } = req.params;
+    const seasonId = req.params.seasonId as string;
 
     const league = await getLeagueOwnerBySeasonId(seasonId);
     if (!league) { notFound(res, "Season not found"); return; }
@@ -269,7 +269,7 @@ router.get(
   "/seasons/:seasonId/weeks",
   rateLimiter(),
   async (req: Request, res: Response): Promise<void> => {
-    const { seasonId } = req.params;
+    const seasonId = req.params.seasonId as string;
 
     const seasonCheck = await pool.query(
       `SELECT id FROM season WHERE id = $1`,
@@ -341,7 +341,7 @@ router.patch(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res, "Authentication required"); return; }
 
-    const { gameId } = req.params;
+    const gameId = req.params.gameId as string;
 
     const league = await getLeagueOwnerByGameId(gameId);
     if (!league) { notFound(res, "Game not found"); return; }
@@ -419,7 +419,7 @@ router.post(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res, "Authentication required"); return; }
 
-    const { gameId } = req.params;
+    const gameId = req.params.gameId as string;
 
     const league = await getLeagueOwnerByGameId(gameId);
     if (!league) { notFound(res, "Game not found"); return; }
@@ -484,7 +484,7 @@ router.post(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res, "Authentication required"); return; }
 
-    const { gameId } = req.params;
+    const gameId = req.params.gameId as string;
 
     const league = await getLeagueOwnerByGameId(gameId);
     if (!league) { notFound(res, "Game not found"); return; }

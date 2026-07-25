@@ -106,7 +106,7 @@ router.post(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res); return; }
 
-    const { leagueId } = req.params;
+    const leagueId = req.params.leagueId as string;
     const league = await getLeagueOwner(leagueId);
     if (!league) { notFound(res, "League not found"); return; }
 
@@ -144,7 +144,7 @@ router.get(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res); return; }
 
-    const { leagueId } = req.params;
+    const leagueId = req.params.leagueId as string;
     const league = await getLeagueOwner(leagueId);
     if (!league) { notFound(res, "League not found"); return; }
 
@@ -174,7 +174,7 @@ router.get(
 router.get(
   "/invites/:token",
   async (req: Request, res: Response): Promise<void> => {
-    const { token } = req.params;
+    const token = req.params.token as string;
 
     const { rows } = await pool.query(
       `SELECT il.id, il.token, il.league_id, il.max_uses, il.use_count,
@@ -205,7 +205,7 @@ router.delete(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res); return; }
 
-    const { token } = req.params;
+    const token = req.params.token as string;
 
     const inviteRow = await pool.query<{ id: string; league_id: string }>(
       `SELECT id, league_id FROM invite_link WHERE token = $1 AND revoked_at IS NULL`,
@@ -234,7 +234,7 @@ router.post(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res, "Must be signed in to join a league"); return; }
 
-    const { token } = req.params;
+    const token = req.params.token as string;
 
     const inviteRow = await pool.query<{ id: string; league_id: string }>(
       `SELECT id, league_id FROM invite_link
@@ -316,7 +316,7 @@ router.get(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res); return; }
 
-    const { leagueId } = req.params;
+    const leagueId = req.params.leagueId as string;
     const league = await getLeagueOwner(leagueId);
     if (!league) { notFound(res, "League not found"); return; }
 
@@ -354,7 +354,8 @@ router.post(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res); return; }
 
-    const { leagueId, requestId } = req.params;
+    const leagueId = req.params.leagueId as string;
+    const requestId = req.params.requestId as string;
     const league = await getLeagueOwner(leagueId);
     if (!league) { notFound(res, "League not found"); return; }
 
@@ -419,7 +420,8 @@ router.post(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res); return; }
 
-    const { leagueId, requestId } = req.params;
+    const leagueId = req.params.leagueId as string;
+    const requestId = req.params.requestId as string;
     const league = await getLeagueOwner(leagueId);
     if (!league) { notFound(res, "League not found"); return; }
 
@@ -460,7 +462,7 @@ router.post(
 router.get(
   "/leagues/:leagueId/seats",
   async (req: Request, res: Response): Promise<void> => {
-    const { leagueId } = req.params;
+    const leagueId = req.params.leagueId as string;
 
     const leagueCheck = await pool.query(`SELECT id FROM league WHERE id = $1`, [leagueId]);
     if (!leagueCheck.rows[0]) { notFound(res, "League not found"); return; }
@@ -513,7 +515,7 @@ router.put(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res); return; }
 
-    const { teamSeasonId } = req.params;
+    const teamSeasonId = req.params.teamSeasonId as string;
 
     // Load team_season to get league
     const tsRow = await pool.query<{ id: string; franchise_id: string; season_id: string }>(
@@ -606,7 +608,7 @@ router.delete(
     const user = getCurrentUser(req);
     if (!user) { unauthorized(res); return; }
 
-    const { teamSeasonId } = req.params;
+    const teamSeasonId = req.params.teamSeasonId as string;
     const reason = (req.query.reason as string | undefined) ?? "removed";
 
     const tsRow = await pool.query<{ id: string; season_id: string }>(
