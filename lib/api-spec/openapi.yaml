@@ -3,13 +3,20 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Front Office API — league management, results, and standings.
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+  - name: Leagues
+    description: League and season metadata.
+  - name: Competition
+    description: Schedule, results, and derived standings.
+
 paths:
   /healthz:
     get:
@@ -24,8 +31,476 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ------------------------------------------------------------------ Auth
+
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '200':
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the OIDC authorization endpoint.
+
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the returnTo path on success or /api/login on failure.
+
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the session and begin OIDC logout
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+            default: /
+      responses:
+        '302':
+          description: Redirect to the OIDC provider logout URL.
+
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange a mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileTokenExchangeInput'
+      responses:
+        '200':
+          description: Session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileTokenExchangeSuccess'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: Token did not contain usable claims.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Token exchange failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Delete a mobile session token
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+      responses:
+        '200':
+          description: Logout processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutSuccess'
+
+  # ------------------------------------------------------------------ Leagues
+
+  /leagues/me:
+    get:
+      tags: [Leagues]
+      operationId: getMyLeagues
+      summary: List leagues the current user belongs to
+      responses:
+        '200':
+          description: Leagues the current user is a member of.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/League'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: getLeague
+      summary: Get a league
+      responses:
+        '200':
+          description: League found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/hub:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: getLeagueHub
+      summary: Hub summary — games on time, open seats, active season stats
+      responses:
+        '200':
+          description: Hub summary data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueHub'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/seasons:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: listSeasons
+      summary: List seasons for a league
+      responses:
+        '200':
+          description: Seasons ordered oldest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Season'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Competition
+
+  /seasons/{seasonId}/standings:
+    parameters:
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags: [Competition]
+      operationId: getStandings
+      summary: Get standings for a season
+      description: |
+        Computed from confirmed results on every request. There is no write
+        path for this resource — correcting a result corrects the table automatically.
+      responses:
+        '200':
+          description: Standings sorted by the season's configured tiebreakers.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, computed_at]
+                properties:
+                  computed_at:
+                    type: string
+                    format: date-time
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StandingsRow'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /seasons/{seasonId}/games:
+    parameters:
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags: [Competition]
+      operationId: listGames
+      summary: List games for a season
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/GameStatus'
+        - name: week
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: franchise_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page of games.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Game'
+                  next_cursor:
+                    type: ["string", "null"]
+                  has_more:
+                    type: boolean
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /games/{gameId}/results:
+    parameters:
+      - $ref: '#/components/parameters/GameId'
+    post:
+      tags: [Competition]
+      operationId: reportResult
+      summary: Report a result for a game
+      description: |
+        Reports a final score. The result is not counted toward standings until
+        the opposing GM confirms it. Append-only — a correction supersedes the
+        previous result and must carry a supersede_reason.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResultInput'
+      responses:
+        '201':
+          description: Result recorded, awaiting confirmation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameResult'
+        '200':
+          description: Idempotent replay. The original result is returned unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameResult'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Unprocessable entity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /results/{resultId}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/ResultId'
+    post:
+      tags: [Competition]
+      operationId: confirmResult
+      summary: Confirm or dispute a reported result
+      description: |
+        Confirmation must come from a different user than the reporter. Self-confirmation
+        is rejected. Supply the If-Match header with the result's version to prevent
+        racing GMs from silently overwriting each other.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmInput'
+      responses:
+        '200':
+          description: Result confirmed or disputed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameResult'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Version mismatch — re-read and retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
 components:
+
+  parameters:
+    LeagueId:
+      name: leagueId
+      in: path
+      required: true
+      schema:
+        type: string
+    SeasonId:
+      name: seasonId
+      in: path
+      required: true
+      schema:
+        type: string
+    GameId:
+      name: gameId
+      in: path
+      required: true
+      schema:
+        type: string
+    ResultId:
+      name: resultId
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 255
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        type: string
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      description: Opaque session token — Bearer <sid>.
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      description: Browser session cookie.
+      schema:
+        type: string
+
   schemas:
+
     HealthStatus:
       type: object
       properties:
@@ -34,3 +509,353 @@ components:
       required:
         - status
 
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status, trace_id]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: ["string", "null"]
+        instance:
+          type: ["string", "null"]
+        trace_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProblemError'
+
+    ProblemError:
+      type: object
+      properties:
+        pointer:
+          type: string
+        message:
+          type: string
+
+    # ------------------------------------------------------------------ Auth
+
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: ["string", "null"]
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        profileImageUrl:
+          type: ["string", "null"]
+
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/AuthUser'
+            - type: 'null'
+
+    MobileTokenExchangeInput:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        code_verifier:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+        state:
+          type: string
+          minLength: 1
+        nonce:
+          type: string
+          minLength: 1
+
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    # ------------------------------------------------------------------ Domain
+
+    League:
+      type: object
+      required: [id, slug, name, visibility]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        visibility:
+          type: string
+          enum: [public, unlisted, private]
+        logo_url:
+          type: ["string", "null"]
+        primary_color:
+          type: ["string", "null"]
+        secondary_color:
+          type: ["string", "null"]
+        owner_user_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    LeagueHub:
+      type: object
+      description: Summary stats for the league hub slab.
+      required: [league_id, active_season_id]
+      properties:
+        league_id:
+          type: string
+        active_season_id:
+          type: ["string", "null"]
+        active_season_label:
+          type: ["string", "null"]
+        games_scheduled:
+          type: integer
+        games_confirmed:
+          type: integer
+        games_on_time_pct:
+          type: ["number", "null"]
+        open_seats:
+          type: integer
+        active_gms:
+          type: integer
+        my_games_this_week:
+          type: array
+          items:
+            $ref: '#/components/schemas/Game'
+
+    Season:
+      type: object
+      required: [id, ordinal, label, game_title]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        ordinal:
+          type: integer
+          minimum: 1
+        label:
+          type: string
+        game_title:
+          type: string
+        starts_on:
+          type: ["string", "null"]
+        ends_on:
+          type: ["string", "null"]
+        salary_cap_cents:
+          type: ["integer", "null"]
+        roster_min:
+          type: ["integer", "null"]
+        roster_max:
+          type: ["integer", "null"]
+        games_per_matchup:
+          type: integer
+        points_win:
+          type: integer
+        points_ot_loss:
+          type: integer
+        points_reg_loss:
+          type: integer
+        tiebreakers:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+
+    GameStatus:
+      type: string
+      enum: [scheduled, in_window, reported, confirmed, disputed, forfeited, postponed, simulated, voided]
+
+    GameSide:
+      type: object
+      required: [team_season_id, franchise_id]
+      properties:
+        team_season_id:
+          type: string
+        franchise_id:
+          type: string
+        franchise_name:
+          type: ["string", "null"]
+        club_abbrev:
+          type: ["string", "null"]
+        goals:
+          type: ["integer", "null"]
+          minimum: 0
+        gm_display_name:
+          type: ["string", "null"]
+
+    Game:
+      type: object
+      required: [id, season_id, status, home, away]
+      properties:
+        id:
+          type: string
+        season_id:
+          type: string
+        week_number:
+          type: ["integer", "null"]
+        status:
+          $ref: '#/components/schemas/GameStatus'
+        window_opens_at:
+          type: string
+          format: date-time
+        window_closes_at:
+          type: string
+          format: date-time
+        played_at:
+          type: ["string", "null"]
+          format: date-time
+        home:
+          $ref: '#/components/schemas/GameSide'
+        away:
+          $ref: '#/components/schemas/GameSide'
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/GameResult'
+            - type: 'null'
+
+    GameResult:
+      type: object
+      required: [id, game_id, home_goals, away_goals, decision, version, data_source]
+      properties:
+        id:
+          type: string
+        game_id:
+          type: string
+        home_goals:
+          type: integer
+          minimum: 0
+        away_goals:
+          type: integer
+          minimum: 0
+        decision:
+          type: string
+          enum: [regulation, overtime, shootout]
+        version:
+          type: integer
+          description: |
+            Optimistic-concurrency token. Return as ETag; require If-Match on
+            confirm/dispute/supersede. A stale value returns 409.
+        data_source:
+          type: string
+          enum: [manual, confirmed, ocr, csv_import, partner_api, system]
+        counts_toward_standings:
+          type: boolean
+        reported_by:
+          type: ["string", "null"]
+        verified_by:
+          type: ["string", "null"]
+        verified_at:
+          type: ["string", "null"]
+          format: date-time
+        superseded_by:
+          type: ["string", "null"]
+        supersede_reason:
+          type: ["string", "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    ResultInput:
+      type: object
+      required: [home_goals, away_goals, decision]
+      properties:
+        home_goals:
+          type: integer
+          minimum: 0
+        away_goals:
+          type: integer
+          minimum: 0
+        decision:
+          type: string
+          enum: [regulation, overtime, shootout]
+        supersede_result_id:
+          type: ["string", "null"]
+        supersede_reason:
+          type: ["string", "null"]
+          maxLength: 500
+
+    ConfirmInput:
+      type: object
+      required: [agree]
+      properties:
+        agree:
+          type: boolean
+        dispute_reason:
+          type: ["string", "null"]
+          maxLength: 500
+
+    StandingsRow:
+      type: object
+      description: Derived. There is no write path for this resource.
+      required: [team_season_id, franchise_id, GP, W, L, OTL, PTS]
+      properties:
+        rank:
+          type: integer
+        team_season_id:
+          type: string
+        franchise_id:
+          type: string
+        franchise_name:
+          type: ["string", "null"]
+        club_abbrev:
+          type: ["string", "null"]
+        gm_display_name:
+          type: ["string", "null"]
+        GP:
+          type: integer
+        W:
+          type: integer
+        L:
+          type: integer
+        OTL:
+          type: integer
+        PTS:
+          type: integer
+        ROW:
+          type: integer
+        GF:
+          type: integer
+        GA:
+          type: integer
+        DIFF:
+          type: integer
+        unconfirmed_games:
+          type: integer

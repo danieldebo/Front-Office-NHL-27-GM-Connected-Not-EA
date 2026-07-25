@@ -1,0 +1,1 @@
+- [Front Office architecture decisions](front-office-arch.md) — auth adapter pattern, raw SQL for domain tables, codegen patch, Zod v3 vs v4 constraint
