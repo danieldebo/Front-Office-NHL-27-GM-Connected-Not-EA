@@ -302,6 +302,77 @@ export interface LeagueHub {
   my_games_this_week?: Game[];
 }
 
+export type PublicLeagueEnvelopeLeague = {
+  id: string;
+  slug: string;
+  name: string;
+  visibility: string;
+};
+
+export type PublicLeagueEnvelopeSeason = {
+  id: string;
+  label: string;
+} | null;
+
+/**
+ * Worst provenance across this team's games this season.
+ * 'dispute' = has at least one disputed game.
+ * 'manual'  = has unconfirmed (reported) results pending.
+ * 'ocr'     = all confirmed, some via screenshot/OCR parse.
+ * 'reconciled' = all confirmed via partner data feed.
+ * 'confirmed' = all confirmed by mutual GM agreement.
+ */
+export type StandingsRowProvenance = typeof StandingsRowProvenance[keyof typeof StandingsRowProvenance];
+
+
+export const StandingsRowProvenance = {
+  confirmed: 'confirmed',
+  manual: 'manual',
+  ocr: 'ocr',
+  reconciled: 'reconciled',
+  dispute: 'dispute',
+} as const;
+
+/**
+ * Derived. There is no write path for this resource.
+ */
+export interface StandingsRow {
+  rank?: number;
+  team_season_id: string;
+  franchise_id: string;
+  /** @nullable */
+  franchise_name?: string | null;
+  /** @nullable */
+  club_abbrev?: string | null;
+  /** @nullable */
+  gm_display_name?: string | null;
+  GP: number;
+  W: number;
+  L: number;
+  OTL: number;
+  PTS: number;
+  ROW?: number;
+  GF?: number;
+  GA?: number;
+  DIFF?: number;
+  unconfirmed_games?: number;
+  /**
+     * Worst provenance across this team's games this season.
+     * 'dispute' = has at least one disputed game.
+     * 'manual'  = has unconfirmed (reported) results pending.
+     * 'ocr'     = all confirmed, some via screenshot/OCR parse.
+     * 'reconciled' = all confirmed via partner data feed.
+     * 'confirmed' = all confirmed by mutual GM agreement.
+     */
+  provenance?: StandingsRowProvenance;
+}
+
+export interface PublicLeagueEnvelope {
+  league: PublicLeagueEnvelopeLeague;
+  season?: PublicLeagueEnvelopeSeason;
+  standings: StandingsRow[];
+}
+
 export interface Season {
   id: string;
   league_id?: string;
@@ -596,31 +667,6 @@ export interface SetAvailabilityBody {
   timezone: string;
   /** @maxItems 56 */
   slots: AvailabilitySlot[];
-}
-
-/**
- * Derived. There is no write path for this resource.
- */
-export interface StandingsRow {
-  rank?: number;
-  team_season_id: string;
-  franchise_id: string;
-  /** @nullable */
-  franchise_name?: string | null;
-  /** @nullable */
-  club_abbrev?: string | null;
-  /** @nullable */
-  gm_display_name?: string | null;
-  GP: number;
-  W: number;
-  L: number;
-  OTL: number;
-  PTS: number;
-  ROW?: number;
-  GF?: number;
-  GA?: number;
-  DIFF?: number;
-  unconfirmed_games?: number;
 }
 
 export type IdempotencyKeyParameter = string;

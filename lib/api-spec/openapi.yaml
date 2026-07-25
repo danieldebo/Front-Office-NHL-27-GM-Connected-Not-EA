@@ -297,6 +297,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /l/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: League URL slug
+    get:
+      tags: [Leagues]
+      operationId: getPublicLeague
+      summary: Public league page — standings visible without authentication
+      responses:
+        '200':
+          description: League + active season standings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicLeagueEnvelope'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
   /leagues/{leagueId}/seasons:
     parameters:
       - $ref: '#/components/parameters/LeagueId'
@@ -1434,6 +1460,37 @@ components:
           items:
             $ref: '#/components/schemas/Game'
 
+    PublicLeagueEnvelope:
+      type: object
+      required: [league, standings]
+      properties:
+        league:
+          type: object
+          required: [id, slug, name, visibility]
+          properties:
+            id:
+              type: string
+            slug:
+              type: string
+            name:
+              type: string
+            visibility:
+              type: string
+        season:
+          oneOf:
+            - type: object
+              required: [id, label]
+              properties:
+                id:
+                  type: string
+                label:
+                  type: string
+            - type: 'null'
+        standings:
+          type: array
+          items:
+            $ref: '#/components/schemas/StandingsRow'
+
     Season:
       type: object
       required: [id, ordinal, label, game_title]
@@ -1927,3 +1984,13 @@ components:
           type: integer
         unconfirmed_games:
           type: integer
+        provenance:
+          type: string
+          enum: [confirmed, manual, ocr, reconciled, dispute]
+          description: |
+            Worst provenance across this team's games this season.
+            'dispute' = has at least one disputed game.
+            'manual'  = has unconfirmed (reported) results pending.
+            'ocr'     = all confirmed, some via screenshot/OCR parse.
+            'reconciled' = all confirmed via partner data feed.
+            'confirmed' = all confirmed by mutual GM agreement.

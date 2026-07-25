@@ -57,6 +57,9 @@ export type { MobileTokenExchangeSuccess } from "./generated/types/mobileTokenEx
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
 export type { ProblemError } from "./generated/types/problemError";
+export type { PublicLeagueEnvelope } from "./generated/types/publicLeagueEnvelope";
+export type { PublicLeagueEnvelopeLeague } from "./generated/types/publicLeagueEnvelopeLeague";
+export type { PublicLeagueEnvelopeSeason } from "./generated/types/publicLeagueEnvelopeSeason";
 export type { PublishRulebookInput } from "./generated/types/publishRulebookInput";
 export type { ResultInput } from "./generated/types/resultInput";
 export type { ResultInputDecision } from "./generated/types/resultInputDecision";
@@ -68,6 +71,7 @@ export type { SeatSeatStatus } from "./generated/types/seatSeatStatus";
 // SetAvailabilityBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // ShiftWindowBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { StandingsRow } from "./generated/types/standingsRow";
+export type { StandingsRowProvenance } from "./generated/types/standingsRowProvenance";
 export type { UpdateLeagueInput } from "./generated/types/updateLeagueInput";
 export type { UpdateLeagueInputVisibility } from "./generated/types/updateLeagueInputVisibility";
 // WeekListEnvelope intentionally excluded — collides with Zod const of the same name in generated/api.ts

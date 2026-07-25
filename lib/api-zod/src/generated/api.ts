@@ -283,6 +283,46 @@ export const GetLeagueHubResponse = zod.object({
 
 
 /**
+ * @summary Public league page — standings visible without authentication
+ */
+export const GetPublicLeagueParams = zod.object({
+  "slug": zod.coerce.string().describe('League URL slug')
+})
+
+export const GetPublicLeagueResponse = zod.object({
+  "league": zod.object({
+  "id": zod.string(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "visibility": zod.string()
+}),
+  "season": zod.union([zod.object({
+  "id": zod.string(),
+  "label": zod.string()
+}),zod.null()]).optional(),
+  "standings": zod.array(zod.object({
+  "rank": zod.number().optional(),
+  "team_season_id": zod.string(),
+  "franchise_id": zod.string(),
+  "franchise_name": zod.string().nullish(),
+  "club_abbrev": zod.string().nullish(),
+  "gm_display_name": zod.string().nullish(),
+  "GP": zod.number(),
+  "W": zod.number(),
+  "L": zod.number(),
+  "OTL": zod.number(),
+  "PTS": zod.number(),
+  "ROW": zod.number().optional(),
+  "GF": zod.number().optional(),
+  "GA": zod.number().optional(),
+  "DIFF": zod.number().optional(),
+  "unconfirmed_games": zod.number().optional(),
+  "provenance": zod.enum(['confirmed', 'manual', 'ocr', 'reconciled', 'dispute']).optional().describe('Worst provenance across this team\'s games this season.\n\'dispute\' = has at least one disputed game.\n\'manual\'  = has unconfirmed (reported) results pending.\n\'ocr\'     = all confirmed, some via screenshot\/OCR parse.\n\'reconciled\' = all confirmed via partner data feed.\n\'confirmed\' = all confirmed by mutual GM agreement.\n')
+}).describe('Derived. There is no write path for this resource.'))
+})
+
+
+/**
  * @summary List seasons for a league
  */
 export const ListSeasonsParams = zod.object({
@@ -739,7 +779,8 @@ export const GetStandingsResponse = zod.object({
   "GF": zod.number().optional(),
   "GA": zod.number().optional(),
   "DIFF": zod.number().optional(),
-  "unconfirmed_games": zod.number().optional()
+  "unconfirmed_games": zod.number().optional(),
+  "provenance": zod.enum(['confirmed', 'manual', 'ocr', 'reconciled', 'dispute']).optional().describe('Worst provenance across this team\'s games this season.\n\'dispute\' = has at least one disputed game.\n\'manual\'  = has unconfirmed (reported) results pending.\n\'ocr\'     = all confirmed, some via screenshot\/OCR parse.\n\'reconciled\' = all confirmed via partner data feed.\n\'confirmed\' = all confirmed by mutual GM agreement.\n')
 }).describe('Derived. There is no write path for this resource.'))
 })
 

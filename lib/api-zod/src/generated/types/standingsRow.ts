@@ -5,6 +5,7 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { StandingsRowProvenance } from './standingsRowProvenance';
 
 /**
  * Derived. There is no write path for this resource.
@@ -29,4 +30,13 @@ export interface StandingsRow {
   GA?: number;
   DIFF?: number;
   unconfirmed_games?: number;
+  /**
+     * Worst provenance across this team's games this season.
+     * 'dispute' = has at least one disputed game.
+     * 'manual'  = has unconfirmed (reported) results pending.
+     * 'ocr'     = all confirmed, some via screenshot/OCR parse.
+     * 'reconciled' = all confirmed via partner data feed.
+     * 'confirmed' = all confirmed by mutual GM agreement.
+     */
+  provenance?: StandingsRowProvenance;
 }

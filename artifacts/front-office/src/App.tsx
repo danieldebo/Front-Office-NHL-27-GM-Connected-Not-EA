@@ -11,6 +11,7 @@ import Schedule from '@/pages/Schedule';
 import Availability from '@/pages/Availability';
 import ReportResult from '@/pages/ReportResult';
 import ConfirmResult from '@/pages/ConfirmResult';
+import LeaguePublic from '@/pages/LeaguePublic';
 
 const queryClient = new QueryClient();
 
@@ -75,6 +76,8 @@ function Router() {
           <ConfirmResult />
         </AuthGate>
       </Route>
+      {/* Public route — no AuthGate */}
+      <Route path="/l/:slug" component={LeaguePublic} />
       <Route path="/">
         <AuthGate>
           <Hub />

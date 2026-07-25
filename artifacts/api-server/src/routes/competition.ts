@@ -63,46 +63,76 @@ router.get(
       [seasonId]
     );
 
-    // Unconfirmed games count per team
-    const unconfirmedRows = await pool.query<{
+    // Per-team provenance: unconfirmed count + worst data_source chip
+    const provenanceRows = await pool.query<{
       team_season_id: string;
       unconfirmed: string;
+      provenance: string;
     }>(
-      `SELECT team_season_id, COUNT(*) AS unconfirmed
-         FROM (
-           SELECT g.home_team_season_id AS team_season_id
-             FROM game g WHERE g.season_id = $1 AND g.status IN ('reported','disputed')
-           UNION ALL
-           SELECT g.away_team_season_id
-             FROM game g WHERE g.season_id = $1 AND g.status IN ('reported','disputed')
-         ) sub
+      `SELECT
+         team_season_id,
+         COUNT(*) FILTER (WHERE status IN ('reported','disputed')) AS unconfirmed,
+         CASE
+           WHEN BOOL_OR(status = 'disputed')                        THEN 'dispute'
+           WHEN COUNT(*) FILTER (WHERE status = 'reported') > 0     THEN 'manual'
+           WHEN MAX(src_rank) >= 4                                   THEN 'reconciled'
+           WHEN MAX(src_rank) = 3                                    THEN 'ocr'
+           ELSE 'confirmed'
+         END AS provenance
+       FROM (
+         SELECT g.home_team_season_id AS team_season_id, g.status,
+           CASE gr.data_source
+             WHEN 'partner_api' THEN 4 WHEN 'csv_import' THEN 4 WHEN 'system' THEN 4
+             WHEN 'ocr' THEN 3 ELSE 1
+           END AS src_rank
+         FROM game g
+         LEFT JOIN game_result gr ON gr.game_id = g.id AND gr.superseded_by IS NULL
+         WHERE g.season_id = $1 AND g.status NOT IN ('voided','simulated')
+         UNION ALL
+         SELECT g.away_team_season_id, g.status,
+           CASE gr.data_source
+             WHEN 'partner_api' THEN 4 WHEN 'csv_import' THEN 4 WHEN 'system' THEN 4
+             WHEN 'ocr' THEN 3 ELSE 1
+           END
+         FROM game g
+         LEFT JOIN game_result gr ON gr.game_id = g.id AND gr.superseded_by IS NULL
+         WHERE g.season_id = $1 AND g.status NOT IN ('voided','simulated')
+       ) sub
        GROUP BY team_season_id`,
       [seasonId]
     );
 
-    const unconfirmedMap = new Map<string, number>();
-    for (const r of unconfirmedRows.rows) {
-      unconfirmedMap.set(r.team_season_id, parseInt(r.unconfirmed, 10));
+    const provenanceMap = new Map<string, { unconfirmed: number; provenance: string }>();
+    for (const r of provenanceRows.rows) {
+      provenanceMap.set(r.team_season_id, {
+        unconfirmed: parseInt(r.unconfirmed, 10),
+        provenance: r.provenance,
+      });
     }
 
-    const data = rows.map((r, i) => ({
-      rank: i + 1,
-      team_season_id: r.team_season_id as string,
-      franchise_id: r.franchise_id as string,
-      franchise_name: r.franchise_name as string | null,
-      club_abbrev: r.club_abbrev as string | null,
-      gm_display_name: null,
-      GP: r.GP as number,
-      W: r.W as number,
-      L: r.L as number,
-      OTL: r.OTL as number,
-      PTS: r.PTS as number,
-      ROW: r.ROW as number,
-      GF: r.GF as number,
-      GA: r.GA as number,
-      DIFF: r.DIFF as number,
-      unconfirmed_games: unconfirmedMap.get(r.team_season_id as string) ?? 0,
-    }));
+    const data = rows.map((r, i) => {
+      const prov = provenanceMap.get(r.team_season_id as string) ??
+        { unconfirmed: 0, provenance: "confirmed" };
+      return {
+        rank: i + 1,
+        team_season_id: r.team_season_id as string,
+        franchise_id: r.franchise_id as string,
+        franchise_name: r.franchise_name as string | null,
+        club_abbrev: r.club_abbrev as string | null,
+        gm_display_name: null,
+        GP: r.GP as number,
+        W: r.W as number,
+        L: r.L as number,
+        OTL: r.OTL as number,
+        PTS: r.PTS as number,
+        ROW: r.ROW as number,
+        GF: r.GF as number,
+        GA: r.GA as number,
+        DIFF: r.DIFF as number,
+        unconfirmed_games: prov.unconfirmed,
+        provenance: prov.provenance,
+      };
+    });
 
     res.json({ computed_at: new Date().toISOString(), data });
   }

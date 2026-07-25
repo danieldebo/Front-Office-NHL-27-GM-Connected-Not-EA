@@ -54,6 +54,7 @@ import type {
   MobileTokenExchangeSuccess,
   PostponeGameBody,
   Problem,
+  PublicLeagueEnvelope,
   PublishRulebookInput,
   ResultInput,
   RevokeGmParams,
@@ -1004,6 +1005,83 @@ export function useGetLeagueHub<TData = Awaited<ReturnType<typeof getLeagueHub>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetLeagueHubQueryOptions(leagueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPublicLeagueUrl = (slug: string,) => {
+
+
+
+
+  return `/api/l/${slug}`
+}
+
+/**
+ * @summary Public league page — standings visible without authentication
+ */
+export const getPublicLeague = async (slug: string, options?: RequestInit): Promise<PublicLeagueEnvelope> => {
+
+  return customFetch<PublicLeagueEnvelope>(getGetPublicLeagueUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicLeagueQueryKey = (slug: string,) => {
+    return [
+    `/api/l/${slug}`
+    ] as const;
+    }
+
+
+export const getGetPublicLeagueQueryOptions = <TData = Awaited<ReturnType<typeof getPublicLeague>>, TError = ErrorType<Problem>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicLeague>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicLeagueQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicLeague>>> = ({ signal }) => getPublicLeague(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: slug !== null && slug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicLeague>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicLeagueQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicLeague>>>
+export type GetPublicLeagueQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary Public league page — standings visible without authentication
+ */
+
+export function useGetPublicLeague<TData = Awaited<ReturnType<typeof getPublicLeague>>, TError = ErrorType<Problem>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicLeague>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicLeagueQueryOptions(slug,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

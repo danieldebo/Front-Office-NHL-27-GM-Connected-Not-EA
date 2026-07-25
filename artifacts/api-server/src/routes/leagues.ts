@@ -159,7 +159,11 @@ router.get(
                 hn.abbrev AS home_club_abbrev,
                 g.away_team_season_id, af.id AS away_franchise_id,
                 af.name AS away_franchise_name,
-                an.abbrev AS away_club_abbrev
+                an.abbrev AS away_club_abbrev,
+                gr.id AS result_id, gr.home_goals, gr.away_goals, gr.decision,
+                gr.version, gr.data_source, gr.counts_toward_standings,
+                gr.reported_by, gr.verified_by, gr.verified_at,
+                gr.created_at AS result_created_at
            FROM game g
            JOIN team_season hts ON hts.id = g.home_team_season_id
            JOIN franchise hf ON hf.id = hts.franchise_id
@@ -171,6 +175,7 @@ router.get(
            LEFT JOIN nhl_club an ON an.id = ats.nhl_club_id
            JOIN gm_assignment aga ON aga.team_season_id = g.away_team_season_id AND aga.ended_at IS NULL
            JOIN app_user au ON au.id = aga.user_id
+           LEFT JOIN game_result gr ON gr.game_id = g.id AND gr.superseded_by IS NULL
           WHERE g.season_id = $1
             AND g.status NOT IN ('confirmed','voided','simulated')
             AND (hu.replit_id = $2 OR au.replit_id = $2)
@@ -192,7 +197,7 @@ router.get(
           franchise_id: r.home_franchise_id,
           franchise_name: r.home_franchise_name,
           club_abbrev: r.home_club_abbrev ?? null,
-          goals: null,
+          goals: r.home_goals ?? null,
           gm_display_name: null,
         },
         away: {
@@ -200,10 +205,25 @@ router.get(
           franchise_id: r.away_franchise_id,
           franchise_name: r.away_franchise_name,
           club_abbrev: r.away_club_abbrev ?? null,
-          goals: null,
+          goals: r.away_goals ?? null,
           gm_display_name: null,
         },
-        result: null,
+        result: r.result_id ? {
+          id: r.result_id,
+          game_id: r.id,
+          home_goals: r.home_goals,
+          away_goals: r.away_goals,
+          decision: r.decision,
+          version: r.version,
+          data_source: r.data_source,
+          counts_toward_standings: r.counts_toward_standings,
+          reported_by: r.reported_by ?? null,
+          verified_by: r.verified_by ?? null,
+          verified_at: r.verified_at ?? null,
+          superseded_by: null,
+          supersede_reason: null,
+          created_at: r.result_created_at,
+        } : null,
       }));
     }
 
@@ -249,6 +269,134 @@ router.get(
     );
 
     res.json({ data: rows });
+  }
+);
+
+// GET /l/:slug — public league page (no auth required)
+router.get(
+  "/l/:slug",
+  async (req: Request, res: Response): Promise<void> => {
+    const { slug } = req.params;
+
+    const leagueRow = await pool.query<{
+      id: string; slug: string; name: string; visibility: string;
+    }>(
+      `SELECT id, slug, name, visibility FROM league WHERE slug = $1`,
+      [slug]
+    );
+
+    if (!leagueRow.rows[0]) { notFound(res, "League not found"); return; }
+    const league = leagueRow.rows[0];
+
+    // Active season
+    const seasonRow = await pool.query<{ id: string; label: string }>(
+      `SELECT id, label FROM season WHERE league_id = $1 AND is_active = TRUE LIMIT 1`,
+      [league.id]
+    );
+    const season = seasonRow.rows[0] ?? null;
+
+    if (!season) {
+      res.json({ league, season: null, standings: [] });
+      return;
+    }
+
+    // Standings rows from view
+    const standingsRows = await pool.query(
+      `SELECT
+         ts.id              AS team_season_id,
+         f.id               AS franchise_id,
+         f.name             AS franchise_name,
+         nc.abbrev          AS club_abbrev,
+         COALESCE(vs.gp, 0)       AS "GP",
+         COALESCE(vs.w, 0)        AS "W",
+         COALESCE(vs.l, 0)        AS "L",
+         COALESCE(vs.otl, 0)      AS "OTL",
+         COALESCE(vs.row_wins, 0) AS "ROW",
+         COALESCE(vs.gf, 0)       AS "GF",
+         COALESCE(vs.ga, 0)       AS "GA",
+         COALESCE(vs.gf, 0) - COALESCE(vs.ga, 0) AS "DIFF",
+         COALESCE(vs.points, 0)   AS "PTS"
+       FROM team_season ts
+       JOIN franchise f ON f.id = ts.franchise_id
+       LEFT JOIN nhl_club nc ON nc.id = ts.nhl_club_id
+       LEFT JOIN v_standings vs ON vs.team_season_id = ts.id
+      WHERE ts.season_id = $1
+      ORDER BY "PTS" DESC, "ROW" DESC, "GF" DESC`,
+      [season.id]
+    );
+
+    // Per-team provenance
+    const provenanceRows = await pool.query<{
+      team_season_id: string;
+      unconfirmed: string;
+      provenance: string;
+    }>(
+      `SELECT
+         team_season_id,
+         COUNT(*) FILTER (WHERE status IN ('reported','disputed')) AS unconfirmed,
+         CASE
+           WHEN BOOL_OR(status = 'disputed')                    THEN 'dispute'
+           WHEN COUNT(*) FILTER (WHERE status = 'reported') > 0 THEN 'manual'
+           WHEN MAX(src_rank) >= 4                              THEN 'reconciled'
+           WHEN MAX(src_rank) = 3                               THEN 'ocr'
+           ELSE 'confirmed'
+         END AS provenance
+       FROM (
+         SELECT g.home_team_season_id AS team_season_id, g.status,
+           CASE gr.data_source
+             WHEN 'partner_api' THEN 4 WHEN 'csv_import' THEN 4 WHEN 'system' THEN 4
+             WHEN 'ocr' THEN 3 ELSE 1
+           END AS src_rank
+         FROM game g
+         LEFT JOIN game_result gr ON gr.game_id = g.id AND gr.superseded_by IS NULL
+         WHERE g.season_id = $1 AND g.status NOT IN ('voided','simulated')
+         UNION ALL
+         SELECT g.away_team_season_id, g.status,
+           CASE gr.data_source
+             WHEN 'partner_api' THEN 4 WHEN 'csv_import' THEN 4 WHEN 'system' THEN 4
+             WHEN 'ocr' THEN 3 ELSE 1
+           END
+         FROM game g
+         LEFT JOIN game_result gr ON gr.game_id = g.id AND gr.superseded_by IS NULL
+         WHERE g.season_id = $1 AND g.status NOT IN ('voided','simulated')
+       ) sub
+       GROUP BY team_season_id`,
+      [season.id]
+    );
+
+    const provMap = new Map<string, { unconfirmed: number; provenance: string }>();
+    for (const r of provenanceRows.rows) {
+      provMap.set(r.team_season_id, {
+        unconfirmed: parseInt(r.unconfirmed, 10),
+        provenance: r.provenance,
+      });
+    }
+
+    const standings = standingsRows.rows.map((r, i) => {
+      const prov = provMap.get(r.team_season_id as string) ??
+        { unconfirmed: 0, provenance: "confirmed" };
+      return {
+        rank: i + 1,
+        team_season_id: r.team_season_id as string,
+        franchise_id: r.franchise_id as string,
+        franchise_name: r.franchise_name as string | null,
+        club_abbrev: r.club_abbrev as string | null,
+        gm_display_name: null,
+        GP: r.GP as number,
+        W: r.W as number,
+        L: r.L as number,
+        OTL: r.OTL as number,
+        PTS: r.PTS as number,
+        ROW: r.ROW as number,
+        GF: r.GF as number,
+        GA: r.GA as number,
+        DIFF: r.DIFF as number,
+        unconfirmed_games: prov.unconfirmed,
+        provenance: prov.provenance,
+      };
+    });
+
+    res.json({ league, season, standings });
   }
 );
 

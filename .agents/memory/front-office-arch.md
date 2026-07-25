@@ -70,5 +70,20 @@ Added `GET /api/games/:gameId` to `competition.ts` as a plain Express route (not
 ## CP4: ConfirmResult gets gameId from URL query param
 Route is `/results/:resultId/confirm?gameId=...`. The gameId is passed as a search param so the page can load game context without being in the React Router state. wouter doesn't pass navigation state natively.
 
+## CP5: standings pure function — `server/core/standings.ts`
+`computeStandings(games, config)` — takes an array of `GameRecord` and returns sorted `StandingsEntry[]`. OT wins count toward ROW; SO wins do not. CP6 property-based tests should use this function rather than calling the DB.
+
+## CP5: provenance chip — single `provenance` field from API
+`GET /seasons/:seasonId/standings` now returns `provenance: 'confirmed' | 'manual' | 'ocr' | 'reconciled' | 'dispute'` per row. Chip class mapping: `conf`/`man`/`ocr`/`ea`/`dispute`. The SQL computes it in one combined query (UNION ALL home+away sides, BOOL_OR for dispute, MAX src_rank for data_source).
+
+## CP5: public `/l/:slug` route
+`GET /api/l/:slug` (no auth) returns `{ league, season, standings }`. Mounted in `leagues.ts`. Frontend at `/l/:slug` renders `LeaguePublic.tsx` using `useGetPublicLeague(slug)` — generated hook in api-client-react. Route has **no AuthGate** in App.tsx.
+
+## CP5: hub `my_games_this_week` now includes results
+League hub SQL query LEFT JOINs `game_result` so `my_games_this_week` entries carry the `result` object. Before this fix, MyWeek showed no scores for reported games.
+
+## CP5: LeagueSlab h1 is personalized
+`slabCopy(hub)` derives the hero h1 from `my_games_this_week` counts: disputed → "A result is disputed.", pending → "You owe N game(s).", reported → "Awaiting confirmation.", else → "All clear."
+
 ## CP4: Idempotency key on report — stable per session
 `ReportResult.tsx` generates the idempotency key once with `useRef(crypto.randomUUID())` — same key if the component re-renders, new key on fresh mount. If the user navigates away and back, they get a new key (which is correct — new submission intent).
