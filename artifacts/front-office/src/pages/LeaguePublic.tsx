@@ -3,6 +3,7 @@
  * Public-facing league page. No authentication required.
  * Shows the league name, active season, and standings.
  */
+import { useState, useCallback } from 'react';
 import { useParams } from 'wouter';
 import { useGetPublicLeague, StandingsRow } from '@workspace/api-client-react';
 import { StandingsTable } from '@/components/Standings';
@@ -51,6 +52,68 @@ function PublicSlab({
         </div>
       </div>
     </section>
+  );
+}
+
+function ShareLinkBanner({ publicCode }: { publicCode: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const shareUrl = `${window.location.origin}/j/${publicCode}`;
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [shareUrl]);
+
+  return (
+    <div style={{
+      background: '#EDF4FC',
+      borderBottom: '1px solid #BDD5EE',
+      padding: '10px 0',
+    }}>
+      <div className="wrap" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={{
+          fontFamily: 'var(--data)',
+          fontSize: '11px',
+          textTransform: 'uppercase',
+          letterSpacing: '.09em',
+          color: 'var(--steel)',
+          flexShrink: 0,
+        }}>
+          Share link
+        </span>
+        <span style={{
+          fontFamily: 'var(--data)',
+          fontSize: '12px',
+          color: 'var(--crease)',
+          letterSpacing: '.03em',
+          flexGrow: 1,
+        }}>
+          {shareUrl}
+        </span>
+        <button
+          onClick={handleCopy}
+          style={{
+            fontFamily: 'var(--data)',
+            fontSize: '11px',
+            textTransform: 'uppercase',
+            letterSpacing: '.09em',
+            background: copied ? '#2563EB' : 'var(--crease)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '3px',
+            padding: '4px 12px',
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'background .15s',
+          }}
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -116,11 +179,6 @@ export default function LeaguePublic() {
             <div className="league-name">{league.name}</div>
             <div className="league-meta">
               {season ? `${season.label} · ` : ''}Public standings
-              {(league as any).public_code ? (
-                <span style={{ marginLeft: '10px', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--crease)', background: '#EDF4FC', border: '1px solid #BDD5EE', borderRadius: '3px', padding: '2px 7px', letterSpacing: '.05em' }}>
-                  Join code: {(league as any).public_code}
-                </span>
-              ) : null}
             </div>
           </div>
           <nav style={{ marginLeft: 'auto' }}>
@@ -140,6 +198,11 @@ export default function LeaguePublic() {
           </nav>
         </div>
       </header>
+
+      {/* Share link banner — visible to all visitors when public_code is set */}
+      {league.public_code ? (
+        <ShareLinkBanner publicCode={league.public_code} />
+      ) : null}
 
       {/* Slab */}
       <PublicSlab

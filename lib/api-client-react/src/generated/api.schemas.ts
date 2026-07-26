@@ -307,6 +307,7 @@ export type PublicLeagueEnvelopeLeague = {
   slug: string;
   name: string;
   visibility: string;
+  public_code?: string | null;
 };
 
 export type PublicLeagueEnvelopeSeason = {
@@ -861,6 +862,30 @@ export interface WaitlistEntry {
   already_joined?: boolean;
 }
 
+/**
+ * @nullable
+ */
+export type LeagueListingPlatform = typeof LeagueListingPlatform[keyof typeof LeagueListingPlatform] | null;
+
+
+export const LeagueListingPlatform = {
+  psn: 'psn',
+  xbox: 'xbox',
+  both: 'both',
+} as const;
+
+/**
+ * @nullable
+ */
+export type LeagueListingCompetitiveness = typeof LeagueListingCompetitiveness[keyof typeof LeagueListingCompetitiveness] | null;
+
+
+export const LeagueListingCompetitiveness = {
+  casual: 'casual',
+  competitive: 'competitive',
+  hardcore: 'hardcore',
+} as const;
+
 export interface LeagueListing {
   league_id: string;
   is_listed: boolean;
@@ -869,9 +894,9 @@ export interface LeagueListing {
   /** @nullable */
   blurb?: string | null;
   /** @nullable */
-  platform?: string | null;
+  platform?: LeagueListingPlatform;
   /** @nullable */
-  competitiveness?: string | null;
+  competitiveness?: LeagueListingCompetitiveness;
   /** @nullable */
   suggested_division?: string | null;
   /** @nullable */
@@ -882,6 +907,30 @@ export interface LeagueListing {
   updated_at?: string | null;
 }
 
+/**
+ * @nullable
+ */
+export type UpdateLeagueListingInputPlatform = typeof UpdateLeagueListingInputPlatform[keyof typeof UpdateLeagueListingInputPlatform] | null;
+
+
+export const UpdateLeagueListingInputPlatform = {
+  psn: 'psn',
+  xbox: 'xbox',
+  both: 'both',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UpdateLeagueListingInputCompetitiveness = typeof UpdateLeagueListingInputCompetitiveness[keyof typeof UpdateLeagueListingInputCompetitiveness] | null;
+
+
+export const UpdateLeagueListingInputCompetitiveness = {
+  casual: 'casual',
+  competitive: 'competitive',
+  hardcore: 'hardcore',
+} as const;
+
 export interface UpdateLeagueListingInput {
   is_listed?: boolean;
   accepting_signups?: boolean;
@@ -889,9 +938,9 @@ export interface UpdateLeagueListingInput {
   /** @nullable */
   blurb?: string | null;
   /** @nullable */
-  platform?: string | null;
+  platform?: UpdateLeagueListingInputPlatform;
   /** @nullable */
-  competitiveness?: string | null;
+  competitiveness?: UpdateLeagueListingInputCompetitiveness;
   /** @nullable */
   suggested_division?: string | null;
   /** @nullable */
@@ -925,10 +974,10 @@ export interface LeagueApplicant {
   waitlist_position?: number | null;
 }
 
-export type CommissionerWaitlistEntryStatus = typeof CommissionerWaitlistEntryStatus[keyof typeof CommissionerWaitlistEntryStatus];
+export type WaitlistApplicantStatus = typeof WaitlistApplicantStatus[keyof typeof WaitlistApplicantStatus];
 
 
-export const CommissionerWaitlistEntryStatus = {
+export const WaitlistApplicantStatus = {
   waiting: 'waiting',
   invited: 'invited',
   placed: 'placed',
@@ -937,10 +986,10 @@ export const CommissionerWaitlistEntryStatus = {
   expired: 'expired',
 } as const;
 
-export interface CommissionerWaitlistEntry {
+export interface WaitlistApplicant {
   league_id: string;
   position: number;
-  status: CommissionerWaitlistEntryStatus;
+  status: WaitlistApplicantStatus;
   user_id: string;
   /** @nullable */
   display_name?: string | null;
@@ -961,19 +1010,19 @@ export interface CommissionerWaitlistEntry {
   invite_expires_at?: string | null;
 }
 
-export type ApplicantOutcomeOutcome = typeof ApplicantOutcomeOutcome[keyof typeof ApplicantOutcomeOutcome];
+export type ApplicantActionResultOutcome = typeof ApplicantActionResultOutcome[keyof typeof ApplicantActionResultOutcome];
 
 
-export const ApplicantOutcomeOutcome = {
+export const ApplicantActionResultOutcome = {
   accepted: 'accepted',
   declined: 'declined',
 } as const;
 
-export interface ApplicantOutcome {
+export interface ApplicantActionResult {
   signup_id: string;
   user_id: string;
   league_id: string;
-  outcome: ApplicantOutcomeOutcome;
+  outcome: ApplicantActionResultOutcome;
 }
 
 export interface FeatureRequestInput {
@@ -1086,7 +1135,7 @@ export type ListOpenLeagues200 = {
 };
 
 export type ListLeagueWaitlist200 = {
-  data: CommissionerWaitlistEntry[];
+  data: WaitlistApplicant[];
   total: number;
 };
 

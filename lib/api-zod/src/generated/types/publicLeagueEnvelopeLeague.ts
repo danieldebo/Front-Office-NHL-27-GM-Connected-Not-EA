@@ -11,4 +11,5 @@ export type PublicLeagueEnvelopeLeague = {
   slug: string;
   name: string;
   visibility: string;
+  public_code?: string | null;
 };

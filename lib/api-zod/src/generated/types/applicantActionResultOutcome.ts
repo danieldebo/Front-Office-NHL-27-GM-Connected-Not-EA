@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.3.0
  */
 
-export type ApplicantOutcomeOutcome = typeof ApplicantOutcomeOutcome[keyof typeof ApplicantOutcomeOutcome];
+export type ApplicantActionResultOutcome = typeof ApplicantActionResultOutcome[keyof typeof ApplicantActionResultOutcome];
 
 
-export const ApplicantOutcomeOutcome = {
+export const ApplicantActionResultOutcome = {
   accepted: 'accepted',
   declined: 'declined',
 } as const;

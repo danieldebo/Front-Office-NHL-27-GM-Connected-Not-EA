@@ -281,7 +281,7 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/CommissionerWaitlistEntry'
+                      $ref: '#/components/schemas/WaitlistApplicant'
                   total:
                     type: integer
         '401':
@@ -553,6 +553,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LeagueListing'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
         '401':
           description: Not authenticated.
           content:
@@ -635,7 +641,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApplicantOutcome'
+                $ref: '#/components/schemas/ApplicantActionResult'
         '401':
           description: Not authenticated.
           content:
@@ -675,7 +681,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ApplicantOutcome'
+                $ref: '#/components/schemas/ApplicantActionResult'
         '401':
           description: Not authenticated.
           content:
@@ -2205,6 +2211,9 @@ components:
               type: string
             visibility:
               type: string
+            public_code:
+              type: string
+              nullable: true
         season:
           oneOf:
             - type: object
@@ -2923,8 +2932,10 @@ components:
           type: ['string', 'null']
         platform:
           type: ['string', 'null']
+          enum: [psn, xbox, both, null]
         competitiveness:
           type: ['string', 'null']
+          enum: [casual, competitive, hardcore, null]
         suggested_division:
           type: ['string', 'null']
         timezone_focus:
@@ -2949,8 +2960,10 @@ components:
           type: ['string', 'null']
         platform:
           type: ['string', 'null']
+          enum: [psn, xbox, both, null]
         competitiveness:
           type: ['string', 'null']
+          enum: [casual, competitive, hardcore, null]
         suggested_division:
           type: ['string', 'null']
         timezone_focus:
@@ -2990,7 +3003,7 @@ components:
         waitlist_position:
           type: ['integer', 'null']
 
-    CommissionerWaitlistEntry:
+    WaitlistApplicant:
       type: object
       required: [league_id, position, status, user_id, joined_at]
       properties:
@@ -3025,7 +3038,7 @@ components:
           type: ['string', 'null']
           format: date-time
 
-    ApplicantOutcome:
+    ApplicantActionResult:
       type: object
       required: [signup_id, user_id, league_id, outcome]
       properties:

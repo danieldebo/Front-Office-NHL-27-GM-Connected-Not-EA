@@ -20,7 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  ApplicantOutcome,
+  ApplicantActionResult,
   AssignGmInput,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
@@ -1654,9 +1654,9 @@ export const getAcceptApplicantUrl = (leagueId: string,
  * @summary Accept a sign-up applicant (commissioner only)
  */
 export const acceptApplicant = async (leagueId: string,
-    signupId: string, options?: RequestInit): Promise<ApplicantOutcome> => {
+    signupId: string, options?: RequestInit): Promise<ApplicantActionResult> => {
 
-  return customFetch<ApplicantOutcome>(getAcceptApplicantUrl(leagueId,signupId),
+  return customFetch<ApplicantActionResult>(getAcceptApplicantUrl(leagueId,signupId),
   {
     ...options,
     method: 'POST'
@@ -1727,9 +1727,9 @@ export const getDeclineApplicantUrl = (leagueId: string,
  * @summary Decline a sign-up applicant (commissioner only)
  */
 export const declineApplicant = async (leagueId: string,
-    signupId: string, options?: RequestInit): Promise<ApplicantOutcome> => {
+    signupId: string, options?: RequestInit): Promise<ApplicantActionResult> => {
 
-  return customFetch<ApplicantOutcome>(getDeclineApplicantUrl(leagueId,signupId),
+  return customFetch<ApplicantActionResult>(getDeclineApplicantUrl(leagueId,signupId),
   {
     ...options,
     method: 'POST'

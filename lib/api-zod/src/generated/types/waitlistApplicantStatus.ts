@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.3.0
  */
 
-export type CommissionerWaitlistEntryStatus = typeof CommissionerWaitlistEntryStatus[keyof typeof CommissionerWaitlistEntryStatus];
+export type WaitlistApplicantStatus = typeof WaitlistApplicantStatus[keyof typeof WaitlistApplicantStatus];
 
 
-export const CommissionerWaitlistEntryStatus = {
+export const WaitlistApplicantStatus = {
   waiting: 'waiting',
   invited: 'invited',
   placed: 'placed',

@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.3.0
  */
 
-export * from './applicantOutcome';
-export * from './applicantOutcomeOutcome';
+export * from './applicantActionResult';
+export * from './applicantActionResultOutcome';
 export * from './assignedGm';
 export * from './assignGmInput';
 export * from './assignGmInputRole';
@@ -23,8 +23,6 @@ export * from './commissionerInvite';
 export * from './commissionerInviteEnvelope';
 export * from './commissionerInviteInput';
 export * from './commissionerInvitePublic';
-export * from './commissionerWaitlistEntry';
-export * from './commissionerWaitlistEntryStatus';
 export * from './confirmInput';
 export * from './createInviteInput';
 export * from './createLeagueInput';
@@ -59,6 +57,8 @@ export * from './league';
 export * from './leagueApplicant';
 export * from './leagueHub';
 export * from './leagueListing';
+export * from './leagueListingCompetitiveness';
+export * from './leagueListingPlatform';
 export * from './leagueSignup';
 export * from './leagueSignupInput';
 export * from './leagueSignupInputStatedDivision';
@@ -110,6 +110,10 @@ export * from './standingsRowProvenance';
 export * from './updateLeagueInput';
 export * from './updateLeagueInputVisibility';
 export * from './updateLeagueListingInput';
+export * from './updateLeagueListingInputCompetitiveness';
+export * from './updateLeagueListingInputPlatform';
+export * from './waitlistApplicant';
+export * from './waitlistApplicantStatus';
 export * from './waitlistEntry';
 export * from './waitlistEntryStatus';
 export * from './weekListEnvelope';

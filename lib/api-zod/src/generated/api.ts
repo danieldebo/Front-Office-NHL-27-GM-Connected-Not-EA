@@ -440,8 +440,8 @@ export const GetLeagueListingResponse = zod.object({
   "accepting_signups": zod.boolean(),
   "accepting_waitlist": zod.boolean(),
   "blurb": zod.string().nullish(),
-  "platform": zod.string().nullish(),
-  "competitiveness": zod.string().nullish(),
+  "platform": zod.union([zod.literal('psn'),zod.literal('xbox'),zod.literal('both'),zod.literal(null)]).nullish(),
+  "competitiveness": zod.union([zod.literal('casual'),zod.literal('competitive'),zod.literal('hardcore'),zod.literal(null)]).nullish(),
   "suggested_division": zod.string().nullish(),
   "timezone_focus": zod.string().nullish(),
   "listed_at": zod.coerce.date().nullish(),
@@ -461,8 +461,8 @@ export const UpdateLeagueListingBody = zod.object({
   "accepting_signups": zod.boolean().optional(),
   "accepting_waitlist": zod.boolean().optional(),
   "blurb": zod.string().nullish(),
-  "platform": zod.string().nullish(),
-  "competitiveness": zod.string().nullish(),
+  "platform": zod.union([zod.literal('psn'),zod.literal('xbox'),zod.literal('both'),zod.literal(null)]).nullish(),
+  "competitiveness": zod.union([zod.literal('casual'),zod.literal('competitive'),zod.literal('hardcore'),zod.literal(null)]).nullish(),
   "suggested_division": zod.string().nullish(),
   "timezone_focus": zod.string().nullish()
 })
@@ -473,8 +473,8 @@ export const UpdateLeagueListingResponse = zod.object({
   "accepting_signups": zod.boolean(),
   "accepting_waitlist": zod.boolean(),
   "blurb": zod.string().nullish(),
-  "platform": zod.string().nullish(),
-  "competitiveness": zod.string().nullish(),
+  "platform": zod.union([zod.literal('psn'),zod.literal('xbox'),zod.literal('both'),zod.literal(null)]).nullish(),
+  "competitiveness": zod.union([zod.literal('casual'),zod.literal('competitive'),zod.literal('hardcore'),zod.literal(null)]).nullish(),
   "suggested_division": zod.string().nullish(),
   "timezone_focus": zod.string().nullish(),
   "listed_at": zod.coerce.date().nullish(),
@@ -554,7 +554,8 @@ export const GetPublicLeagueResponse = zod.object({
   "id": zod.string(),
   "slug": zod.string(),
   "name": zod.string(),
-  "visibility": zod.string()
+  "visibility": zod.string(),
+  "public_code": zod.string().nullish()
 }),
   "season": zod.union([zod.object({
   "id": zod.string(),

@@ -5,11 +5,11 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
-import type { ApplicantOutcomeOutcome } from './applicantOutcomeOutcome';
+import type { ApplicantActionResultOutcome } from './applicantActionResultOutcome';
 
-export interface ApplicantOutcome {
+export interface ApplicantActionResult {
   signup_id: string;
   user_id: string;
   league_id: string;
-  outcome: ApplicantOutcomeOutcome;
+  outcome: ApplicantActionResultOutcome;
 }

@@ -5,9 +5,9 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
-import type { CommissionerWaitlistEntry } from './commissionerWaitlistEntry';
+import type { WaitlistApplicant } from './waitlistApplicant';
 
 export type ListLeagueWaitlist200 = {
-  data: CommissionerWaitlistEntry[];
+  data: WaitlistApplicant[];
   total: number;
 };

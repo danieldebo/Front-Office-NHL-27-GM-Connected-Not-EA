@@ -4,8 +4,8 @@ export * from "./generated/api";
 // TypeScript types — generated interfaces. Exported individually (not via
 // `export * from "./generated/types"`) to avoid TS2308 ambiguity on names
 // that also exist as Zod consts in generated/api (e.g. ListGamesParams).
-export type { ApplicantOutcome } from "./generated/types/applicantOutcome";
-export type { ApplicantOutcomeOutcome } from "./generated/types/applicantOutcomeOutcome";
+export type { ApplicantActionResult } from "./generated/types/applicantActionResult";
+export type { ApplicantActionResultOutcome } from "./generated/types/applicantActionResultOutcome";
 export type { AssignGmInput } from "./generated/types/assignGmInput";
 export type { AssignGmInputRole } from "./generated/types/assignGmInputRole";
 export type { AssignedGm } from "./generated/types/assignedGm";
@@ -21,8 +21,6 @@ export type { CommissionerInvite } from "./generated/types/commissionerInvite";
 export type { CommissionerInviteEnvelope } from "./generated/types/commissionerInviteEnvelope";
 export type { CommissionerInviteInput } from "./generated/types/commissionerInviteInput";
 export type { CommissionerInvitePublic } from "./generated/types/commissionerInvitePublic";
-export type { CommissionerWaitlistEntry } from "./generated/types/commissionerWaitlistEntry";
-export type { CommissionerWaitlistEntryStatus } from "./generated/types/commissionerWaitlistEntryStatus";
 export type { ConfirmInput } from "./generated/types/confirmInput";
 export type { CreateInviteInput } from "./generated/types/createInviteInput";
 export type { CreateLeagueInput } from "./generated/types/createLeagueInput";
@@ -57,6 +55,8 @@ export type { League } from "./generated/types/league";
 export type { LeagueApplicant } from "./generated/types/leagueApplicant";
 export type { LeagueHub } from "./generated/types/leagueHub";
 export type { LeagueListing } from "./generated/types/leagueListing";
+export type { LeagueListingCompetitiveness } from "./generated/types/leagueListingCompetitiveness";
+export type { LeagueListingPlatform } from "./generated/types/leagueListingPlatform";
 // LeagueSignup intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // LeagueSignupInput intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { LeagueSignupInputStatedDivision } from "./generated/types/leagueSignupInputStatedDivision";
@@ -108,6 +108,10 @@ export type { StandingsRowProvenance } from "./generated/types/standingsRowProve
 export type { UpdateLeagueInput } from "./generated/types/updateLeagueInput";
 export type { UpdateLeagueInputVisibility } from "./generated/types/updateLeagueInputVisibility";
 export type { UpdateLeagueListingInput } from "./generated/types/updateLeagueListingInput";
+export type { UpdateLeagueListingInputCompetitiveness } from "./generated/types/updateLeagueListingInputCompetitiveness";
+export type { UpdateLeagueListingInputPlatform } from "./generated/types/updateLeagueListingInputPlatform";
+export type { WaitlistApplicant } from "./generated/types/waitlistApplicant";
+export type { WaitlistApplicantStatus } from "./generated/types/waitlistApplicantStatus";
 // WaitlistEntry intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { WaitlistEntryStatus } from "./generated/types/waitlistEntryStatus";
 // WeekListEnvelope intentionally excluded — collides with Zod const of the same name in generated/api.ts
