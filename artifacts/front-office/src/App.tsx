@@ -4,6 +4,7 @@ import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
 import Hub from '@/pages/Hub';
 import Login from '@/pages/Login';
+import LandingPage from '@/pages/LandingPage';
 import CreateLeague from '@/pages/CreateLeague';
 import ManageLeague from '@/pages/ManageLeague';
 import CreateSeason from '@/pages/CreateSeason';
@@ -40,6 +41,20 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+function RootRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div className="loading-screen">Loading…</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <LandingPage />;
+  }
+
+  return <Hub />;
 }
 
 function Router() {
@@ -91,11 +106,7 @@ function Router() {
       <Route path="/l/:slug" component={LeaguePublic} />
       <Route path="/join/:token" component={JoinInvite} />
       <Route path="/j/:code" component={JoinByCode} />
-      <Route path="/">
-        <AuthGate>
-          <Hub />
-        </AuthGate>
-      </Route>
+      <Route path="/" component={RootRoute} />
       <Route>
         <AuthGate>
           <div className="empty-state" style={{ margin: '40px auto', maxWidth: '600px' }}>

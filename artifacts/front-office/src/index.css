@@ -251,6 +251,92 @@ tbody tr:hover{background:#F6F9FB}
 footer{border-top:1px solid var(--rule);background:var(--paper)}
 footer .wrap{padding:20px;font-family:var(--data);font-size:10.5px;letter-spacing:.05em;color:var(--steel);display:flex;flex-wrap:wrap;gap:16px}
 
+/* ---------- landing page ---------- */
+.landing{display:flex;flex-direction:column;min-height:100vh}
+.landing-hero{
+  background:var(--slab);
+  color:#E8EEF3;
+  padding:64px 0 56px;
+  position:relative;
+  overflow:hidden;
+}
+.landing-rafter{
+  position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 80% 60% at 80% 110%,rgba(242,169,59,.10) 0%,transparent 70%);
+}
+.landing-hero .wrap{position:relative;z-index:1}
+.landing-eyebrow{
+  font-family:var(--data);font-size:11px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--bulb);margin-bottom:12px;
+}
+.landing-title{
+  font-family:var(--display);font-size:clamp(56px,9vw,100px);
+  line-height:.92;letter-spacing:.01em;text-transform:uppercase;
+  margin:0 0 20px;color:#fff;
+}
+.landing-sub{
+  color:#9FB1BF;max-width:52ch;font-size:clamp(14px,2vw,16px);
+  line-height:1.6;margin:0;
+}
+
+.landing-cards-wrap{padding-top:44px;padding-bottom:56px}
+.landing-cards{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:16px;
+}
+
+.lp-card{
+  background:var(--paper);border:1px solid var(--rule);border-radius:4px;
+  display:flex;flex-direction:column;gap:0;overflow:hidden;
+}
+.lp-card--primary{
+  border-color:var(--slab);
+  box-shadow:0 2px 8px rgba(22,32,42,.10);
+}
+.lp-card-icon{
+  padding:20px 20px 0;
+  font-size:28px;line-height:1;
+}
+.lp-card-body{padding:12px 20px 16px;flex:1}
+.lp-card-title{
+  font-family:var(--display);font-size:17px;letter-spacing:.03em;
+  text-transform:uppercase;margin:0 0 8px;line-height:1.1;
+}
+.lp-card-desc{
+  font-size:13.5px;line-height:1.5;color:#33414c;margin:0;
+}
+.lp-card-foot{
+  padding:14px 20px 18px;border-top:1px solid var(--rule);
+  background:#FAFCFD;
+}
+.lp-card-foot--muted{background:transparent}
+
+.lp-signin-btn{font-size:11.5px;padding:9px 18px}
+
+.lp-code-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lp-code-input{
+  font-family:var(--data);font-size:12px;letter-spacing:.06em;
+  text-transform:uppercase;
+  padding:8px 10px;border:1px solid var(--rule);border-radius:3px;
+  background:var(--paper);flex:1;min-width:100px;
+}
+.lp-code-input:focus{outline:2px solid var(--bulb);outline-offset:1px;border-color:var(--slab)}
+
+.lp-invite-note{
+  font-family:var(--data);font-size:11px;letter-spacing:.04em;
+  color:var(--steel);line-height:1.5;
+}
+.lp-invite-note code{
+  background:#F1F3F5;border:1px solid var(--rule);
+  border-radius:2px;padding:1px 5px;font-size:11px;
+}
+
+@media(max-width:640px){
+  .landing-title{font-size:clamp(48px,12vw,70px)}
+  .landing-cards{grid-template-columns:1fr}
+}
+
 /* ---------- motion ---------- */
 @keyframes rowIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 .anim{animation:rowIn .34s ease both}
