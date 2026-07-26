@@ -329,4 +329,197 @@ router.post(
   }
 );
 
+// ────────────────────────────────────────────── Get listing settings
+
+router.get(
+  "/leagues/:leagueId/listing",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      unauthorized(res, "Authentication required");
+      return;
+    }
+
+    const { leagueId } = req.params;
+
+    const leagueRow = await pool.query<{ id: string; owner_user_id: string }>(
+      `SELECT id, owner_user_id FROM league WHERE id = $1`,
+      [leagueId]
+    );
+    if (!leagueRow.rows[0]) {
+      notFound(res, "League not found");
+      return;
+    }
+
+    if (!can(user, "league:write", { kind: "league", ownerId: leagueRow.rows[0].owner_user_id })) {
+      forbidden(res, "Only the league owner can view listing settings");
+      return;
+    }
+
+    const listingRow = await pool.query<{
+      league_id: string;
+      is_listed: boolean;
+      accepting_signups: boolean;
+      accepting_waitlist: boolean;
+      blurb: string | null;
+      platform: string | null;
+      competitiveness: string | null;
+      suggested_division: string | null;
+      timezone_focus: string | null;
+      listed_at: Date | null;
+      updated_at: Date;
+    }>(
+      `SELECT league_id, is_listed, accepting_signups, accepting_waitlist,
+              blurb, platform, competitiveness, suggested_division,
+              timezone_focus, listed_at, updated_at
+         FROM league_listing WHERE league_id = $1`,
+      [leagueId]
+    );
+
+    if (!listingRow.rows[0]) {
+      // No listing row yet — return nulls
+      res.json({
+        league_id: leagueId,
+        is_listed: false,
+        accepting_signups: false,
+        accepting_waitlist: true,
+        blurb: null,
+        platform: null,
+        competitiveness: null,
+        suggested_division: null,
+        timezone_focus: null,
+        listed_at: null,
+        updated_at: null,
+      });
+      return;
+    }
+
+    res.json(listingRow.rows[0]);
+  }
+);
+
+// ────────────────────────────────────────────── Update listing settings
+
+router.put(
+  "/leagues/:leagueId/listing",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      unauthorized(res, "Authentication required");
+      return;
+    }
+
+    const { leagueId } = req.params;
+
+    const leagueRow = await pool.query<{ id: string; owner_user_id: string }>(
+      `SELECT id, owner_user_id FROM league WHERE id = $1`,
+      [leagueId]
+    );
+    if (!leagueRow.rows[0]) {
+      notFound(res, "League not found");
+      return;
+    }
+
+    if (!can(user, "league:write", { kind: "league", ownerId: leagueRow.rows[0].owner_user_id })) {
+      forbidden(res, "Only the league owner can update listing settings");
+      return;
+    }
+
+    const {
+      is_listed,
+      accepting_signups,
+      accepting_waitlist,
+      blurb,
+      platform,
+      competitiveness,
+      suggested_division,
+      timezone_focus,
+    } = req.body as {
+      is_listed?: boolean;
+      accepting_signups?: boolean;
+      accepting_waitlist?: boolean;
+      blurb?: string | null;
+      platform?: string | null;
+      competitiveness?: string | null;
+      suggested_division?: string | null;
+      timezone_focus?: string | null;
+    };
+
+    // Validate enums if provided
+    const validPlatforms = ["psn", "xbox", "both", null];
+    if (platform !== undefined && !validPlatforms.includes(platform)) {
+      badRequest(res, `platform must be one of: psn, xbox, both`);
+      return;
+    }
+    const validCompetitiveness = ["casual", "competitive", "hardcore", null];
+    if (competitiveness !== undefined && !validCompetitiveness.includes(competitiveness)) {
+      badRequest(res, `competitiveness must be one of: casual, competitive, hardcore`);
+      return;
+    }
+    const validDivisions = ["bronze", "silver", "gold", "diamond", "platinum", "elite", "ultimate", null];
+    if (suggested_division !== undefined && !validDivisions.includes(suggested_division)) {
+      badRequest(res, `suggested_division must be a valid ranked division`);
+      return;
+    }
+
+    // Upsert the listing row
+    const now = new Date();
+    const listedAt = is_listed ? now : undefined;
+
+    const result = await pool.query<{
+      league_id: string;
+      is_listed: boolean;
+      accepting_signups: boolean;
+      accepting_waitlist: boolean;
+      blurb: string | null;
+      platform: string | null;
+      competitiveness: string | null;
+      suggested_division: string | null;
+      timezone_focus: string | null;
+      listed_at: Date | null;
+      updated_at: Date;
+    }>(
+      `INSERT INTO league_listing
+         (league_id, is_listed, accepting_signups, accepting_waitlist,
+          blurb, platform, competitiveness, suggested_division, timezone_focus,
+          listed_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+               CASE WHEN $2 THEN now() ELSE NULL END, now())
+       ON CONFLICT (league_id) DO UPDATE SET
+         is_listed          = EXCLUDED.is_listed,
+         accepting_signups  = EXCLUDED.accepting_signups,
+         accepting_waitlist = EXCLUDED.accepting_waitlist,
+         blurb              = EXCLUDED.blurb,
+         platform           = EXCLUDED.platform,
+         competitiveness    = EXCLUDED.competitiveness,
+         suggested_division = EXCLUDED.suggested_division,
+         timezone_focus     = EXCLUDED.timezone_focus,
+         listed_at          = CASE
+                                WHEN EXCLUDED.is_listed AND league_listing.listed_at IS NULL
+                                THEN now()
+                                WHEN NOT EXCLUDED.is_listed
+                                THEN NULL
+                                ELSE league_listing.listed_at
+                              END,
+         updated_at         = now()
+       RETURNING league_id, is_listed, accepting_signups, accepting_waitlist,
+                 blurb, platform, competitiveness, suggested_division,
+                 timezone_focus, listed_at, updated_at`,
+      [
+        leagueId,
+        is_listed ?? false,
+        accepting_signups ?? false,
+        accepting_waitlist ?? true,
+        blurb ?? null,
+        platform ?? null,
+        competitiveness ?? null,
+        suggested_division ?? null,
+        timezone_focus ?? null,
+      ]
+    );
+
+    res.json(result.rows[0]);
+  }
+);
+
 export default router;

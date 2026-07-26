@@ -4181,6 +4181,155 @@ export function useGetGameOverlap<TData = Awaited<ReturnType<typeof getGameOverl
 }
 
 
+// ─────────────────────────────────────── League listing (discovery) hooks
+
+export interface LeagueListing {
+  league_id: string;
+  is_listed: boolean;
+  accepting_signups: boolean;
+  accepting_waitlist: boolean;
+  blurb: string | null;
+  platform: string | null;
+  competitiveness: string | null;
+  suggested_division: string | null;
+  timezone_focus: string | null;
+  listed_at: string | null;
+  updated_at: string | null;
+}
+
+export interface UpdateLeagueListingInput {
+  is_listed?: boolean;
+  accepting_signups?: boolean;
+  accepting_waitlist?: boolean;
+  blurb?: string | null;
+  platform?: string | null;
+  competitiveness?: string | null;
+  suggested_division?: string | null;
+  timezone_focus?: string | null;
+}
+
+export const getGetLeagueListingUrl = (leagueId: string) =>
+  `/api/leagues/${leagueId}/listing`;
+
+export const getLeagueListing = async (
+  leagueId: string,
+  options?: RequestInit
+): Promise<LeagueListing> =>
+  customFetch<LeagueListing>(getGetLeagueListingUrl(leagueId), {
+    ...options,
+    method: 'GET',
+  });
+
+export const getGetLeagueListingQueryKey = (leagueId: string) =>
+  [`/api/leagues/${leagueId}/listing`] as const;
+
+export const getGetLeagueListingQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLeagueListing>>,
+  TError = ErrorType<Problem>
+>(
+  leagueId: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getLeagueListing>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getGetLeagueListingQueryKey(leagueId);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeagueListing>>> = ({ signal }) =>
+    getLeagueListing(leagueId, { signal, ...requestOptions });
+  return {
+    queryKey,
+    queryFn,
+    enabled: leagueId !== null && leagueId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getLeagueListing>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetLeagueListingQueryResult = NonNullable<Awaited<ReturnType<typeof getLeagueListing>>>;
+export type GetLeagueListingQueryError = ErrorType<Problem>;
+
+/**
+ * @summary Get league listing / discovery settings (commissioner only)
+ */
+export function useGetLeagueListing<
+  TData = Awaited<ReturnType<typeof getLeagueListing>>,
+  TError = ErrorType<Problem>
+>(
+  leagueId: string,
+  options?: {
+    query?: UseQueryOptions<Awaited<ReturnType<typeof getLeagueListing>>, TError, TData>;
+    request?: SecondParameter<typeof customFetch>;
+  }
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLeagueListingQueryOptions(leagueId, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const updateLeagueListing = async (
+  leagueId: string,
+  data: UpdateLeagueListingInput,
+  options?: RequestInit
+): Promise<LeagueListing> =>
+  customFetch<LeagueListing>(getGetLeagueListingUrl(leagueId), {
+    ...options,
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export const getUpdateLeagueListingMutationOptions = <
+  TError = ErrorType<Problem>,
+  TContext = unknown
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateLeagueListing>>,
+    TError,
+    { leagueId: string; data: UpdateLeagueListingInput },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
+  const mutationFn = async (vars: { leagueId: string; data: UpdateLeagueListingInput }) =>
+    updateLeagueListing(vars.leagueId, vars.data, requestOptions);
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<
+    Awaited<ReturnType<typeof updateLeagueListing>>,
+    TError,
+    { leagueId: string; data: UpdateLeagueListingInput },
+    TContext
+  >;
+};
+
+export type UpdateLeagueListingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateLeagueListing>>
+>;
+export type UpdateLeagueListingMutationError = ErrorType<Problem>;
+
+/**
+ * @summary Update league listing / discovery settings (commissioner only)
+ */
+export const useUpdateLeagueListing = <TError = ErrorType<Problem>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateLeagueListing>>,
+      TError,
+      { leagueId: string; data: UpdateLeagueListingInput },
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  }
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateLeagueListing>>,
+  TError,
+  { leagueId: string; data: UpdateLeagueListingInput },
+  TContext
+> => {
+  return useMutation(getUpdateLeagueListingMutationOptions(options));
+};
+
+
 
 
 

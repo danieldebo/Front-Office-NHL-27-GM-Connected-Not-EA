@@ -23,6 +23,8 @@ import {
   useUpdateCommissionerInvite,
   useRevokeCommissionerInvite,
   useSetPublicCode,
+  useGetLeagueListing,
+  useUpdateLeagueListing,
   Seat,
   JoinRequest,
   InviteLink,
@@ -562,6 +564,262 @@ function LinksTab({ leagueId, leagueSlug }: { leagueId: string; leagueSlug: stri
   );
 }
 
+function DiscoveryTab({ leagueId }: { leagueId: string }) {
+  const queryClient = useQueryClient();
+  const { data: listing, isLoading } = useGetLeagueListing(leagueId);
+  const updateListing = useUpdateLeagueListing();
+
+  const [isListed, setIsListed] = React.useState(false);
+  const [acceptingSignups, setAcceptingSignups] = React.useState(false);
+  const [acceptingWaitlist, setAcceptingWaitlist] = React.useState(true);
+  const [blurb, setBlurb] = React.useState('');
+  const [platform, setPlatform] = React.useState('');
+  const [competitiveness, setCompetitiveness] = React.useState('');
+  const [suggestedDivision, setSuggestedDivision] = React.useState('');
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = React.useState(false);
+  const [initialised, setInitialised] = React.useState(false);
+
+  // Sync state once data loads
+  React.useEffect(() => {
+    if (listing && !initialised) {
+      setIsListed(listing.is_listed ?? false);
+      setAcceptingSignups(listing.accepting_signups ?? false);
+      setAcceptingWaitlist(listing.accepting_waitlist ?? true);
+      setBlurb(listing.blurb ?? '');
+      setPlatform(listing.platform ?? '');
+      setCompetitiveness(listing.competitiveness ?? '');
+      setSuggestedDivision(listing.suggested_division ?? '');
+      setInitialised(true);
+    }
+  }, [listing, initialised]);
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaveError(null);
+    setSaveSuccess(false);
+    updateListing.mutate(
+      {
+        leagueId,
+        data: {
+          is_listed: isListed,
+          accepting_signups: acceptingSignups,
+          accepting_waitlist: acceptingWaitlist,
+          blurb: blurb.trim() || null,
+          platform: platform || null,
+          competitiveness: competitiveness || null,
+          suggested_division: suggestedDivision || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          setSaveSuccess(true);
+          queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/listing`] as any });
+          setTimeout(() => setSaveSuccess(false), 3000);
+        },
+        onError: (err: unknown) => {
+          setSaveError(err instanceof Error ? err.message : 'Failed to save');
+        },
+      }
+    );
+  };
+
+  if (isLoading) {
+    return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>Loading…</div>;
+  }
+
+  const fieldStyle = {
+    width: '100%',
+    padding: '10px 12px',
+    fontFamily: 'var(--body)',
+    fontSize: '14px',
+    border: '1px solid var(--rule)',
+    borderRadius: '3px',
+    background: '#FAFCFD',
+  };
+
+  const selectStyle = { ...fieldStyle, cursor: 'pointer' };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '26px', alignItems: 'start' }}>
+      <form onSubmit={handleSave} className="panel">
+        <div className="panel-head">
+          <h2>Open Leagues Directory</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {isListed && <span className="chip conf" style={{ fontSize: '10px' }}>Listed</span>}
+            {!isListed && <span className="chip" style={{ fontSize: '10px', background: 'var(--steel)', color: '#fff' }}>Unlisted</span>}
+          </div>
+        </div>
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* ── List toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: isListed ? '#F0FAF5' : '#F6F8FA', borderRadius: '6px', border: `1px solid ${isListed ? '#A3D9BC' : 'var(--rule)'}` }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '15px' }}>List on Open Leagues page</div>
+              <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', marginTop: '3px' }}>
+                When enabled, fans can discover and apply to your league.
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', userSelect: 'none' }}>
+              <div
+                onClick={() => setIsListed(v => !v)}
+                style={{
+                  width: '44px', height: '24px', borderRadius: '12px', position: 'relative', cursor: 'pointer',
+                  background: isListed ? 'var(--crease)' : 'var(--steel)',
+                  transition: 'background .2s',
+                  flexShrink: 0,
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: '3px',
+                  left: isListed ? '23px' : '3px',
+                  width: '18px', height: '18px', borderRadius: '50%',
+                  background: '#fff', transition: 'left .2s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+                }} />
+              </div>
+              <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: isListed ? 'var(--crease)' : 'var(--steel)', fontWeight: 600 }}>
+                {isListed ? 'ON' : 'OFF'}
+              </span>
+            </label>
+          </div>
+
+          {/* ── Recruiting pitch */}
+          <div>
+            <label style={{ display: 'block', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '6px' }}>
+              Recruiting Pitch
+            </label>
+            <textarea
+              value={blurb}
+              onChange={e => setBlurb(e.target.value)}
+              placeholder="Describe what makes your league great. What kind of players are you looking for?"
+              maxLength={500}
+              rows={3}
+              style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.5 }}
+            />
+            <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', marginTop: '4px', textAlign: 'right' }}>
+              {blurb.length}/500
+            </div>
+          </div>
+
+          {/* ── Platform + Competitiveness */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '6px' }}>
+                Platform
+              </label>
+              <select value={platform} onChange={e => setPlatform(e.target.value)} style={selectStyle}>
+                <option value="">Any / Not specified</option>
+                <option value="psn">PlayStation (PSN)</option>
+                <option value="xbox">Xbox</option>
+                <option value="both">Cross-play (Both)</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '6px' }}>
+                Competitiveness
+              </label>
+              <select value={competitiveness} onChange={e => setCompetitiveness(e.target.value)} style={selectStyle}>
+                <option value="">Not specified</option>
+                <option value="casual">Casual</option>
+                <option value="competitive">Competitive</option>
+                <option value="hardcore">Hardcore</option>
+              </select>
+            </div>
+          </div>
+
+          {/* ── Suggested division */}
+          <div>
+            <label style={{ display: 'block', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '6px' }}>
+              Suggested Skill Division
+            </label>
+            <select value={suggestedDivision} onChange={e => setSuggestedDivision(e.target.value)} style={selectStyle}>
+              <option value="">Not specified</option>
+              <option value="bronze">Bronze</option>
+              <option value="silver">Silver</option>
+              <option value="gold">Gold</option>
+              <option value="platinum">Platinum</option>
+              <option value="diamond">Diamond</option>
+              <option value="elite">Elite</option>
+              <option value="ultimate">Ultimate</option>
+            </select>
+            <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', marginTop: '4px' }}>
+              Optional guidance for applicants — not an enforced gate.
+            </div>
+          </div>
+
+          {/* ── Sign-up & waitlist toggles */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '12px', border: '1px solid var(--rule)', borderRadius: '4px' }}>
+              <input
+                type="checkbox"
+                checked={acceptingSignups}
+                onChange={e => setAcceptingSignups(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: 'var(--crease)', cursor: 'pointer' }}
+              />
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600 }}>Accepting Sign-ups</div>
+                <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)' }}>Direct applications for open seats</div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '12px', border: '1px solid var(--rule)', borderRadius: '4px' }}>
+              <input
+                type="checkbox"
+                checked={acceptingWaitlist}
+                onChange={e => setAcceptingWaitlist(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: 'var(--crease)', cursor: 'pointer' }}
+              />
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600 }}>Accepting Waitlist</div>
+                <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)' }}>Queue for future openings</div>
+              </div>
+            </label>
+          </div>
+
+          {/* ── Save */}
+          {saveError && (
+            <div style={{ background: '#FCF2F0', border: '1px solid #E5B8B1', borderRadius: '3px', padding: '10px 14px', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--goal)' }}>
+              {saveError}
+            </div>
+          )}
+          {saveSuccess && (
+            <div style={{ background: '#F0FAF5', border: '1px solid #A3D9BC', borderRadius: '3px', padding: '10px 14px', fontFamily: 'var(--data)', fontSize: '11px', color: '#1F7A4C' }}>
+              Listing settings saved!
+            </div>
+          )}
+          <div>
+            <button type="submit" className="btn" disabled={updateListing.isPending}>
+              {updateListing.isPending ? 'Saving…' : 'Save Discovery Settings'}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {/* ── Info panel */}
+      <div className="panel">
+        <div className="panel-head"><h2>How it works</h2></div>
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', lineHeight: 1.6 }}>
+          <div>
+            <div style={{ fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>🔍 Discovery</div>
+            When listed, your league appears on the public <strong>Open Leagues</strong> page at <code>/leagues/open</code> so fans can find you.
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>📝 Sign-ups</div>
+            Enable <em>Accepting Sign-ups</em> so fans can submit an application. You review and approve them in the <strong>Join Requests</strong> tab.
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, color: 'var(--ink)', marginBottom: '4px' }}>⏳ Waitlist</div>
+            If seats are full, enable the waitlist so fans can queue for future openings.
+          </div>
+          <div style={{ borderTop: '1px solid var(--rule)', paddingTop: '12px' }}>
+            You can unlist your league at any time. Existing members are unaffected.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ScheduleTab({ leagueId }: { leagueId: string }) {
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const { data: seasonsData, isLoading: seasonsLoading } = useListSeasons(leagueId);
@@ -712,7 +970,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
 
 export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'links'>('seats');
+  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'links'|'discovery'>('seats');
   
   const { data: userResponse, isLoading: isLoadingUser } = useGetCurrentAuthUser();
   const { data: league, isLoading: isLoadingLeague } = useGetLeague(id || '');
@@ -777,6 +1035,12 @@ export default function ManageLeague() {
           >
             Links
           </button>
+          <button 
+            onClick={() => setActiveTab('discovery')}
+            className={`btn ${activeTab !== 'discovery' ? 'ghost' : ''}`}
+          >
+            Discovery
+          </button>
           
           <div style={{ marginLeft: 'auto' }}>
             <Link href={`/leagues/${league.id}/season/new`} className="btn ghost" style={{ borderColor: 'var(--steel)' }}>
@@ -793,6 +1057,9 @@ export default function ManageLeague() {
         )}
         {activeTab === 'links' && (
           <LinksTab leagueId={league.id} leagueSlug={league.slug} />
+        )}
+        {activeTab === 'discovery' && (
+          <DiscoveryTab leagueId={league.id} />
         )}
       </div>
     </>
