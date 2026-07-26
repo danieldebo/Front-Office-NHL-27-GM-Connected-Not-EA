@@ -11,6 +11,7 @@ import availabilityRouter from "./availability";
 import commissionerLinksRouter from "./commissioner-links";
 import discoveryRouter from "./discovery";
 import featureRequestsRouter from "./feature-requests";
+import dqRouter from "./dq";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(scheduleRouter);
 router.use(availabilityRouter);
 router.use(commissionerLinksRouter);
 router.use(featureRequestsRouter);
+router.use(dqRouter);
 
 export default router;

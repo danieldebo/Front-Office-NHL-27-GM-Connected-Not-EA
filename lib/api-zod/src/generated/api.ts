@@ -188,6 +188,33 @@ export const SignupForLeagueResponse = zod.object({
 
 
 /**
+ * @summary List waitlist entries for a league (commissioner only)
+ */
+export const ListLeagueWaitlistParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListLeagueWaitlistResponse = zod.object({
+  "data": zod.array(zod.object({
+  "league_id": zod.string(),
+  "position": zod.number(),
+  "status": zod.enum(['waiting', 'invited', 'placed', 'declined', 'withdrawn', 'expired']),
+  "user_id": zod.string(),
+  "display_name": zod.string().nullish(),
+  "skill_division": zod.string().nullish(),
+  "country_code": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "joined_at": zod.coerce.date(),
+  "invited_at": zod.coerce.date().nullish(),
+  "invite_expires_at": zod.coerce.date().nullish()
+})),
+  "total": zod.number()
+})
+
+
+/**
  * @summary Join the waitlist for a league (authenticated)
  */
 export const JoinLeagueWaitlistParams = zod.object({
@@ -398,6 +425,121 @@ export const GetLeagueHubResponse = zod.object({
 }),zod.null()]).optional()
 })).optional()
 }).describe('Summary stats for the league hub slab.')
+
+
+/**
+ * @summary Get league listing / discovery settings (commissioner only)
+ */
+export const GetLeagueListingParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const GetLeagueListingResponse = zod.object({
+  "league_id": zod.string(),
+  "is_listed": zod.boolean(),
+  "accepting_signups": zod.boolean(),
+  "accepting_waitlist": zod.boolean(),
+  "blurb": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "competitiveness": zod.string().nullish(),
+  "suggested_division": zod.string().nullish(),
+  "timezone_focus": zod.string().nullish(),
+  "listed_at": zod.coerce.date().nullish(),
+  "updated_at": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Update league listing / discovery settings (commissioner only)
+ */
+export const UpdateLeagueListingParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const UpdateLeagueListingBody = zod.object({
+  "is_listed": zod.boolean().optional(),
+  "accepting_signups": zod.boolean().optional(),
+  "accepting_waitlist": zod.boolean().optional(),
+  "blurb": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "competitiveness": zod.string().nullish(),
+  "suggested_division": zod.string().nullish(),
+  "timezone_focus": zod.string().nullish()
+})
+
+export const UpdateLeagueListingResponse = zod.object({
+  "league_id": zod.string(),
+  "is_listed": zod.boolean(),
+  "accepting_signups": zod.boolean(),
+  "accepting_waitlist": zod.boolean(),
+  "blurb": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "competitiveness": zod.string().nullish(),
+  "suggested_division": zod.string().nullish(),
+  "timezone_focus": zod.string().nullish(),
+  "listed_at": zod.coerce.date().nullish(),
+  "updated_at": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary List sign-up applicants for a league (commissioner only)
+ */
+export const ListLeagueSignupsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListLeagueSignupsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "signup_id": zod.string(),
+  "league_id": zod.string(),
+  "user_id": zod.string(),
+  "display_name": zod.string().nullish(),
+  "skill_division": zod.string().nullish(),
+  "country_code": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "message": zod.string().nullish(),
+  "preferred_club": zod.string().nullish(),
+  "created_at": zod.coerce.date(),
+  "waitlist_status": zod.string().nullish(),
+  "waitlist_position": zod.number().nullish()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Accept a sign-up applicant (commissioner only)
+ */
+export const AcceptApplicantParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "signupId": zod.coerce.string()
+})
+
+export const AcceptApplicantResponse = zod.object({
+  "signup_id": zod.string(),
+  "user_id": zod.string(),
+  "league_id": zod.string(),
+  "outcome": zod.enum(['accepted', 'declined'])
+})
+
+
+/**
+ * @summary Decline a sign-up applicant (commissioner only)
+ */
+export const DeclineApplicantParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "signupId": zod.coerce.string()
+})
+
+export const DeclineApplicantResponse = zod.object({
+  "signup_id": zod.string(),
+  "user_id": zod.string(),
+  "league_id": zod.string(),
+  "outcome": zod.enum(['accepted', 'declined'])
+})
 
 
 /**
@@ -1458,5 +1600,63 @@ export const GetGameOverlapParams = zod.object({
 })
 
 export const GetGameOverlapResponse = zod.unknown()
+
+
+/**
+ * @summary List data-quality findings for a league (commissioner only)
+ */
+export const ListDqFindingsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const listDqFindingsQueryLimitDefault = 50;
+export const listDqFindingsQueryLimitMax = 200;
+
+export const listDqFindingsQueryOffsetDefault = 0;
+
+export const ListDqFindingsQueryParams = zod.object({
+  "severity": zod.enum(['BLOCK', 'ALERT', 'WATCH']).optional(),
+  "resolved": zod.coerce.boolean().optional(),
+  "limit": zod.coerce.number().max(listDqFindingsQueryLimitMax).default(listDqFindingsQueryLimitDefault),
+  "offset": zod.coerce.number().default(listDqFindingsQueryOffsetDefault)
+})
+
+export const ListDqFindingsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.number(),
+  "checked_at": zod.coerce.date(),
+  "check_name": zod.string(),
+  "severity": zod.enum(['BLOCK', 'ALERT', 'WATCH']),
+  "league_id": zod.string().nullish(),
+  "season_id": zod.string().nullish(),
+  "entity_id": zod.string().nullish(),
+  "detail": zod.string().describe('JSON string — the full row from the check view, serialised with row_to_json().'),
+  "resolved_at": zod.coerce.date().nullish(),
+  "resolved_by": zod.string().nullish()
+})),
+  "total": zod.number()
+})
+
+
+/**
+ * @summary Mark a DQ finding as resolved (commissioner only)
+ */
+export const ResolveDqFindingParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "findingId": zod.coerce.number()
+})
+
+export const ResolveDqFindingResponse = zod.object({
+  "id": zod.number(),
+  "checked_at": zod.coerce.date(),
+  "check_name": zod.string(),
+  "severity": zod.enum(['BLOCK', 'ALERT', 'WATCH']),
+  "league_id": zod.string().nullish(),
+  "season_id": zod.string().nullish(),
+  "entity_id": zod.string().nullish(),
+  "detail": zod.string().describe('JSON string — the full row from the check view, serialised with row_to_json().'),
+  "resolved_at": zod.coerce.date().nullish(),
+  "resolved_by": zod.string().nullish()
+})
 
 

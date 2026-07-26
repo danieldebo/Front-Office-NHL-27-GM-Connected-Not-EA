@@ -12,6 +12,7 @@ import Availability from '@/pages/Availability';
 import ReportResult from '@/pages/ReportResult';
 import ConfirmResult from '@/pages/ConfirmResult';
 import LeaguePublic from '@/pages/LeaguePublic';
+import DqFindings from '@/pages/DqFindings';
 import JoinInvite from '@/pages/JoinInvite';
 import JoinByCode from '@/pages/JoinByCode';
 import OpenLeagues from '@/pages/OpenLeagues';
@@ -78,6 +79,11 @@ function Router() {
       <Route path="/results/:resultId/confirm">
         <AuthGate>
           <ConfirmResult />
+        </AuthGate>
+      </Route>
+      <Route path="/leagues/:id/dq">
+        <AuthGate>
+          <DqFindings />
         </AuthGate>
       </Route>
       {/* Public routes — no AuthGate */}

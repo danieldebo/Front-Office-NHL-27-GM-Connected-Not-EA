@@ -861,22 +861,42 @@ export interface WaitlistEntry {
   already_joined?: boolean;
 }
 
-export interface FeatureRequestInput {
-  /** @maxLength 254 */
-  email?: string;
-  /**
-     * @minLength 1
-     * @maxLength 4000
-     */
-  body: string;
+export interface LeagueListing {
+  league_id: string;
+  is_listed: boolean;
+  accepting_signups: boolean;
+  accepting_waitlist: boolean;
+  /** @nullable */
+  blurb?: string | null;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  competitiveness?: string | null;
+  /** @nullable */
+  suggested_division?: string | null;
+  /** @nullable */
+  timezone_focus?: string | null;
+  /** @nullable */
+  listed_at?: string | null;
+  /** @nullable */
+  updated_at?: string | null;
 }
 
-export interface FeatureRequestReceipt {
-  id: string;
-  created_at: string;
+export interface UpdateLeagueListingInput {
+  is_listed?: boolean;
+  accepting_signups?: boolean;
+  accepting_waitlist?: boolean;
+  /** @nullable */
+  blurb?: string | null;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  competitiveness?: string | null;
+  /** @nullable */
+  suggested_division?: string | null;
+  /** @nullable */
+  timezone_focus?: string | null;
 }
-
-// ── Applicant / waitlist views (commissioner-facing)
 
 export interface LeagueApplicant {
   signup_id: string;
@@ -905,10 +925,22 @@ export interface LeagueApplicant {
   waitlist_position?: number | null;
 }
 
-export interface WaitlistApplicant {
+export type CommissionerWaitlistEntryStatus = typeof CommissionerWaitlistEntryStatus[keyof typeof CommissionerWaitlistEntryStatus];
+
+
+export const CommissionerWaitlistEntryStatus = {
+  waiting: 'waiting',
+  invited: 'invited',
+  placed: 'placed',
+  declined: 'declined',
+  withdrawn: 'withdrawn',
+  expired: 'expired',
+} as const;
+
+export interface CommissionerWaitlistEntry {
   league_id: string;
   position: number;
-  status: string;
+  status: CommissionerWaitlistEntryStatus;
   user_id: string;
   /** @nullable */
   display_name?: string | null;
@@ -929,22 +961,68 @@ export interface WaitlistApplicant {
   invite_expires_at?: string | null;
 }
 
-export interface ApplicantActionResult {
+export type ApplicantOutcomeOutcome = typeof ApplicantOutcomeOutcome[keyof typeof ApplicantOutcomeOutcome];
+
+
+export const ApplicantOutcomeOutcome = {
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export interface ApplicantOutcome {
   signup_id: string;
   user_id: string;
   league_id: string;
-  outcome: 'accepted' | 'declined';
+  outcome: ApplicantOutcomeOutcome;
 }
 
-export type ListLeagueSignups200 = {
-  data: LeagueApplicant[];
-  total: number;
-};
+export interface FeatureRequestInput {
+  /** @maxLength 254 */
+  email?: string;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+}
 
-export type ListLeagueWaitlist200 = {
-  data: WaitlistApplicant[];
+export interface FeatureRequestReceipt {
+  id: string;
+  created_at: string;
+}
+
+export type DqFindingSeverity = typeof DqFindingSeverity[keyof typeof DqFindingSeverity];
+
+
+export const DqFindingSeverity = {
+  BLOCK: 'BLOCK',
+  ALERT: 'ALERT',
+  WATCH: 'WATCH',
+} as const;
+
+export interface DqFinding {
+  id: number;
+  checked_at: string;
+  check_name: string;
+  severity: DqFindingSeverity;
+  /** @nullable */
+  league_id?: string | null;
+  /** @nullable */
+  season_id?: string | null;
+  /** @nullable */
+  entity_id?: string | null;
+  /** JSON string — the full row from the check view, serialised with row_to_json(). */
+  detail: string;
+  /** @nullable */
+  resolved_at?: string | null;
+  /** @nullable */
+  resolved_by?: string | null;
+}
+
+export interface DqFindingsEnvelope {
+  data: DqFinding[];
   total: number;
-};
+}
 
 export type IdempotencyKeyParameter = string;
 
@@ -1007,8 +1085,18 @@ export type ListOpenLeagues200 = {
   total: number;
 };
 
+export type ListLeagueWaitlist200 = {
+  data: CommissionerWaitlistEntry[];
+  total: number;
+};
+
 export type GetMyLeagues200 = {
   data: League[];
+};
+
+export type ListLeagueSignups200 = {
+  data: LeagueApplicant[];
+  total: number;
 };
 
 export type ListSeasons200 = {
@@ -1074,4 +1162,23 @@ export type ListGames200 = {
   next_cursor?: string | null;
   has_more?: boolean;
 };
+
+export type ListDqFindingsParams = {
+severity?: ListDqFindingsSeverity;
+resolved?: boolean;
+/**
+ * @maximum 200
+ */
+limit?: number;
+offset?: number;
+};
+
+export type ListDqFindingsSeverity = typeof ListDqFindingsSeverity[keyof typeof ListDqFindingsSeverity];
+
+
+export const ListDqFindingsSeverity = {
+  BLOCK: 'BLOCK',
+  ALERT: 'ALERT',
+  WATCH: 'WATCH',
+} as const;
 

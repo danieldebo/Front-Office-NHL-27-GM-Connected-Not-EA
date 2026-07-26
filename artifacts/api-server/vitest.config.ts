@@ -15,6 +15,16 @@ export default defineConfig({
         inline: [/^@workspace\//],
       },
     },
+    coverage: {
+      provider: "v8",
+      // Only measure coverage for the pure core modules — these are the
+      // ones with a 95% line-coverage gate.
+      include: ["src/server/core/**"],
+      exclude: ["src/server/core/**/__tests__/**"],
+      thresholds: {
+        lines: 95,
+      },
+    },
   },
   resolve: {
     conditions: ["workspace", "import", "module", "default"],

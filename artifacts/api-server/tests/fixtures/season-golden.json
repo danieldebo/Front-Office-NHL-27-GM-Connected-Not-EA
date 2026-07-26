@@ -1,0 +1,23 @@
+{
+  "_comment": "Generated from tests/seed/golden-season.ts. Do not edit manually.",
+  "teams": {
+    "T1": "00000000-0000-0000-0000-000000000001",
+    "T2": "00000000-0000-0000-0000-000000000002",
+    "T3": "00000000-0000-0000-0000-000000000003",
+    "T4": "00000000-0000-0000-0000-000000000004"
+  },
+  "games": [
+    { "home": "T1", "away": "T2", "homeGoals": 3, "awayGoals": 1, "decision": "regulation" },
+    { "home": "T3", "away": "T4", "homeGoals": 2, "awayGoals": 1, "decision": "overtime" },
+    { "home": "T3", "away": "T1", "homeGoals": 2, "awayGoals": 1, "decision": "regulation" },
+    { "home": "T2", "away": "T4", "homeGoals": 3, "awayGoals": 0, "decision": "regulation" },
+    { "home": "T1", "away": "T4", "homeGoals": 4, "awayGoals": 2, "decision": "regulation" },
+    { "home": "T3", "away": "T2", "homeGoals": 2, "awayGoals": 1, "decision": "shootout" }
+  ],
+  "expectedStandings": [
+    { "team": "T3", "GP": 3, "W": 3, "L": 0, "OTL": 0, "PTS": 6, "ROW": 2, "GF": 6, "GA": 3, "DIFF": 3 },
+    { "team": "T1", "GP": 3, "W": 2, "L": 1, "OTL": 0, "PTS": 4, "ROW": 2, "GF": 8, "GA": 5, "DIFF": 3 },
+    { "team": "T2", "GP": 3, "W": 1, "L": 1, "OTL": 1, "PTS": 3, "ROW": 1, "GF": 5, "GA": 5, "DIFF": 0 },
+    { "team": "T4", "GP": 3, "W": 0, "L": 2, "OTL": 1, "PTS": 1, "ROW": 0, "GF": 3, "GA": 9, "DIFF": -6 }
+  ]
+}

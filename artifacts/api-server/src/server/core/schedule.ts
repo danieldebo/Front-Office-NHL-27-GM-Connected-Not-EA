@@ -95,8 +95,10 @@ export function generateSchedule(config: ScheduleConfig): ScheduleResult {
       for (let i = 1; i < n / 2; i++) {
         const aId = teams[rot[i]!]!.teamSeasonId;
         const bId = teams[rot[n - 1 - i]!]!.teamSeasonId;
-        // Alternate home/away by (r + i) parity so distribution stays balanced.
-        const aIsHome = ((r + i) % 2 === 0) !== swapHomeAway;
+        // aId (rot[i]) is always home in pass 0 and always away in pass 1.
+        // This guarantees every pair gets one home and one away game per matchup
+        // and each team's home/away count differs by at most 1 over the schedule.
+        const aIsHome = !swapHomeAway;
         games.push({
           homeTeamSeasonId: aIsHome ? aId : bId,
           awayTeamSeasonId: aIsHome ? bId : aId,

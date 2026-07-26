@@ -1288,7 +1288,10 @@ export default function ManageLeague() {
             Applicants
           </button>
           
-          <div style={{ marginLeft: 'auto' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+            <Link href={`/leagues/${league.id}/dq`} className="btn ghost" style={{ borderColor: 'var(--steel)', fontSize: '12px' }}>
+              DQ
+            </Link>
             <Link href={`/leagues/${league.id}/season/new`} className="btn ghost" style={{ borderColor: 'var(--steel)' }}>
               + New Season
             </Link>

@@ -52,9 +52,26 @@ async function makeUser(
   return row!.id;
 }
 
+// ── Schema guard ──────────────────────────────────────────────────────────────
+// Skip all tests in this file when the commissioner_invite table doesn't exist
+// (e.g. a freshly-provisioned DB that hasn't had the full schema applied yet).
+
+let schemaReady = false;
+
+beforeAll(async () => {
+  const { rows } = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = 'commissioner_invite'
+     ) AS exists`,
+  );
+  schemaReady = rows[0]?.exists ?? false;
+});
+
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
 beforeAll(async () => {
+  if (!schemaReady) return;
   // 1. Commissioner (league owner)
   const commissionerReplitId = `test-commissioner-${RUN_ID}`;
   const commissionerAppId = await makeUser(
@@ -129,7 +146,8 @@ afterAll(async () => {
 describe("POST /api/join/:token/claim — concurrent race condition", () => {
   it(
     "allows exactly one claim when two requests arrive simultaneously for a max_uses=1 invite",
-    async () => {
+    async (ctx) => {
+      if (!schemaReady) return ctx.skip();
       // Fire both requests at the same time
       const [resA, resB] = await Promise.all([
         request(app)

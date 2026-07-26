@@ -20,7 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  ApplicantActionResult,
+  ApplicantOutcome,
   AssignGmInput,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
@@ -33,6 +33,8 @@ import type {
   CreateInviteInput,
   CreateLeagueInput,
   CreateSeasonInput,
+  DqFinding,
+  DqFindingsEnvelope,
   ErrorEnvelope,
   FeatureRequestInput,
   FeatureRequestReceipt,
@@ -48,8 +50,10 @@ import type {
   JoinRequest,
   League,
   LeagueHub,
+  LeagueListing,
   LeagueSignup,
   LeagueSignupInput,
+  ListDqFindingsParams,
   ListGames200,
   ListGamesParams,
   ListInvites200,
@@ -81,6 +85,7 @@ import type {
   SetPublicCodeInput,
   ShiftWindowBody,
   UpdateLeagueInput,
+  UpdateLeagueListingInput,
   WaitlistEntry,
   WeekListEnvelope
 } from './api.schemas';
@@ -817,6 +822,83 @@ export const useSignupForLeague = <TError = ErrorType<Problem>,
       return useMutation(getSignupForLeagueMutationOptions(options));
     }
 
+export const getListLeagueWaitlistUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/waitlist`
+}
+
+/**
+ * @summary List waitlist entries for a league (commissioner only)
+ */
+export const listLeagueWaitlist = async (leagueId: string, options?: RequestInit): Promise<ListLeagueWaitlist200> => {
+
+  return customFetch<ListLeagueWaitlist200>(getListLeagueWaitlistUrl(leagueId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeagueWaitlistQueryKey = (leagueId: string,) => {
+    return [
+    `/api/leagues/${leagueId}/waitlist`
+    ] as const;
+    }
+
+
+export const getListLeagueWaitlistQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueWaitlist>>, TError = ErrorType<Problem>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeagueWaitlistQueryKey(leagueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueWaitlist>>> = ({ signal }) => listLeagueWaitlist(leagueId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeagueWaitlistQueryResult = NonNullable<Awaited<ReturnType<typeof listLeagueWaitlist>>>
+export type ListLeagueWaitlistQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary List waitlist entries for a league (commissioner only)
+ */
+
+export function useListLeagueWaitlist<TData = Awaited<ReturnType<typeof listLeagueWaitlist>>, TError = ErrorType<Problem>>(
+ leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeagueWaitlistQueryOptions(leagueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getJoinLeagueWaitlistUrl = (leagueId: string,) => {
 
 
@@ -1332,6 +1414,378 @@ export function useGetLeagueHub<TData = Awaited<ReturnType<typeof getLeagueHub>>
 
 
 
+
+export const getGetLeagueListingUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/listing`
+}
+
+/**
+ * @summary Get league listing / discovery settings (commissioner only)
+ */
+export const getLeagueListing = async (leagueId: string, options?: RequestInit): Promise<LeagueListing> => {
+
+  return customFetch<LeagueListing>(getGetLeagueListingUrl(leagueId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLeagueListingQueryKey = (leagueId: string,) => {
+    return [
+    `/api/leagues/${leagueId}/listing`
+    ] as const;
+    }
+
+
+export const getGetLeagueListingQueryOptions = <TData = Awaited<ReturnType<typeof getLeagueListing>>, TError = ErrorType<Problem>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeagueListing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLeagueListingQueryKey(leagueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeagueListing>>> = ({ signal }) => getLeagueListing(leagueId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLeagueListing>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLeagueListingQueryResult = NonNullable<Awaited<ReturnType<typeof getLeagueListing>>>
+export type GetLeagueListingQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary Get league listing / discovery settings (commissioner only)
+ */
+
+export function useGetLeagueListing<TData = Awaited<ReturnType<typeof getLeagueListing>>, TError = ErrorType<Problem>>(
+ leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeagueListing>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLeagueListingQueryOptions(leagueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateLeagueListingUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/listing`
+}
+
+/**
+ * @summary Update league listing / discovery settings (commissioner only)
+ */
+export const updateLeagueListing = async (leagueId: string,
+    updateLeagueListingInput: UpdateLeagueListingInput, options?: RequestInit): Promise<LeagueListing> => {
+
+  return customFetch<LeagueListing>(getUpdateLeagueListingUrl(leagueId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateLeagueListingInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateLeagueListingMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeagueListing>>, TError,{leagueId: string;data: BodyType<UpdateLeagueListingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateLeagueListing>>, TError,{leagueId: string;data: BodyType<UpdateLeagueListingInput>}, TContext> => {
+
+const mutationKey = ['updateLeagueListing'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateLeagueListing>>, {leagueId: string;data: BodyType<UpdateLeagueListingInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  updateLeagueListing(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateLeagueListingMutationResult = NonNullable<Awaited<ReturnType<typeof updateLeagueListing>>>
+    export type UpdateLeagueListingMutationBody = BodyType<UpdateLeagueListingInput>
+    export type UpdateLeagueListingMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Update league listing / discovery settings (commissioner only)
+ */
+export const useUpdateLeagueListing = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeagueListing>>, TError,{leagueId: string;data: BodyType<UpdateLeagueListingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateLeagueListing>>,
+        TError,
+        {leagueId: string;data: BodyType<UpdateLeagueListingInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateLeagueListingMutationOptions(options));
+    }
+
+export const getListLeagueSignupsUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/signups`
+}
+
+/**
+ * @summary List sign-up applicants for a league (commissioner only)
+ */
+export const listLeagueSignups = async (leagueId: string, options?: RequestInit): Promise<ListLeagueSignups200> => {
+
+  return customFetch<ListLeagueSignups200>(getListLeagueSignupsUrl(leagueId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeagueSignupsQueryKey = (leagueId: string,) => {
+    return [
+    `/api/leagues/${leagueId}/signups`
+    ] as const;
+    }
+
+
+export const getListLeagueSignupsQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueSignups>>, TError = ErrorType<Problem>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeagueSignupsQueryKey(leagueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueSignups>>> = ({ signal }) => listLeagueSignups(leagueId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeagueSignupsQueryResult = NonNullable<Awaited<ReturnType<typeof listLeagueSignups>>>
+export type ListLeagueSignupsQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary List sign-up applicants for a league (commissioner only)
+ */
+
+export function useListLeagueSignups<TData = Awaited<ReturnType<typeof listLeagueSignups>>, TError = ErrorType<Problem>>(
+ leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeagueSignupsQueryOptions(leagueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcceptApplicantUrl = (leagueId: string,
+    signupId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/signups/${signupId}/accept`
+}
+
+/**
+ * @summary Accept a sign-up applicant (commissioner only)
+ */
+export const acceptApplicant = async (leagueId: string,
+    signupId: string, options?: RequestInit): Promise<ApplicantOutcome> => {
+
+  return customFetch<ApplicantOutcome>(getAcceptApplicantUrl(leagueId,signupId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptApplicantMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptApplicant>>, TError,{leagueId: string;signupId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptApplicant>>, TError,{leagueId: string;signupId: string}, TContext> => {
+
+const mutationKey = ['acceptApplicant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptApplicant>>, {leagueId: string;signupId: string}> = (props) => {
+          const {leagueId,signupId} = props ?? {};
+
+          return  acceptApplicant(leagueId,signupId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptApplicantMutationResult = NonNullable<Awaited<ReturnType<typeof acceptApplicant>>>
+
+    export type AcceptApplicantMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Accept a sign-up applicant (commissioner only)
+ */
+export const useAcceptApplicant = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptApplicant>>, TError,{leagueId: string;signupId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptApplicant>>,
+        TError,
+        {leagueId: string;signupId: string},
+        TContext
+      > => {
+      return useMutation(getAcceptApplicantMutationOptions(options));
+    }
+
+export const getDeclineApplicantUrl = (leagueId: string,
+    signupId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/signups/${signupId}/decline`
+}
+
+/**
+ * @summary Decline a sign-up applicant (commissioner only)
+ */
+export const declineApplicant = async (leagueId: string,
+    signupId: string, options?: RequestInit): Promise<ApplicantOutcome> => {
+
+  return customFetch<ApplicantOutcome>(getDeclineApplicantUrl(leagueId,signupId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeclineApplicantMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineApplicant>>, TError,{leagueId: string;signupId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof declineApplicant>>, TError,{leagueId: string;signupId: string}, TContext> => {
+
+const mutationKey = ['declineApplicant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declineApplicant>>, {leagueId: string;signupId: string}> = (props) => {
+          const {leagueId,signupId} = props ?? {};
+
+          return  declineApplicant(leagueId,signupId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeclineApplicantMutationResult = NonNullable<Awaited<ReturnType<typeof declineApplicant>>>
+
+    export type DeclineApplicantMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Decline a sign-up applicant (commissioner only)
+ */
+export const useDeclineApplicant = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineApplicant>>, TError,{leagueId: string;signupId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof declineApplicant>>,
+        TError,
+        {leagueId: string;signupId: string},
+        TContext
+      > => {
+      return useMutation(getDeclineApplicantMutationOptions(options));
+    }
 
 export const getGetPublicLeagueUrl = (slug: string,) => {
 
@@ -4184,403 +4638,170 @@ export function useGetGameOverlap<TData = Awaited<ReturnType<typeof getGameOverl
 }
 
 
-// ─────────────────────────────────────── League listing (discovery) hooks
 
-export interface LeagueListing {
-  league_id: string;
-  is_listed: boolean;
-  accepting_signups: boolean;
-  accepting_waitlist: boolean;
-  blurb: string | null;
-  platform: string | null;
-  competitiveness: string | null;
-  suggested_division: string | null;
-  timezone_focus: string | null;
-  listed_at: string | null;
-  updated_at: string | null;
-}
 
-export interface UpdateLeagueListingInput {
-  is_listed?: boolean;
-  accepting_signups?: boolean;
-  accepting_waitlist?: boolean;
-  blurb?: string | null;
-  platform?: string | null;
-  competitiveness?: string | null;
-  suggested_division?: string | null;
-  timezone_focus?: string | null;
-}
 
-export const getGetLeagueListingUrl = (leagueId: string) =>
-  `/api/leagues/${leagueId}/listing`;
 
-export const getLeagueListing = async (
-  leagueId: string,
-  options?: RequestInit
-): Promise<LeagueListing> =>
-  customFetch<LeagueListing>(getGetLeagueListingUrl(leagueId), {
-    ...options,
-    method: 'GET',
+
+export const getListDqFindingsUrl = (leagueId: string,
+    params?: ListDqFindingsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
   });
 
-export const getGetLeagueListingQueryKey = (leagueId: string) =>
-  [`/api/leagues/${leagueId}/listing`] as const;
+  const stringifiedParams = normalizedParams.toString();
 
-export const getGetLeagueListingQueryOptions = <
-  TData = Awaited<ReturnType<typeof getLeagueListing>>,
-  TError = ErrorType<Problem>
->(
-  leagueId: string,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof getLeagueListing>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-  const queryKey = queryOptions?.queryKey ?? getGetLeagueListingQueryKey(leagueId);
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeagueListing>>> = ({ signal }) =>
-    getLeagueListing(leagueId, { signal, ...requestOptions });
-  return {
-    queryKey,
-    queryFn,
-    enabled: leagueId !== null && leagueId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof getLeagueListing>>, TError, TData> & {
-    queryKey: QueryKey;
-  };
-};
-
-export type GetLeagueListingQueryResult = NonNullable<Awaited<ReturnType<typeof getLeagueListing>>>;
-export type GetLeagueListingQueryError = ErrorType<Problem>;
+  return stringifiedParams.length > 0 ? `/api/leagues/${leagueId}/dq-findings?${stringifiedParams}` : `/api/leagues/${leagueId}/dq-findings`
+}
 
 /**
- * @summary Get league listing / discovery settings (commissioner only)
+ * @summary List data-quality findings for a league (commissioner only)
  */
-export function useGetLeagueListing<
-  TData = Awaited<ReturnType<typeof getLeagueListing>>,
-  TError = ErrorType<Problem>
->(
-  leagueId: string,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof getLeagueListing>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
+export const listDqFindings = async (leagueId: string,
+    params?: ListDqFindingsParams, options?: RequestInit): Promise<DqFindingsEnvelope> => {
+
+  return customFetch<DqFindingsEnvelope>(getListDqFindingsUrl(leagueId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetLeagueListingQueryOptions(leagueId, options);
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+);}
+
+
+
+
+
+export const getListDqFindingsQueryKey = (leagueId: string,
+    params?: ListDqFindingsParams,) => {
+    return [
+    `/api/leagues/${leagueId}/dq-findings`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListDqFindingsQueryOptions = <TData = Awaited<ReturnType<typeof listDqFindings>>, TError = ErrorType<void>>(leagueId: string,
+    params?: ListDqFindingsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDqFindings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDqFindingsQueryKey(leagueId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDqFindings>>> = ({ signal }) => listDqFindings(leagueId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDqFindings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDqFindingsQueryResult = NonNullable<Awaited<ReturnType<typeof listDqFindings>>>
+export type ListDqFindingsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List data-quality findings for a league (commissioner only)
+ */
+
+export function useListDqFindings<TData = Awaited<ReturnType<typeof listDqFindings>>, TError = ErrorType<void>>(
+ leagueId: string,
+    params?: ListDqFindingsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDqFindings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDqFindingsQueryOptions(leagueId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const updateLeagueListing = async (
-  leagueId: string,
-  data: UpdateLeagueListingInput,
-  options?: RequestInit
-): Promise<LeagueListing> =>
-  customFetch<LeagueListing>(getGetLeagueListingUrl(leagueId), {
-    ...options,
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
 
-export const getUpdateLeagueListingMutationOptions = <
-  TError = ErrorType<Problem>,
-  TContext = unknown
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateLeagueListing>>,
-    TError,
-    { leagueId: string; data: UpdateLeagueListingInput },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
-  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
-  const mutationFn = async (vars: { leagueId: string; data: UpdateLeagueListingInput }) =>
-    updateLeagueListing(vars.leagueId, vars.data, requestOptions);
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<
-    Awaited<ReturnType<typeof updateLeagueListing>>,
-    TError,
-    { leagueId: string; data: UpdateLeagueListingInput },
-    TContext
-  >;
-};
 
-export type UpdateLeagueListingMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateLeagueListing>>
->;
-export type UpdateLeagueListingMutationError = ErrorType<Problem>;
 
-/**
- * @summary Update league listing / discovery settings (commissioner only)
- */
-export const useUpdateLeagueListing = <TError = ErrorType<Problem>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateLeagueListing>>,
-      TError,
-      { leagueId: string; data: UpdateLeagueListingInput },
-      TContext
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  }
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateLeagueListing>>,
-  TError,
-  { leagueId: string; data: UpdateLeagueListingInput },
-  TContext
-> => {
-  return useMutation(getUpdateLeagueListingMutationOptions(options));
-};
 
-// ── Commissioner applicant review endpoints ──────────────────────────────────
 
-// GET /leagues/:leagueId/signups
 
-export const getListLeagueSignupsUrl = (leagueId: string) =>
-  `/api/leagues/${leagueId}/signups`;
+export const getResolveDqFindingUrl = (leagueId: string,
+    findingId: number,) => {
 
-export const listLeagueSignups = async (
-  leagueId: string,
-  options?: RequestInit
-): Promise<ListLeagueSignups200> =>
-  customFetch<ListLeagueSignups200>(getListLeagueSignupsUrl(leagueId), {
-    ...options,
-    method: 'GET',
-  });
 
-export const getListLeagueSignupsQueryKey = (leagueId: string) =>
-  [`/api/leagues/${leagueId}/signups`] as const;
 
-export const getListLeagueSignupsQueryOptions = <
-  TData = Awaited<ReturnType<typeof listLeagueSignups>>,
-  TError = ErrorType<Problem>
->(
-  leagueId: string,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-  const queryKey = queryOptions?.queryKey ?? getListLeagueSignupsQueryKey(leagueId);
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueSignups>>> = ({ signal }) =>
-    listLeagueSignups(leagueId, { signal, ...requestOptions });
-  return {
-    queryKey,
-    queryFn,
-    enabled: !!leagueId,
-    ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData> & {
-    queryKey: QueryKey;
-  };
-};
 
-export type ListLeagueSignupsQueryResult = NonNullable<Awaited<ReturnType<typeof listLeagueSignups>>>;
-export type ListLeagueSignupsQueryError = ErrorType<Problem>;
-
-/**
- * @summary List sign-ups for a league (commissioner only)
- */
-export function useListLeagueSignups<
-  TData = Awaited<ReturnType<typeof listLeagueSignups>>,
-  TError = ErrorType<Problem>
->(
-  leagueId: string,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
-  }
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListLeagueSignupsQueryOptions(leagueId, options);
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
-  return withQueryKey(query, queryOptions.queryKey);
+  return `/api/leagues/${leagueId}/dq-findings/${findingId}/resolve`
 }
 
-// GET /leagues/:leagueId/waitlist
+/**
+ * @summary Mark a DQ finding as resolved (commissioner only)
+ */
+export const resolveDqFinding = async (leagueId: string,
+    findingId: number, options?: RequestInit): Promise<DqFinding> => {
 
-export const getListLeagueWaitlistUrl = (leagueId: string) =>
-  `/api/leagues/${leagueId}/waitlist`;
-
-export const listLeagueWaitlist = async (
-  leagueId: string,
-  options?: RequestInit
-): Promise<ListLeagueWaitlist200> =>
-  customFetch<ListLeagueWaitlist200>(getListLeagueWaitlistUrl(leagueId), {
+  return customFetch<DqFinding>(getResolveDqFindingUrl(leagueId,findingId),
+  {
     ...options,
-    method: 'GET',
-  });
+    method: 'PATCH'
 
-export const getListLeagueWaitlistQueryKey = (leagueId: string) =>
-  [`/api/leagues/${leagueId}/waitlist`] as const;
 
-export const getListLeagueWaitlistQueryOptions = <
-  TData = Awaited<ReturnType<typeof listLeagueWaitlist>>,
-  TError = ErrorType<Problem>
->(
-  leagueId: string,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
   }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-  const queryKey = queryOptions?.queryKey ?? getListLeagueWaitlistQueryKey(leagueId);
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueWaitlist>>> = ({ signal }) =>
-    listLeagueWaitlist(leagueId, { signal, ...requestOptions });
-  return {
-    queryKey,
-    queryFn,
-    enabled: !!leagueId,
-    ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData> & {
-    queryKey: QueryKey;
-  };
-};
+);}
 
-export type ListLeagueWaitlistQueryResult = NonNullable<Awaited<ReturnType<typeof listLeagueWaitlist>>>;
-export type ListLeagueWaitlistQueryError = ErrorType<Problem>;
 
-/**
- * @summary List waitlist for a league (commissioner only)
+
+
+
+export const getResolveDqFindingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveDqFinding>>, TError,{leagueId: string;findingId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resolveDqFinding>>, TError,{leagueId: string;findingId: number}, TContext> => {
+
+const mutationKey = ['resolveDqFinding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resolveDqFinding>>, {leagueId: string;findingId: number}> = (props) => {
+          const {leagueId,findingId} = props ?? {};
+
+          return  resolveDqFinding(leagueId,findingId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResolveDqFindingMutationResult = NonNullable<Awaited<ReturnType<typeof resolveDqFinding>>>
+
+    export type ResolveDqFindingMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark a DQ finding as resolved (commissioner only)
  */
-export function useListLeagueWaitlist<
-  TData = Awaited<ReturnType<typeof listLeagueWaitlist>>,
-  TError = ErrorType<Problem>
->(
-  leagueId: string,
-  options?: {
-    query?: UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData>;
-    request?: SecondParameter<typeof customFetch>;
-  }
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListLeagueWaitlistQueryOptions(leagueId, options);
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-// POST /leagues/:leagueId/signups/:signupId/accept
-
-export const acceptApplicant = async (
-  leagueId: string,
-  signupId: string,
-  options?: RequestInit
-): Promise<ApplicantActionResult> =>
-  customFetch<ApplicantActionResult>(
-    `/api/leagues/${leagueId}/signups/${signupId}/accept`,
-    { ...options, method: 'POST' }
-  );
-
-export const getAcceptApplicantMutationOptions = <
-  TError = ErrorType<Problem>,
-  TContext = unknown
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof acceptApplicant>>,
-    TError,
-    { leagueId: string; signupId: string },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
-  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
-  const mutationFn = async (vars: { leagueId: string; signupId: string }) =>
-    acceptApplicant(vars.leagueId, vars.signupId, requestOptions);
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<
-    Awaited<ReturnType<typeof acceptApplicant>>,
-    TError,
-    { leagueId: string; signupId: string },
-    TContext
-  >;
-};
-
-export type AcceptApplicantMutationResult = NonNullable<Awaited<ReturnType<typeof acceptApplicant>>>;
-export type AcceptApplicantMutationError = ErrorType<Problem>;
-
-/**
- * @summary Accept a sign-up applicant (commissioner only)
- */
-export const useAcceptApplicant = <TError = ErrorType<Problem>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof acceptApplicant>>,
-      TError,
-      { leagueId: string; signupId: string },
-      TContext
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  }
-): UseMutationResult<
-  Awaited<ReturnType<typeof acceptApplicant>>,
-  TError,
-  { leagueId: string; signupId: string },
-  TContext
-> => {
-  return useMutation(getAcceptApplicantMutationOptions(options));
-};
-
-// POST /leagues/:leagueId/signups/:signupId/decline
-
-export const declineApplicant = async (
-  leagueId: string,
-  signupId: string,
-  options?: RequestInit
-): Promise<ApplicantActionResult> =>
-  customFetch<ApplicantActionResult>(
-    `/api/leagues/${leagueId}/signups/${signupId}/decline`,
-    { ...options, method: 'POST' }
-  );
-
-export const getDeclineApplicantMutationOptions = <
-  TError = ErrorType<Problem>,
-  TContext = unknown
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof declineApplicant>>,
-    TError,
-    { leagueId: string; signupId: string },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
-  const { mutation: mutationOptions, request: requestOptions } = options ?? {};
-  const mutationFn = async (vars: { leagueId: string; signupId: string }) =>
-    declineApplicant(vars.leagueId, vars.signupId, requestOptions);
-  return { mutationFn, ...mutationOptions } as UseMutationOptions<
-    Awaited<ReturnType<typeof declineApplicant>>,
-    TError,
-    { leagueId: string; signupId: string },
-    TContext
-  >;
-};
-
-export type DeclineApplicantMutationResult = NonNullable<Awaited<ReturnType<typeof declineApplicant>>>;
-export type DeclineApplicantMutationError = ErrorType<Problem>;
-
-/**
- * @summary Decline a sign-up applicant (commissioner only)
- */
-export const useDeclineApplicant = <TError = ErrorType<Problem>, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof declineApplicant>>,
-      TError,
-      { leagueId: string; signupId: string },
-      TContext
-    >;
-    request?: SecondParameter<typeof customFetch>;
-  }
-): UseMutationResult<
-  Awaited<ReturnType<typeof declineApplicant>>,
-  TError,
-  { leagueId: string; signupId: string },
-  TContext
-> => {
-  return useMutation(getDeclineApplicantMutationOptions(options));
-};
-
-
-
-
-
-
+export const useResolveDqFinding = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveDqFinding>>, TError,{leagueId: string;findingId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resolveDqFinding>>,
+        TError,
+        {leagueId: string;findingId: number},
+        TContext
+      > => {
+      return useMutation(getResolveDqFindingMutationOptions(options));
+    }
 

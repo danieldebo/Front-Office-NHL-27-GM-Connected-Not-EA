@@ -263,6 +263,45 @@ paths:
   /leagues/{leagueId}/waitlist:
     parameters:
       - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Discovery]
+      operationId: listLeagueWaitlist
+      summary: List waitlist entries for a league (commissioner only)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Waitlist entries ordered by position.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommissionerWaitlistEntry'
+                  total:
+                    type: integer
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
     post:
       tags: [Discovery]
       operationId: joinLeagueWaitlist
@@ -456,6 +495,201 @@ paths:
                 $ref: '#/components/schemas/LeagueHub'
         '404':
           description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/listing:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Discovery]
+      operationId: getLeagueListing
+      summary: Get league listing / discovery settings (commissioner only)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Listing settings for this league.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueListing'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    put:
+      tags: [Discovery]
+      operationId: updateLeagueListing
+      summary: Update league listing / discovery settings (commissioner only)
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeagueListingInput'
+      responses:
+        '200':
+          description: Updated listing settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueListing'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/signups:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Discovery]
+      operationId: listLeagueSignups
+      summary: List sign-up applicants for a league (commissioner only)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Sign-up applicants ordered by created_at ASC.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LeagueApplicant'
+                  total:
+                    type: integer
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/signups/{signupId}/accept:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - name: signupId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Discovery]
+      operationId: acceptApplicant
+      summary: Accept a sign-up applicant (commissioner only)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Applicant accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantOutcome'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Sign-up not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/signups/{signupId}/decline:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - name: signupId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Discovery]
+      operationId: declineApplicant
+      summary: Decline a sign-up applicant (commissioner only)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Applicant declined.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantOutcome'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Sign-up not found.
           content:
             application/json:
               schema:
@@ -1559,6 +1793,73 @@ paths:
         '200':
           description: Overlap computation result.
 
+  /leagues/{leagueId}/dq-findings:
+    get:
+      operationId: listDqFindings
+      summary: List data-quality findings for a league (commissioner only)
+      tags: [DQ]
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+        - name: severity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [BLOCK, ALERT, WATCH]
+        - name: resolved
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated list of DQ findings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DqFindingsEnvelope'
+        '403':
+          description: Not the league commissioner.
+        '404':
+          description: League not found.
+
+  /leagues/{leagueId}/dq-findings/{findingId}/resolve:
+    patch:
+      operationId: resolveDqFinding
+      summary: Mark a DQ finding as resolved (commissioner only)
+      tags: [DQ]
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+        - name: findingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Finding marked resolved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DqFinding'
+        '403':
+          description: Not the league commissioner.
+        '404':
+          description: Finding not found.
+
 components:
 
   parameters:
@@ -2604,6 +2905,140 @@ components:
         already_joined:
           type: boolean
 
+    # ------------------------------------------------------------------ Discovery (commissioner)
+
+    LeagueListing:
+      type: object
+      required: [league_id, is_listed, accepting_signups, accepting_waitlist]
+      properties:
+        league_id:
+          type: string
+        is_listed:
+          type: boolean
+        accepting_signups:
+          type: boolean
+        accepting_waitlist:
+          type: boolean
+        blurb:
+          type: ['string', 'null']
+        platform:
+          type: ['string', 'null']
+        competitiveness:
+          type: ['string', 'null']
+        suggested_division:
+          type: ['string', 'null']
+        timezone_focus:
+          type: ['string', 'null']
+        listed_at:
+          type: ['string', 'null']
+          format: date-time
+        updated_at:
+          type: ['string', 'null']
+          format: date-time
+
+    UpdateLeagueListingInput:
+      type: object
+      properties:
+        is_listed:
+          type: boolean
+        accepting_signups:
+          type: boolean
+        accepting_waitlist:
+          type: boolean
+        blurb:
+          type: ['string', 'null']
+        platform:
+          type: ['string', 'null']
+        competitiveness:
+          type: ['string', 'null']
+        suggested_division:
+          type: ['string', 'null']
+        timezone_focus:
+          type: ['string', 'null']
+
+    LeagueApplicant:
+      type: object
+      required: [signup_id, league_id, user_id, created_at]
+      properties:
+        signup_id:
+          type: string
+        league_id:
+          type: string
+        user_id:
+          type: string
+        display_name:
+          type: ['string', 'null']
+        skill_division:
+          type: ['string', 'null']
+        country_code:
+          type: ['string', 'null']
+        location:
+          type: ['string', 'null']
+        timezone:
+          type: ['string', 'null']
+        platform:
+          type: ['string', 'null']
+        message:
+          type: ['string', 'null']
+        preferred_club:
+          type: ['string', 'null']
+        created_at:
+          type: string
+          format: date-time
+        waitlist_status:
+          type: ['string', 'null']
+        waitlist_position:
+          type: ['integer', 'null']
+
+    CommissionerWaitlistEntry:
+      type: object
+      required: [league_id, position, status, user_id, joined_at]
+      properties:
+        league_id:
+          type: string
+        position:
+          type: integer
+        status:
+          type: string
+          enum: [waiting, invited, placed, declined, withdrawn, expired]
+        user_id:
+          type: string
+        display_name:
+          type: ['string', 'null']
+        skill_division:
+          type: ['string', 'null']
+        country_code:
+          type: ['string', 'null']
+        location:
+          type: ['string', 'null']
+        timezone:
+          type: ['string', 'null']
+        platform:
+          type: ['string', 'null']
+        joined_at:
+          type: string
+          format: date-time
+        invited_at:
+          type: ['string', 'null']
+          format: date-time
+        invite_expires_at:
+          type: ['string', 'null']
+          format: date-time
+
+    ApplicantOutcome:
+      type: object
+      required: [signup_id, user_id, league_id, outcome]
+      properties:
+        signup_id:
+          type: string
+        user_id:
+          type: string
+        league_id:
+          type: string
+        outcome:
+          type: string
+          enum: [accepted, declined]
+
     # ------------------------------------------------------------------ Feedback
 
     FeatureRequestInput:
@@ -2627,6 +3062,48 @@ components:
         created_at:
           type: string
           format: date-time
+
+    # ------------------------------------------------------------------ DQ
+
+    DqFinding:
+      type: object
+      required: [id, checked_at, check_name, severity, detail]
+      properties:
+        id:
+          type: integer
+        checked_at:
+          type: string
+          format: date-time
+        check_name:
+          type: string
+        severity:
+          type: string
+          enum: [BLOCK, ALERT, WATCH]
+        league_id:
+          type: ['string', 'null']
+        season_id:
+          type: ['string', 'null']
+        entity_id:
+          type: ['string', 'null']
+        detail:
+          type: string
+          description: JSON string — the full row from the check view, serialised with row_to_json().
+        resolved_at:
+          type: ['string', 'null']
+          format: date-time
+        resolved_by:
+          type: ['string', 'null']
+
+    DqFindingsEnvelope:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DqFinding'
+        total:
+          type: integer
 
     # ------------------------------------------------------------------ Competition (existing)
 
