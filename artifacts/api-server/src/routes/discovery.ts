@@ -8,7 +8,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
 import { getCurrentUser } from "../server/auth";
-import { unauthorized, badRequest, conflict, notFound } from "../server/errors";
+import { unauthorized, badRequest, conflict, notFound, forbidden } from "../server/errors";
 import { rateLimiter } from "../middlewares/rateLimiter";
 
 const router: IRouter = Router();
@@ -284,6 +284,260 @@ router.post(
         conflict(res, "A concurrent waitlist join caused a conflict — please try again");
         return;
       }
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+// ──────────────────────────────────────────────── helpers (shared)
+
+async function getLeagueOwnerDiscovery(leagueId: string) {
+  const row = await pool.query<{ id: string; owner_user_id: string }>(
+    `SELECT id, owner_user_id FROM league WHERE id = $1 AND deleted_at IS NULL`,
+    [leagueId]
+  );
+  return row.rows[0] ?? null;
+}
+
+async function getAppUserIdDiscovery(replitId: string): Promise<string | null> {
+  const row = await pool.query<{ id: string }>(
+    `SELECT id FROM app_user WHERE replit_id = $1`,
+    [replitId]
+  );
+  return row.rows[0]?.id ?? null;
+}
+
+// ──────────────────────────────────────────────── GET /leagues/:id/signups
+
+router.get(
+  "/leagues/:id/signups",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res, "Authentication required"); return; }
+
+    const leagueId = String(req.params.id);
+    const league = await getLeagueOwnerDiscovery(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    // Resolve Replit sub → app_user.id (UUID) before comparing to league.owner_user_id
+    const callerAppUserId = await getAppUserIdDiscovery(user.id);
+    if (!callerAppUserId || callerAppUserId !== league.owner_user_id) {
+      forbidden(res, "Only the league commissioner can view sign-ups");
+      return;
+    }
+
+    // Query underlying tables directly so we can include su.id (signup id),
+    // which v_league_applicants omits but the commissioner needs for accept/decline.
+    const { rows } = await pool.query(
+      `SELECT
+          su.id                                          AS signup_id,
+          su.league_id,
+          su.user_id,
+          u.display_name,
+          su.stated_division                            AS skill_division,
+          COALESCE(su.country_code, u.country_code)    AS country_code,
+          COALESCE(su.location, u.location)             AS location,
+          COALESCE(su.timezone, u.timezone)             AS timezone,
+          su.platform,
+          su.message,
+          su.preferred_club,
+          su.created_at,
+          w.status                                      AS waitlist_status,
+          w.position                                    AS waitlist_position
+       FROM league_signup su
+       JOIN app_user u ON u.id = su.user_id
+       LEFT JOIN waitlist_entry w ON w.signup_id = su.id
+       WHERE su.league_id = $1
+       ORDER BY su.created_at ASC`,
+      [leagueId]
+    );
+
+    res.json({ data: rows, total: rows.length });
+  }
+);
+
+// ──────────────────────────────────────────────── GET /leagues/:id/waitlist
+
+router.get(
+  "/leagues/:id/waitlist",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res, "Authentication required"); return; }
+
+    const leagueId = String(req.params.id);
+    const league = await getLeagueOwnerDiscovery(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    const callerAppUserId = await getAppUserIdDiscovery(user.id);
+    if (!callerAppUserId || callerAppUserId !== league.owner_user_id) {
+      forbidden(res, "Only the league commissioner can view the waitlist");
+      return;
+    }
+
+    const { rows } = await pool.query(
+      `SELECT
+          league_id,
+          position,
+          status,
+          user_id,
+          display_name,
+          skill_division,
+          country_code,
+          location,
+          timezone,
+          platform,
+          joined_at,
+          invited_at,
+          invite_expires_at
+       FROM v_waitlist
+       WHERE league_id = $1
+       ORDER BY position ASC`,
+      [leagueId]
+    );
+
+    res.json({ data: rows, total: rows.length });
+  }
+);
+
+// ──────────────────────────────────────────────── POST /leagues/:id/signups/:signupId/accept
+
+router.post(
+  "/leagues/:id/signups/:signupId/accept",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res, "Authentication required"); return; }
+
+    const leagueId = String(req.params.id);
+    const signupId = String(req.params.signupId);
+
+    const league = await getLeagueOwnerDiscovery(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    // Resolve Replit sub → app_user.id (UUID) before comparing to league.owner_user_id
+    const callerAppUserId = await getAppUserIdDiscovery(user.id);
+    if (!callerAppUserId || callerAppUserId !== league.owner_user_id) {
+      forbidden(res, "Only the league commissioner can accept applicants");
+      return;
+    }
+
+    // Load the signup
+    const signupRow = await pool.query<{ id: string; user_id: string; league_id: string }>(
+      `SELECT id, user_id, league_id FROM league_signup WHERE id = $1 AND league_id = $2`,
+      [signupId, leagueId]
+    );
+    if (!signupRow.rows[0]) { notFound(res, "Sign-up not found"); return; }
+    const signup = signupRow.rows[0];
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Resolve waitlist entries for this applicant in this league.
+      // We filter by (league_id, user_id) — not just signup_id — so rows where
+      // the user joined the waitlist without a signup (signup_id IS NULL) are also
+      // captured. Nulling signup_id is idempotent and keeps the FK safe before
+      // the signup row is deleted below.
+      await client.query(
+        `UPDATE waitlist_entry
+            SET signup_id = NULL, status = 'placed', resolved_at = now()
+          WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
+        [leagueId, signup.user_id]
+      );
+
+      // Upsert league_membership so the applicant becomes a league member.
+      // role = 'gm' — commissioner assigns the franchise seat separately.
+      await client.query(
+        `INSERT INTO league_membership (league_id, user_id, role)
+         VALUES ($1, $2, 'gm')
+         ON CONFLICT (league_id, user_id) DO NOTHING`,
+        [leagueId, signup.user_id]
+      );
+
+      // Remove the signup so it no longer appears in the pending queue.
+      await client.query(
+        `DELETE FROM league_signup WHERE id = $1`,
+        [signupId]
+      );
+
+      await client.query("COMMIT");
+
+      res.json({
+        signup_id: signupId,
+        user_id: signup.user_id,
+        league_id: leagueId,
+        outcome: "accepted",
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
+// ──────────────────────────────────────────────── POST /leagues/:id/signups/:signupId/decline
+
+router.post(
+  "/leagues/:id/signups/:signupId/decline",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res, "Authentication required"); return; }
+
+    const leagueId = String(req.params.id);
+    const signupId = String(req.params.signupId);
+
+    const league = await getLeagueOwnerDiscovery(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    // Resolve Replit sub → app_user.id (UUID) before comparing to league.owner_user_id
+    const callerAppUserId = await getAppUserIdDiscovery(user.id);
+    if (!callerAppUserId || callerAppUserId !== league.owner_user_id) {
+      forbidden(res, "Only the league commissioner can decline applicants");
+      return;
+    }
+
+    // Load the signup
+    const signupRow = await pool.query<{ id: string; user_id: string; league_id: string }>(
+      `SELECT id, user_id, league_id FROM league_signup WHERE id = $1 AND league_id = $2`,
+      [signupId, leagueId]
+    );
+    if (!signupRow.rows[0]) { notFound(res, "Sign-up not found"); return; }
+    const signup = signupRow.rows[0];
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Resolve waitlist entries for this applicant in this league.
+      // Filter by (league_id, user_id) — not just signup_id — so rows where
+      // the user joined the waitlist without a signup (signup_id IS NULL) are
+      // also captured. Nulling signup_id is idempotent and keeps the FK safe.
+      await client.query(
+        `UPDATE waitlist_entry
+            SET signup_id = NULL, status = 'declined', resolved_at = now()
+          WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
+        [leagueId, signup.user_id]
+      );
+
+      // Remove the signup so it no longer appears in the pending queue.
+      await client.query(
+        `DELETE FROM league_signup WHERE id = $1`,
+        [signupId]
+      );
+
+      await client.query("COMMIT");
+
+      res.json({
+        signup_id: signupId,
+        user_id: signup.user_id,
+        league_id: leagueId,
+        outcome: "declined",
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
       throw err;
     } finally {
       client.release();

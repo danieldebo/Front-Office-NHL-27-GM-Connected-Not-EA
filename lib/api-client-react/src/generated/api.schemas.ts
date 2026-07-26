@@ -876,6 +876,76 @@ export interface FeatureRequestReceipt {
   created_at: string;
 }
 
+// ── Applicant / waitlist views (commissioner-facing)
+
+export interface LeagueApplicant {
+  signup_id: string;
+  league_id: string;
+  user_id: string;
+  /** @nullable */
+  display_name?: string | null;
+  /** @nullable */
+  skill_division?: string | null;
+  /** @nullable */
+  country_code?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  message?: string | null;
+  /** @nullable */
+  preferred_club?: string | null;
+  created_at: string;
+  /** @nullable */
+  waitlist_status?: string | null;
+  /** @nullable */
+  waitlist_position?: number | null;
+}
+
+export interface WaitlistApplicant {
+  league_id: string;
+  position: number;
+  status: string;
+  user_id: string;
+  /** @nullable */
+  display_name?: string | null;
+  /** @nullable */
+  skill_division?: string | null;
+  /** @nullable */
+  country_code?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  platform?: string | null;
+  joined_at: string;
+  /** @nullable */
+  invited_at?: string | null;
+  /** @nullable */
+  invite_expires_at?: string | null;
+}
+
+export interface ApplicantActionResult {
+  signup_id: string;
+  user_id: string;
+  league_id: string;
+  outcome: 'accepted' | 'declined';
+}
+
+export type ListLeagueSignups200 = {
+  data: LeagueApplicant[];
+  total: number;
+};
+
+export type ListLeagueWaitlist200 = {
+  data: WaitlistApplicant[];
+  total: number;
+};
+
 export type IdempotencyKeyParameter = string;
 
 export type IfMatchParameter = string;

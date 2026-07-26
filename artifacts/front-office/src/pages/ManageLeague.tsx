@@ -25,9 +25,15 @@ import {
   useSetPublicCode,
   useGetLeagueListing,
   useUpdateLeagueListing,
+  useListLeagueSignups,
+  useListLeagueWaitlist,
+  useAcceptApplicant,
+  useDeclineApplicant,
   Seat,
   JoinRequest,
   InviteLink,
+  LeagueApplicant,
+  WaitlistApplicant,
   RulebookRevision
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -564,6 +570,240 @@ function LinksTab({ leagueId, leagueSlug }: { leagueId: string; leagueSlug: stri
   );
 }
 
+// ── Division badge colours ────────────────────────────────────────────────────
+const DIVISION_COLOURS: Record<string, { bg: string; color: string }> = {
+  bronze:   { bg: '#CD7F32', color: '#fff' },
+  silver:   { bg: '#A8A9AD', color: '#fff' },
+  gold:     { bg: '#CFB53B', color: '#fff' },
+  platinum: { bg: '#00827F', color: '#fff' },
+  diamond:  { bg: '#4FC3F7', color: '#000' },
+  elite:    { bg: '#7C4DFF', color: '#fff' },
+  ultimate: { bg: '#E91E63', color: '#fff' },
+};
+
+function DivisionBadge({ division }: { division?: string | null }) {
+  if (!division) return null;
+  const style = DIVISION_COLOURS[division] ?? { bg: 'var(--steel)', color: '#fff' };
+  return (
+    <span style={{
+      fontFamily: 'var(--data)',
+      fontSize: '10px',
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '.06em',
+      padding: '2px 8px',
+      borderRadius: '3px',
+      background: style.bg,
+      color: style.color,
+      whiteSpace: 'nowrap',
+    }}>
+      {division}
+    </span>
+  );
+}
+
+function ApplicantsTab({ leagueId }: { leagueId: string }) {
+  const queryClient = useQueryClient();
+  const { data: signupsData, isLoading: signupsLoading } = useListLeagueSignups(leagueId);
+  const { data: waitlistData, isLoading: waitlistLoading } = useListLeagueWaitlist(leagueId);
+  const acceptApplicant = useAcceptApplicant();
+  const declineApplicant = useDeclineApplicant();
+
+  const signups = signupsData?.data ?? [];
+  const waitlist = waitlistData?.data ?? [];
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/signups`] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/waitlist`] as any });
+  };
+
+  const handleAccept = (signup: LeagueApplicant) => {
+    if (!confirm(`Accept ${signup.display_name ?? 'this applicant'}?\n\nThey will be added as a league member. You can assign them to a franchise seat from the Seats tab.`)) return;
+    acceptApplicant.mutate({ leagueId, signupId: signup.signup_id }, {
+      onSuccess: () => invalidate(),
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to accept applicant'),
+    });
+  };
+
+  const handleDecline = (signup: LeagueApplicant) => {
+    if (!confirm(`Decline ${signup.display_name ?? 'this applicant'}? Their application will be removed.`)) return;
+    declineApplicant.mutate({ leagueId, signupId: signup.signup_id }, {
+      onSuccess: () => invalidate(),
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to decline applicant'),
+    });
+  };
+
+  if (signupsLoading || waitlistLoading) {
+    return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>Loading applicants…</div>;
+  }
+
+  const cardStyle: React.CSSProperties = {
+    border: '1px solid var(--rule)',
+    borderRadius: '6px',
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    background: '#fff',
+  };
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '26px', alignItems: 'start' }}>
+
+      {/* ── Sign-up applicants ──────────────────────────── */}
+      <div>
+        <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>
+          Sign-ups
+          {signups.length > 0 && (
+            <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', fontWeight: 400, marginLeft: '10px', textTransform: 'none' }}>
+              {signups.length} applicant{signups.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </h3>
+
+        {signups.length === 0 ? (
+          <div className="panel" style={{ padding: '28px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
+            No sign-up applications yet.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {signups.map((signup: LeagueApplicant) => (
+              <div key={signup.signup_id} style={cardStyle}>
+                {/* ── Header row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 700, fontSize: '15px', flex: 1, minWidth: 0 }}>
+                    {signup.display_name ?? <span style={{ color: 'var(--steel)' }}>Unknown user</span>}
+                  </div>
+                  <DivisionBadge division={signup.skill_division} />
+                  {signup.waitlist_status && (
+                    <span className={`chip ${signup.waitlist_status === 'waiting' ? 'ocr' : 'conf'}`} style={{ fontSize: '10px' }}>
+                      waitlist #{signup.waitlist_position}
+                    </span>
+                  )}
+                </div>
+
+                {/* ── Meta row */}
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>
+                  {signup.country_code && (
+                    <span title={signup.location ?? undefined}>
+                      📍 {signup.location ? `${signup.location} (${signup.country_code})` : signup.country_code}
+                    </span>
+                  )}
+                  {signup.platform && <span>🎮 {signup.platform.toUpperCase()}</span>}
+                  {signup.timezone && <span>🕐 {signup.timezone}</span>}
+                  {signup.preferred_club && <span>🏒 {signup.preferred_club}</span>}
+                  <span style={{ marginLeft: 'auto' }}>Applied {new Date(signup.created_at).toLocaleDateString()}</span>
+                </div>
+
+                {/* ── Message */}
+                {signup.message && (
+                  <div style={{
+                    background: '#F6F8FA',
+                    border: '1px solid var(--rule)',
+                    borderRadius: '4px',
+                    padding: '10px 12px',
+                    fontFamily: 'var(--body)',
+                    fontSize: '13px',
+                    color: 'var(--ink)',
+                    lineHeight: 1.5,
+                    fontStyle: 'italic',
+                  }}>
+                    "{signup.message}"
+                  </div>
+                )}
+
+                {/* ── Actions */}
+                <div style={{ display: 'flex', gap: '8px', paddingTop: '4px' }}>
+                  <button
+                    onClick={() => handleAccept(signup)}
+                    className="btn"
+                    disabled={acceptApplicant.isPending}
+                    style={{ background: '#1F7A4C', borderColor: '#1F7A4C' }}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => handleDecline(signup)}
+                    className="btn ghost"
+                    disabled={declineApplicant.isPending}
+                    style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Waitlist queue ─────────────────────────────── */}
+      <div>
+        <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>
+          Waitlist
+          {waitlist.length > 0 && (
+            <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', fontWeight: 400, marginLeft: '10px', textTransform: 'none' }}>
+              {waitlist.length} queued
+            </span>
+          )}
+        </h3>
+
+        {waitlist.length === 0 ? (
+          <div className="panel" style={{ padding: '20px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
+            No one on the waitlist.
+          </div>
+        ) : (
+          <div className="panel">
+            {waitlist.map((entry: WaitlistApplicant, idx: number) => (
+              <div key={entry.user_id} style={{
+                display: 'flex',
+                gap: '12px',
+                padding: '12px 16px',
+                borderBottom: idx < waitlist.length - 1 ? '1px solid var(--rule)' : 'none',
+                alignItems: 'flex-start',
+              }}>
+                {/* Position number */}
+                <div style={{
+                  fontFamily: 'var(--display)',
+                  fontSize: '22px',
+                  fontWeight: 700,
+                  color: 'var(--steel)',
+                  lineHeight: 1,
+                  minWidth: '28px',
+                  paddingTop: '2px',
+                }}>
+                  {entry.position}
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>
+                      {entry.display_name ?? entry.user_id.slice(0, 8)}
+                    </span>
+                    <DivisionBadge division={entry.skill_division} />
+                    {entry.status === 'invited' && (
+                      <span className="chip ea" style={{ fontSize: '10px' }}>Invited</span>
+                    )}
+                  </div>
+                  <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    {entry.country_code && (
+                      <span>{entry.location ? `${entry.location} · ${entry.country_code}` : entry.country_code}</span>
+                    )}
+                    {entry.platform && <span>{entry.platform.toUpperCase()}</span>}
+                    <span style={{ marginLeft: 'auto' }}>
+                      Joined {new Date(entry.joined_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DiscoveryTab({ leagueId }: { leagueId: string }) {
   const queryClient = useQueryClient();
   const { data: listing, isLoading } = useGetLeagueListing(leagueId);
@@ -970,7 +1210,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
 
 export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'links'|'discovery'>('seats');
+  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'links'|'discovery'|'applicants'>('seats');
   
   const { data: userResponse, isLoading: isLoadingUser } = useGetCurrentAuthUser();
   const { data: league, isLoading: isLoadingLeague } = useGetLeague(id || '');
@@ -1041,6 +1281,12 @@ export default function ManageLeague() {
           >
             Discovery
           </button>
+          <button 
+            onClick={() => setActiveTab('applicants')}
+            className={`btn ${activeTab !== 'applicants' ? 'ghost' : ''}`}
+          >
+            Applicants
+          </button>
           
           <div style={{ marginLeft: 'auto' }}>
             <Link href={`/leagues/${league.id}/season/new`} className="btn ghost" style={{ borderColor: 'var(--steel)' }}>
@@ -1060,6 +1306,9 @@ export default function ManageLeague() {
         )}
         {activeTab === 'discovery' && (
           <DiscoveryTab leagueId={league.id} />
+        )}
+        {activeTab === 'applicants' && (
+          <ApplicantsTab leagueId={league.id} />
         )}
       </div>
     </>
