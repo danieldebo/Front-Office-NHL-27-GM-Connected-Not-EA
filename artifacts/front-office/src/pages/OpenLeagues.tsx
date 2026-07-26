@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
 import SignupDrawer, { SignupFormValues } from '@/components/SignupDrawer';
+import { resolvePublicCode } from '@workspace/api-client-react';
 
 interface OpenLeague {
   league_id: string;
@@ -118,6 +119,31 @@ export default function OpenLeagues() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [, navigate] = useLocation();
 
+  // Code-search state
+  const [codeInput, setCodeInput] = useState('');
+  const [codeSearching, setCodeSearching] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+
+  const handleCodeSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = codeInput.trim().toUpperCase();
+    if (!code) return;
+    setCodeError(null);
+    setCodeSearching(true);
+    try {
+      const result = await resolvePublicCode(code);
+      if (result?.slug) {
+        navigate(`/l/${result.slug}`);
+      } else {
+        setCodeError(`No league found for code "${code}".`);
+      }
+    } catch {
+      setCodeError(`No league found for code "${code}".`);
+    } finally {
+      setCodeSearching(false);
+    }
+  };
+
   React.useEffect(() => {
     const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     fetch(`${base}/api/leagues/open`)
@@ -220,6 +246,35 @@ export default function OpenLeagues() {
           <p style={{ color: '#9FB1BF', maxWidth: '52ch', margin: 0 }}>
             Active, well-run Connected Franchise leagues looking for GMs. Sign up for an open seat, or join a waitlist and get invited when one opens.
           </p>
+
+          {/* Code search */}
+          <form
+            onSubmit={handleCodeSearch}
+            style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '20px', alignItems: 'flex-start' }}
+          >
+            <input
+              type="text"
+              className="input"
+              placeholder="Have a league code? e.g. RUSTBELT"
+              value={codeInput}
+              onChange={e => { setCodeInput(e.target.value); setCodeError(null); }}
+              style={{ width: '260px', fontFamily: 'var(--data)', letterSpacing: '.05em', textTransform: 'uppercase' }}
+              aria-label="League public code"
+              disabled={codeSearching}
+            />
+            <button
+              type="submit"
+              className="btn"
+              disabled={codeSearching || !codeInput.trim()}
+            >
+              {codeSearching ? 'Searching…' : 'Go'}
+            </button>
+            {codeError && (
+              <p style={{ width: '100%', margin: '4px 0 0', color: 'var(--goal)', fontFamily: 'var(--data)', fontSize: '12px' }}>
+                {codeError}
+              </p>
+            )}
+          </form>
         </div>
       </section>
 
