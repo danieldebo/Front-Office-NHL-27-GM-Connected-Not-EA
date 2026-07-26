@@ -1,9 +1,13 @@
 /**
  * OpenLeagues — /leagues/open
  * Public page (no auth required) listing recruiting Connected Franchise leagues.
+ * Unauthenticated users who click "Sign up" are redirected to /login with their
+ * form intent saved in sessionStorage, then brought back here automatically.
  */
 import React, { useState } from 'react';
-import SignupDrawer from '@/components/SignupDrawer';
+import { useLocation } from 'wouter';
+import { useAuth } from '@workspace/replit-auth-web';
+import SignupDrawer, { SignupFormValues } from '@/components/SignupDrawer';
 
 interface OpenLeague {
   league_id: string;
@@ -24,6 +28,15 @@ interface OpenLeague {
   games_confirmed: number | null;
   active_gms: number | null;
 }
+
+interface SignupDraft {
+  leagueId: string;
+  mode: 'signup' | 'waitlist';
+  league: OpenLeague;
+  formState: SignupFormValues;
+}
+
+const DRAFT_KEY = 'fo_signup_draft';
 
 type Filter = 'all' | 'psn' | 'xbox' | 'both' | 'seats_open' | 'competitive';
 
@@ -101,6 +114,9 @@ export default function OpenLeagues() {
   const [activeFilter, setActiveFilter] = useState<Filter>('all');
   const [selectedLeague, setSelectedLeague] = useState<OpenLeague | null>(null);
   const [drawerMode, setDrawerMode] = useState<'signup' | 'waitlist'>('signup');
+  const [drawerInitialValues, setDrawerInitialValues] = useState<Partial<SignupFormValues> | undefined>(undefined);
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const [, navigate] = useLocation();
 
   React.useEffect(() => {
     const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -116,20 +132,78 @@ export default function OpenLeagues() {
       });
   }, []);
 
+  // After returning from login, restore any saved draft
+  React.useEffect(() => {
+    if (authLoading || !isAuthenticated || loading) return;
+
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+
+    try {
+      const draft: SignupDraft = JSON.parse(raw);
+      sessionStorage.removeItem(DRAFT_KEY);
+
+      // Try to find a fresh copy of the league from the loaded list (seats may have changed)
+      const freshLeague = leagues.find(l => l.league_id === draft.leagueId) ?? draft.league;
+
+      setDrawerInitialValues(draft.formState);
+      setSelectedLeague(freshLeague);
+      setDrawerMode(draft.mode);
+    } catch {
+      sessionStorage.removeItem(DRAFT_KEY);
+    }
+  }, [authLoading, isAuthenticated, loading, leagues]);
+
   const filtered = leagues.filter(l => matchesFilter(l, activeFilter));
 
+  /** Open the sign-up drawer, redirecting to login first if not authenticated. */
   const handleOpenSignup = (league: OpenLeague) => {
+    if (!isAuthenticated) {
+      const emptyForm: SignupFormValues = {
+        platform: league.platform ?? '',
+        timezone: '',
+        countryCode: '',
+        location: '',
+        division: '',
+        message: '',
+        preferredClub: '',
+      };
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        leagueId: league.league_id,
+        mode: 'signup',
+        league,
+        formState: emptyForm,
+      }));
+      sessionStorage.setItem('fo_return_path', '/leagues/open');
+      navigate('/login');
+      return;
+    }
+    setDrawerInitialValues(undefined);
     setSelectedLeague(league);
     setDrawerMode('signup');
   };
 
+  /** Open the waitlist drawer, redirecting to login first if not authenticated. */
   const handleOpenWaitlist = (league: OpenLeague) => {
+    if (!isAuthenticated) {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        leagueId: league.league_id,
+        mode: 'waitlist',
+        league,
+        formState: { platform: '', timezone: '', countryCode: '', location: '', division: '', message: '', preferredClub: '' },
+      }));
+      sessionStorage.setItem('fo_return_path', '/leagues/open');
+      navigate('/login');
+      return;
+    }
+    setDrawerInitialValues(undefined);
     setSelectedLeague(league);
     setDrawerMode('waitlist');
   };
 
   const handleCloseDrawer = () => {
     setSelectedLeague(null);
+    setDrawerInitialValues(undefined);
   };
 
   return (
@@ -244,7 +318,7 @@ export default function OpenLeagues() {
                       style={{ marginLeft: 'auto' }}
                       onClick={() => handleOpenSignup(league)}
                     >
-                      Sign up
+                      {isAuthenticated ? 'Sign up' : 'Log in to sign up'}
                     </button>
                   ) : (
                     <button
@@ -253,7 +327,11 @@ export default function OpenLeagues() {
                       onClick={() => handleOpenWaitlist(league)}
                       disabled={!league.accepting_waitlist}
                     >
-                      {league.accepting_waitlist ? 'Join waitlist' : 'Closed'}
+                      {!league.accepting_waitlist
+                        ? 'Closed'
+                        : isAuthenticated
+                          ? 'Join waitlist'
+                          : 'Log in to join waitlist'}
                     </button>
                   )}
                 </div>
@@ -268,6 +346,7 @@ export default function OpenLeagues() {
             league={selectedLeague}
             mode={drawerMode}
             onClose={handleCloseDrawer}
+            initialValues={drawerInitialValues}
           />
         )}
       </div>

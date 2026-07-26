@@ -4,6 +4,7 @@
  * "Join waitlist" (POST /api/leagues/:id/waitlist) flows.
  */
 import React, { useState } from 'react';
+import { useLocation } from 'wouter';
 
 interface League {
   league_id: string;
@@ -12,10 +13,21 @@ interface League {
   platform: string | null;
 }
 
+export interface SignupFormValues {
+  platform: string;
+  timezone: string;
+  countryCode: string;
+  location: string;
+  division: string;
+  message: string;
+  preferredClub: string;
+}
+
 interface Props {
   league: League;
   mode: 'signup' | 'waitlist';
   onClose: () => void;
+  initialValues?: Partial<SignupFormValues>;
 }
 
 const DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Diamond', 'Platinum', 'Elite', 'Ultimate'];
@@ -58,17 +70,20 @@ const COUNTRIES = [
 
 type State = 'idle' | 'submitting' | 'success' | 'error';
 
-export default function SignupDrawer({ league, mode, onClose }: Props) {
-  const [platform, setPlatform] = useState(league.platform ?? '');
-  const [timezone, setTimezone] = useState('');
-  const [countryCode, setCountryCode] = useState('');
-  const [location, setLocation] = useState('');
-  const [division, setDivision] = useState('');
-  const [message, setMessage] = useState('');
-  const [preferredClub, setPreferredClub] = useState('');
+const DRAFT_KEY = 'fo_signup_draft';
+
+export default function SignupDrawer({ league, mode, onClose, initialValues }: Props) {
+  const [platform, setPlatform] = useState(initialValues?.platform ?? league.platform ?? '');
+  const [timezone, setTimezone] = useState(initialValues?.timezone ?? '');
+  const [countryCode, setCountryCode] = useState(initialValues?.countryCode ?? '');
+  const [location, setLocation] = useState(initialValues?.location ?? '');
+  const [division, setDivision] = useState(initialValues?.division ?? '');
+  const [message, setMessage] = useState(initialValues?.message ?? '');
+  const [preferredClub, setPreferredClub] = useState(initialValues?.preferredClub ?? '');
   const [state, setState] = useState<State>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
+  const [, navigate] = useLocation();
 
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   const leagueId = league.league_id;
@@ -110,8 +125,16 @@ export default function SignupDrawer({ league, mode, onClose }: Props) {
       });
 
       if (res.status === 401) {
-        setErrorMsg('You must be logged in to sign up. Please log in and try again.');
-        setState('error');
+        // Session expired mid-form — save state and redirect to login
+        const draft: SignupFormValues = { platform, timezone, countryCode, location, division, message, preferredClub };
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+          leagueId,
+          mode,
+          league,
+          formState: draft,
+        }));
+        sessionStorage.setItem('fo_return_path', '/leagues/open');
+        navigate('/login');
         return;
       }
 

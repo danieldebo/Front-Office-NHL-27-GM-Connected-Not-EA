@@ -8,7 +8,13 @@ export default function Login() {
   if (isLoading) return <div className="loading-screen">Authenticating...</div>;
   
   if (isAuthenticated) {
-    setLocation('/');
+    const returnPath = sessionStorage.getItem('fo_return_path');
+    if (returnPath) {
+      sessionStorage.removeItem('fo_return_path');
+      setLocation(returnPath);
+    } else {
+      setLocation('/');
+    }
     return null;
   }
 
