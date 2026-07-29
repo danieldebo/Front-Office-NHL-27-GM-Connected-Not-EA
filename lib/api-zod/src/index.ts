@@ -44,7 +44,6 @@ export type { GameStatus } from "./generated/types/gameStatus";
 // GenerateScheduleResult intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { GetMyLeagues200 } from "./generated/types/getMyLeagues200";
 export type { GetStandings200 } from "./generated/types/getStandings200";
-// HandleBrowserLoginCallbackParams removed — /callback route was removed
 export type { HealthStatus } from "./generated/types/healthStatus";
 export type { IdempotencyKeyParameter } from "./generated/types/idempotencyKeyParameter";
 export type { IfMatchParameter } from "./generated/types/ifMatchParameter";
@@ -80,10 +79,7 @@ export type { ListRulebookRevisions200 } from "./generated/types/listRulebookRev
 export type { ListSeasons200 } from "./generated/types/listSeasons200";
 export type { ListSeats200 } from "./generated/types/listSeats200";
 export type { LocalLoginInput } from "./generated/types/localLoginInput";
-// LogoutBrowserSessionParams removed — /logout no longer has query parameters
 export type { LogoutSuccess } from "./generated/types/logoutSuccess";
-// MobileTokenExchangeInput removed — mobile OIDC routes removed
-// MobileTokenExchangeSuccess removed — mobile OIDC routes removed
 // OpenLeague intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
@@ -96,6 +92,7 @@ export type { PublicLeagueEnvelopeListing } from "./generated/types/publicLeague
 export type { PublicLeagueEnvelopeSeason } from "./generated/types/publicLeagueEnvelopeSeason";
 export type { PublishRulebookInput } from "./generated/types/publishRulebookInput";
 export type { RegisterInput } from "./generated/types/registerInput";
+export type { ReorderWaitlistEntry200 } from "./generated/types/reorderWaitlistEntry200";
 export type { ResultInput } from "./generated/types/resultInput";
 export type { ResultInputDecision } from "./generated/types/resultInputDecision";
 export type { RevokeGmParams } from "./generated/types/revokeGmParams";
@@ -117,6 +114,7 @@ export type { WaitlistApplicant } from "./generated/types/waitlistApplicant";
 export type { WaitlistApplicantStatus } from "./generated/types/waitlistApplicantStatus";
 // WaitlistEntry intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { WaitlistEntryStatus } from "./generated/types/waitlistEntryStatus";
+export type { WaitlistPositionInput } from "./generated/types/waitlistPositionInput";
 // WeekListEnvelope intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // WeekStatus intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // WeekWindow intentionally excluded — collides with Zod const of the same name in generated/api.ts

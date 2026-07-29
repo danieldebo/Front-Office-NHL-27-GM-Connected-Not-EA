@@ -856,6 +856,14 @@ export interface LeagueSignup {
   created_at: string;
 }
 
+export interface WaitlistPositionInput {
+  /**
+     * 1-based target position in the waiting queue.
+     * @minimum 1
+     */
+  position: number;
+}
+
 export type WaitlistEntryStatus = typeof WaitlistEntryStatus[keyof typeof WaitlistEntryStatus];
 
 
@@ -1145,6 +1153,12 @@ export type ListOpenLeagues200 = {
 export type ListLeagueWaitlist200 = {
   data: WaitlistApplicant[];
   total: number;
+};
+
+export type ReorderWaitlistEntry200 = {
+  league_id: string;
+  user_id: string;
+  position: number;
 };
 
 export type GetMyLeagues200 = {

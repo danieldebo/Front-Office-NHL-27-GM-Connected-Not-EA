@@ -545,4 +545,94 @@ router.post(
   }
 );
 
+// ──────────────────────────────────── PATCH /leagues/:id/waitlist/:userId/position
+
+router.patch(
+  "/leagues/:id/waitlist/:userId/position",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res, "Authentication required"); return; }
+
+    const leagueId = String(req.params.id);
+    const targetUserId = String(req.params.userId);
+
+    const league = await getLeagueOwnerDiscovery(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    const callerAppUserId = await getAppUserIdDiscovery(user.id);
+    if (!callerAppUserId || callerAppUserId !== league.owner_user_id) {
+      forbidden(res, "Only the league commissioner can reorder the waitlist");
+      return;
+    }
+
+    const { position } = req.body as { position?: unknown };
+    if (typeof position !== "number" || !Number.isInteger(position) || position < 1) {
+      badRequest(res, "position must be a positive integer");
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Serialise concurrent reorder requests for the same league
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [leagueId]);
+
+      // Load ALL active entries (waiting + invited) so we can repack positions
+      // globally and avoid collisions with the table-wide UNIQUE (league_id, position)
+      // constraint. Resolved statuses (placed/declined/withdrawn/expired) are excluded
+      // because they are no longer in the live queue.
+      const allActiveRes = await client.query<{ id: string; user_id: string; status: string }>(
+        `SELECT id, user_id, status
+           FROM waitlist_entry
+          WHERE league_id = $1 AND status IN ('waiting','invited')
+          ORDER BY position ASC`,
+        [leagueId]
+      );
+      const waiting = allActiveRes.rows.filter(r => r.status === 'waiting');
+      const invited = allActiveRes.rows.filter(r => r.status === 'invited');
+
+      const currentIdx = waiting.findIndex(e => e.user_id === targetUserId);
+      if (currentIdx === -1) {
+        await client.query("ROLLBACK");
+        const isInvited = invited.some(e => e.user_id === targetUserId);
+        if (isInvited) {
+          badRequest(res, "Cannot reorder an entry that has already been invited off the waitlist");
+        } else {
+          notFound(res, "User not found on the active waiting list");
+        }
+        return;
+      }
+
+      // Clamp target to valid range within the waiting sub-queue, then splice
+      const targetPos = Math.min(position, waiting.length);
+      const [entry] = waiting.splice(currentIdx, 1);
+      waiting.splice(targetPos - 1, 0, entry!);
+
+      // Rewrite positions for ALL active rows so the table-wide unique constraint
+      // is satisfied in the final committed state.
+      // waiting entries → 1..M   |   invited entries → M+1..M+K
+      for (let i = 0; i < waiting.length; i++) {
+        await client.query(
+          `UPDATE waitlist_entry SET position = $1 WHERE id = $2`,
+          [i + 1, waiting[i]!.id]
+        );
+      }
+      for (let i = 0; i < invited.length; i++) {
+        await client.query(
+          `UPDATE waitlist_entry SET position = $1 WHERE id = $2`,
+          [waiting.length + i + 1, invited[i]!.id]
+        );
+      }
+
+      await client.query("COMMIT");
+      res.json({ league_id: leagueId, user_id: targetUserId, position: targetPos });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+);
+
 export default router;

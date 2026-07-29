@@ -225,6 +225,28 @@ export const JoinLeagueWaitlistResponse = zod.object({
 
 
 /**
+ * @summary Move a waitlist entry to a new position (commissioner only)
+ */
+export const ReorderWaitlistEntryParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "userId": zod.coerce.string()
+})
+
+
+
+
+export const ReorderWaitlistEntryBody = zod.object({
+  "position": zod.number().min(1).describe('1-based target position in the waiting queue.')
+})
+
+export const ReorderWaitlistEntryResponse = zod.object({
+  "league_id": zod.string(),
+  "user_id": zod.string(),
+  "position": zod.number()
+})
+
+
+/**
  * @summary Submit a feature idea (no auth required)
  */
 export const createFeatureRequestBodyEmailMax = 254;

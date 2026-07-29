@@ -73,6 +73,7 @@ import type {
   PublicLeagueEnvelope,
   PublishRulebookInput,
   RegisterInput,
+  ReorderWaitlistEntry200,
   ResultInput,
   RevokeGmParams,
   RulebookRevision,
@@ -84,6 +85,7 @@ import type {
   UpdateLeagueInput,
   UpdateLeagueListingInput,
   WaitlistEntry,
+  WaitlistPositionInput,
   WeekListEnvelope
 } from './api.schemas';
 
@@ -875,6 +877,80 @@ export const useJoinLeagueWaitlist = <TError = ErrorType<Problem>,
         TContext
       > => {
       return useMutation(getJoinLeagueWaitlistMutationOptions(options));
+    }
+
+export const getReorderWaitlistEntryUrl = (leagueId: string,
+    userId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/waitlist/${userId}/position`
+}
+
+/**
+ * @summary Move a waitlist entry to a new position (commissioner only)
+ */
+export const reorderWaitlistEntry = async (leagueId: string,
+    userId: string,
+    waitlistPositionInput: WaitlistPositionInput, options?: RequestInit): Promise<ReorderWaitlistEntry200> => {
+
+  return customFetch<ReorderWaitlistEntry200>(getReorderWaitlistEntryUrl(leagueId,userId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(waitlistPositionInput)
+  }
+);}
+
+
+
+
+
+export const getReorderWaitlistEntryMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderWaitlistEntry>>, TError,{leagueId: string;userId: string;data: BodyType<WaitlistPositionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderWaitlistEntry>>, TError,{leagueId: string;userId: string;data: BodyType<WaitlistPositionInput>}, TContext> => {
+
+const mutationKey = ['reorderWaitlistEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderWaitlistEntry>>, {leagueId: string;userId: string;data: BodyType<WaitlistPositionInput>}> = (props) => {
+          const {leagueId,userId,data} = props ?? {};
+
+          return  reorderWaitlistEntry(leagueId,userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderWaitlistEntryMutationResult = NonNullable<Awaited<ReturnType<typeof reorderWaitlistEntry>>>
+    export type ReorderWaitlistEntryMutationBody = BodyType<WaitlistPositionInput>
+    export type ReorderWaitlistEntryMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Move a waitlist entry to a new position (commissioner only)
+ */
+export const useReorderWaitlistEntry = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderWaitlistEntry>>, TError,{leagueId: string;userId: string;data: BodyType<WaitlistPositionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reorderWaitlistEntry>>,
+        TError,
+        {leagueId: string;userId: string;data: BodyType<WaitlistPositionInput>},
+        TContext
+      > => {
+      return useMutation(getReorderWaitlistEntryMutationOptions(options));
     }
 
 export const getCreateFeatureRequestUrl = () => {

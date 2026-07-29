@@ -29,6 +29,7 @@ import {
   useListLeagueWaitlist,
   useAcceptApplicant,
   useDeclineApplicant,
+  useReorderWaitlistEntry,
   Seat,
   JoinRequest,
   InviteLink,
@@ -608,6 +609,7 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
   const { data: waitlistData, isLoading: waitlistLoading } = useListLeagueWaitlist(leagueId);
   const acceptApplicant = useAcceptApplicant();
   const declineApplicant = useDeclineApplicant();
+  const reorderWaitlist = useReorderWaitlistEntry();
 
   const signups = signupsData?.data ?? [];
   const waitlist = waitlistData?.data ?? [];
@@ -615,6 +617,20 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/signups`] as any });
     queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/waitlist`] as any });
+  };
+
+  const handleMove = (entry: WaitlistApplicant, direction: 'up' | 'down') => {
+    // Position must be in the waiting-only sub-queue — same domain the backend uses.
+    const waitingOnly = waitlist.filter(e => e.status === 'waiting');
+    const waitingIdx = waitingOnly.findIndex(e => e.user_id === entry.user_id);
+    if (waitingIdx === -1) return; // entry is invited or already resolved — no-op
+    // 1-indexed target within waiting sub-queue
+    const targetPos = direction === 'up' ? waitingIdx : waitingIdx + 2;
+    const clamped = Math.max(1, Math.min(targetPos, waitingOnly.length));
+    reorderWaitlist.mutate(
+      { leagueId, userId: entry.user_id, data: { position: clamped } },
+      { onSuccess: () => invalidate(), onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to reorder') }
+    );
   };
 
   const handleAccept = (signup: LeagueApplicant) => {
@@ -760,7 +776,7 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                 gap: '12px',
                 padding: '12px 16px',
                 borderBottom: idx < waitlist.length - 1 ? '1px solid var(--rule)' : 'none',
-                alignItems: 'flex-start',
+                alignItems: 'center',
               }}>
                 {/* Position number */}
                 <div style={{
@@ -770,9 +786,8 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                   color: 'var(--steel)',
                   lineHeight: 1,
                   minWidth: '28px',
-                  paddingTop: '2px',
                 }}>
-                  {entry.position}
+                  {idx + 1}
                 </div>
 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -795,6 +810,42 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                     </span>
                   </div>
                 </div>
+
+                {/* Up / down reorder buttons — only for 'waiting' entries */}
+                {entry.status === 'waiting' && (() => {
+                  const waitingOnly = waitlist.filter(e => e.status === 'waiting');
+                  const waitingIdx = waitingOnly.findIndex(e => e.user_id === entry.user_id);
+                  const atTop = waitingIdx === 0;
+                  const atBottom = waitingIdx === waitingOnly.length - 1;
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <button
+                        onClick={() => handleMove(entry, 'up')}
+                        disabled={atTop || reorderWaitlist.isPending}
+                        title="Move up"
+                        style={{
+                          width: '26px', height: '26px', border: '1px solid var(--rule)',
+                          borderRadius: '4px', background: '#fff', cursor: atTop ? 'default' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '11px', color: atTop ? 'var(--rule)' : 'var(--steel)',
+                          padding: 0, lineHeight: 1,
+                        }}
+                      >▲</button>
+                      <button
+                        onClick={() => handleMove(entry, 'down')}
+                        disabled={atBottom || reorderWaitlist.isPending}
+                        title="Move down"
+                        style={{
+                          width: '26px', height: '26px', border: '1px solid var(--rule)',
+                          borderRadius: '4px', background: '#fff', cursor: atBottom ? 'default' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '11px', color: atBottom ? 'var(--rule)' : 'var(--steel)',
+                          padding: 0, lineHeight: 1,
+                        }}
+                      >▼</button>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>

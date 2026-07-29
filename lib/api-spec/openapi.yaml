@@ -327,6 +327,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /leagues/{leagueId}/waitlist/{userId}/position:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [Discovery]
+      operationId: reorderWaitlistEntry
+      summary: Move a waitlist entry to a new position (commissioner only)
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaitlistPositionInput'
+      responses:
+        '200':
+          description: Entry repositioned. Returns the new position.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [league_id, user_id, position]
+                properties:
+                  league_id:
+                    type: string
+                  user_id:
+                    type: string
+                  position:
+                    type: integer
+        '400':
+          description: Invalid position value.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League or waitlist entry not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
   # ------------------------------------------------------------------ Feedback
 
   /feature-requests:
@@ -2899,6 +2959,15 @@ components:
         created_at:
           type: string
           format: date-time
+
+    WaitlistPositionInput:
+      type: object
+      required: [position]
+      properties:
+        position:
+          type: integer
+          minimum: 1
+          description: 1-based target position in the waiting queue.
 
     WaitlistEntry:
       type: object
