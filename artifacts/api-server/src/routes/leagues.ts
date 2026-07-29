@@ -288,6 +288,25 @@ router.get(
     if (!leagueRow.rows[0]) { notFound(res, "League not found"); return; }
     const league = leagueRow.rows[0];
 
+    // Listing (recruiting) info — included regardless of season state
+    const listingRow = await pool.query<{
+      is_listed: boolean;
+      accepting_signups: boolean;
+      accepting_waitlist: boolean;
+      blurb: string | null;
+      platform: string | null;
+      competitiveness: string | null;
+      suggested_division: string | null;
+    }>(
+      `SELECT is_listed, accepting_signups, accepting_waitlist,
+              blurb, platform, competitiveness, suggested_division
+       FROM league_listing
+       WHERE league_id = $1 AND is_listed = TRUE
+       LIMIT 1`,
+      [league.id]
+    );
+    const listing = listingRow.rows[0] ?? null;
+
     // Active season
     const seasonRow = await pool.query<{ id: string; label: string }>(
       `SELECT id, label FROM season WHERE league_id = $1 AND is_active = TRUE LIMIT 1`,
@@ -296,7 +315,7 @@ router.get(
     const season = seasonRow.rows[0] ?? null;
 
     if (!season) {
-      res.json({ league, season: null, standings: [] });
+      res.json({ league, season: null, standings: [], listing });
       return;
     }
 
@@ -396,7 +415,7 @@ router.get(
       };
     });
 
-    res.json({ league, season, standings });
+    res.json({ league, season, standings, listing });
   }
 );
 

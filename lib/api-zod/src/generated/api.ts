@@ -570,7 +570,16 @@ export const GetPublicLeagueResponse = zod.object({
   "DIFF": zod.number().optional(),
   "unconfirmed_games": zod.number().optional(),
   "provenance": zod.enum(['confirmed', 'manual', 'ocr', 'reconciled', 'dispute']).optional().describe('Worst provenance across this team\'s games this season.\n\'dispute\' = has at least one disputed game.\n\'manual\'  = has unconfirmed (reported) results pending.\n\'ocr\'     = all confirmed, some via screenshot\/OCR parse.\n\'reconciled\' = all confirmed via partner data feed.\n\'confirmed\' = all confirmed by mutual GM agreement.\n')
-}).describe('Derived. There is no write path for this resource.'))
+}).describe('Derived. There is no write path for this resource.')),
+  "listing": zod.union([zod.object({
+  "is_listed": zod.boolean(),
+  "accepting_signups": zod.boolean(),
+  "accepting_waitlist": zod.boolean(),
+  "blurb": zod.string().nullish(),
+  "platform": zod.string().nullish(),
+  "competitiveness": zod.string().nullish(),
+  "suggested_division": zod.string().nullish()
+}),zod.null()]).optional().describe('Present when the league has an active listing entry (is_listed = true). Null when the league is not publicly recruiting.\n')
 })
 
 

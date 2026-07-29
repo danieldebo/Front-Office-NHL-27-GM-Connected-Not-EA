@@ -315,6 +315,23 @@ export type PublicLeagueEnvelopeSeason = {
 } | null;
 
 /**
+ * Present when the league has an active listing entry (is_listed = true). Null when the league is not publicly recruiting.
+ */
+export type PublicLeagueEnvelopeListing = {
+  is_listed: boolean;
+  accepting_signups: boolean;
+  accepting_waitlist: boolean;
+  /** @nullable */
+  blurb?: string | null;
+  /** @nullable */
+  platform?: string | null;
+  /** @nullable */
+  competitiveness?: string | null;
+  /** @nullable */
+  suggested_division?: string | null;
+} | null;
+
+/**
  * Worst provenance across this team's games this season.
  * 'dispute' = has at least one disputed game.
  * 'manual'  = has unconfirmed (reported) results pending.
@@ -371,6 +388,8 @@ export interface PublicLeagueEnvelope {
   league: PublicLeagueEnvelopeLeague;
   season?: PublicLeagueEnvelopeSeason;
   standings: StandingsRow[];
+  /** Present when the league has an active listing entry (is_listed = true). Null when the league is not publicly recruiting. */
+  listing?: PublicLeagueEnvelopeListing;
 }
 
 export interface Season {

@@ -2214,6 +2214,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StandingsRow'
+        listing:
+          description: >
+            Present when the league has an active listing entry (is_listed = true).
+            Null when the league is not publicly recruiting.
+          oneOf:
+            - type: object
+              required: [is_listed, accepting_signups, accepting_waitlist]
+              properties:
+                is_listed:
+                  type: boolean
+                accepting_signups:
+                  type: boolean
+                accepting_waitlist:
+                  type: boolean
+                blurb:
+                  type: ["string", "null"]
+                platform:
+                  type: ["string", "null"]
+                competitiveness:
+                  type: ["string", "null"]
+                suggested_division:
+                  type: ["string", "null"]
+            - type: 'null'
 
     Season:
       type: object

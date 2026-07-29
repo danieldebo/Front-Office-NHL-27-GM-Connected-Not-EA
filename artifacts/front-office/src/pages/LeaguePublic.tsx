@@ -1,59 +1,165 @@
 /**
  * LeaguePublic — /l/:slug
  * Public-facing league page. No authentication required.
- * Shows the league name, active season, and standings.
+ * Shows the league name, active season, standings, and a recruiting banner
+ * when the league is listed in the open-leagues directory.
  */
 import { useState, useCallback } from 'react';
 import { useParams } from 'wouter';
 import { useGetPublicLeague, StandingsRow } from '@workspace/api-client-react';
 import { StandingsTable } from '@/components/Standings';
+import SignupDrawer from '@/components/SignupDrawer';
 
-function PublicSlab({
+// ── Recruiting banner ────────────────────────────────────────────────────────
+
+interface ListingInfo {
+  is_listed: boolean;
+  accepting_signups: boolean;
+  accepting_waitlist: boolean;
+  blurb?: string | null;
+  platform?: string | null;
+  competitiveness?: string | null;
+  suggested_division?: string | null;
+}
+
+function platformLabel(p: string | null | undefined): string {
+  if (!p) return '';
+  const map: Record<string, string> = {
+    psn: 'PlayStation',
+    xbox: 'Xbox',
+    both: 'PlayStation & Xbox',
+    crossplay: 'Crossplay',
+    playstation: 'PlayStation',
+  };
+  return map[p] ?? p;
+}
+
+function competitivenessLabel(c: string | null | undefined): string {
+  if (!c) return '';
+  const map: Record<string, string> = {
+    casual: 'Casual',
+    competitive: 'Competitive',
+    hardcore: 'Hardcore',
+  };
+  return map[c] ?? c;
+}
+
+function RecruitingBanner({
+  leagueId,
   leagueName,
-  seasonLabel,
-  teamCount,
-  confirmedGames,
+  listing,
 }: {
+  leagueId: string;
   leagueName: string;
-  seasonLabel: string | null;
-  teamCount: number;
-  confirmedGames: number;
+  listing: ListingInfo;
 }) {
-  const initials = leagueName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(w => w[0]?.toUpperCase() ?? '')
-    .join('');
+  const [drawerMode, setDrawerMode] = useState<'signup' | 'waitlist' | null>(null);
+
+  const canSignup = listing.accepting_signups;
+  const canWaitlist = listing.accepting_waitlist;
+
+  const pills: string[] = [];
+  const platform = platformLabel(listing.platform);
+  const comp = competitivenessLabel(listing.competitiveness);
+  if (platform) pills.push(platform);
+  if (comp) pills.push(comp);
+  if (listing.suggested_division) pills.push(`Div: ${listing.suggested_division}`);
 
   return (
-    <section className="slab">
-      <div className="wrap">
-        <div>
-          <div className="eyebrow">{seasonLabel ?? 'Offseason'} · Public standings</div>
-          <h1 style={{ whiteSpace: 'pre-line' }}>{leagueName}</h1>
-          <p className="sub">
-            Live standings derived from confirmed game results. Updated as games are reported and confirmed.
-          </p>
-        </div>
-        <div className="slab-right">
-          <div className="stat-cell">
-            <div className="k">{teamCount}</div>
-            <div className="l">Teams</div>
+    <>
+      <div style={{
+        background: 'var(--slab)',
+        borderBottom: '3px solid var(--bulb)',
+        padding: '0',
+      }}>
+        <div className="wrap" style={{ paddingTop: '18px', paddingBottom: '20px' }}>
+          {/* Header row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
+            <span style={{
+              fontFamily: 'var(--data)',
+              fontSize: '10px',
+              letterSpacing: '.16em',
+              textTransform: 'uppercase',
+              background: 'var(--bulb)',
+              color: 'var(--slab)',
+              padding: '2px 8px',
+              borderRadius: '2px',
+              fontWeight: 600,
+              flexShrink: 0,
+            }}>
+              Recruiting
+            </span>
+            {pills.map(pill => (
+              <span key={pill} style={{
+                fontFamily: 'var(--data)',
+                fontSize: '10px',
+                letterSpacing: '.08em',
+                textTransform: 'uppercase',
+                border: '1px solid rgba(255,255,255,.18)',
+                color: '#B7C4CE',
+                padding: '2px 8px',
+                borderRadius: '2px',
+              }}>
+                {pill}
+              </span>
+            ))}
           </div>
-          <div className="stat-cell">
-            <div className="k">{confirmedGames}</div>
-            <div className="l">Confirmed</div>
-          </div>
-          <div className="stat-cell">
-            <div className="k">{initials || '??'}</div>
-            <div className="l">League</div>
+
+          {/* Blurb */}
+          {listing.blurb && (
+            <p style={{
+              fontFamily: 'var(--body)',
+              fontSize: '14px',
+              color: '#D6E0EA',
+              margin: '0 0 16px',
+              lineHeight: 1.55,
+              maxWidth: '620px',
+            }}>
+              {listing.blurb}
+            </p>
+          )}
+
+          {/* CTAs */}
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {canSignup && (
+              <button
+                className="btn"
+                onClick={() => setDrawerMode('signup')}
+                style={{ background: 'var(--bulb)', borderColor: 'var(--bulb)', color: 'var(--slab)' }}
+              >
+                Apply to join
+              </button>
+            )}
+            {canWaitlist && (
+              <button
+                className="btn ghost"
+                onClick={() => setDrawerMode('waitlist')}
+                style={{ borderColor: 'rgba(255,255,255,.25)', color: '#B7C4CE' }}
+              >
+                Join waitlist
+              </button>
+            )}
           </div>
         </div>
       </div>
-    </section>
+
+      {drawerMode && (
+        <SignupDrawer
+          league={{
+            league_id: leagueId,
+            name: leagueName,
+            seats_open: 0,
+            platform: listing.platform ?? null,
+          }}
+          mode={drawerMode}
+          onClose={() => setDrawerMode(null)}
+        />
+      )}
+    </>
   );
 }
+
+// ── Share link banner ────────────────────────────────────────────────────────
 
 function ShareLinkBanner({ publicCode }: { publicCode: string }) {
   const [copied, setCopied] = useState(false);
@@ -117,6 +223,8 @@ function ShareLinkBanner({ publicCode }: { publicCode: string }) {
   );
 }
 
+// ── Main page ────────────────────────────────────────────────────────────────
+
 export default function LeaguePublic() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug ?? '';
@@ -156,7 +264,7 @@ export default function LeaguePublic() {
     );
   }
 
-  const { league, season, standings } = data;
+  const { league, season, standings, listing } = data;
 
   // Stat counts derived from standings rows
   const teamCount = standings.length;
@@ -168,6 +276,9 @@ export default function LeaguePublic() {
     .slice(0, 2)
     .map((w: string) => w[0]?.toUpperCase() ?? '')
     .join('');
+
+  const isRecruiting = listing?.is_listed &&
+    (listing.accepting_signups || listing.accepting_waitlist);
 
   return (
     <>
@@ -199,18 +310,46 @@ export default function LeaguePublic() {
         </div>
       </header>
 
+      {/* Recruiting banner — shown when league is actively recruiting */}
+      {isRecruiting && (
+        <RecruitingBanner
+          leagueId={league.id}
+          leagueName={league.name}
+          listing={listing!}
+        />
+      )}
+
       {/* Share link banner — visible to all visitors when public_code is set */}
       {league.public_code ? (
         <ShareLinkBanner publicCode={league.public_code} />
       ) : null}
 
       {/* Slab */}
-      <PublicSlab
-        leagueName={league.name}
-        seasonLabel={season?.label ?? null}
-        teamCount={teamCount}
-        confirmedGames={Math.round(confirmedGames)}
-      />
+      <section className="slab">
+        <div className="wrap">
+          <div>
+            <div className="eyebrow">{season?.label ?? 'Offseason'} · Public standings</div>
+            <h1>{league.name}</h1>
+            <p className="sub">
+              Live standings derived from confirmed game results. Updated as games are reported and confirmed.
+            </p>
+          </div>
+          <div className="slab-right">
+            <div className="stat-cell">
+              <div className="k">{teamCount}</div>
+              <div className="l">Teams</div>
+            </div>
+            <div className="stat-cell">
+              <div className="k">{Math.round(confirmedGames)}</div>
+              <div className="l">Confirmed</div>
+            </div>
+            <div className="stat-cell">
+              <div className="k">{initials || '??'}</div>
+              <div className="l">League</div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Standings */}
       <div className="wrap">
@@ -227,7 +366,6 @@ export default function LeaguePublic() {
           )}
         </div>
       </div>
-
     </>
   );
 }

@@ -90,6 +90,7 @@ export * from './publicCodeLookup';
 export * from './publicCodeResult';
 export * from './publicLeagueEnvelope';
 export * from './publicLeagueEnvelopeLeague';
+export * from './publicLeagueEnvelopeListing';
 export * from './publicLeagueEnvelopeSeason';
 export * from './publishRulebookInput';
 export * from './registerInput';

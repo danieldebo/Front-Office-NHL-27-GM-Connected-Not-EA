@@ -92,6 +92,7 @@ export type { PublicCodeLookup } from "./generated/types/publicCodeLookup";
 export type { PublicCodeResult } from "./generated/types/publicCodeResult";
 export type { PublicLeagueEnvelope } from "./generated/types/publicLeagueEnvelope";
 export type { PublicLeagueEnvelopeLeague } from "./generated/types/publicLeagueEnvelopeLeague";
+export type { PublicLeagueEnvelopeListing } from "./generated/types/publicLeagueEnvelopeListing";
 export type { PublicLeagueEnvelopeSeason } from "./generated/types/publicLeagueEnvelopeSeason";
 export type { PublishRulebookInput } from "./generated/types/publishRulebookInput";
 export type { RegisterInput } from "./generated/types/registerInput";

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.3.0
  */
 import type { PublicLeagueEnvelopeLeague } from './publicLeagueEnvelopeLeague';
+import type { PublicLeagueEnvelopeListing } from './publicLeagueEnvelopeListing';
 import type { PublicLeagueEnvelopeSeason } from './publicLeagueEnvelopeSeason';
 import type { StandingsRow } from './standingsRow';
 
@@ -13,4 +14,6 @@ export interface PublicLeagueEnvelope {
   league: PublicLeagueEnvelopeLeague;
   season?: PublicLeagueEnvelopeSeason;
   standings: StandingsRow[];
+  /** Present when the league has an active listing entry (is_listed = true). Null when the league is not publicly recruiting. */
+  listing?: PublicLeagueEnvelopeListing;
 }
