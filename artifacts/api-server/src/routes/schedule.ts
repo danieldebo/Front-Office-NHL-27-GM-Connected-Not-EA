@@ -153,8 +153,19 @@ router.post(
     const season = seasonRow.rows[0];
     if (!season) { notFound(res, "Season not found"); return; }
 
-    // Determine season start date
-    const rawStartDate = start_date ?? season.starts_on ?? new Date().toISOString().slice(0, 10);
+    // Determine season start date.
+    // `start_date` arrives as a Zod-coerced Date; `season.starts_on` may come
+    // back from pg as a Date object (pg type parsers are global and can be
+    // overridden by Drizzle's driver setup). Normalise both to YYYY-MM-DD
+    // strings before building the full ISO timestamp.
+    const toDateStr = (d: Date | string | null | undefined): string | null =>
+      d instanceof Date ? d.toISOString().slice(0, 10) : (d ?? null);
+
+    const rawStartDate =
+      toDateStr(start_date) ??
+      toDateStr(season.starts_on) ??
+      new Date().toISOString().slice(0, 10);
+
     const seasonStartDate = new Date(rawStartDate + "T00:00:00Z");
     if (isNaN(seasonStartDate.getTime())) {
       badRequest(res, "Invalid start_date"); return;
