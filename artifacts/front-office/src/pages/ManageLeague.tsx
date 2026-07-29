@@ -807,7 +807,13 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
 function DiscoveryTab({ leagueId }: { leagueId: string }) {
   const queryClient = useQueryClient();
   const { data: listing, isLoading } = useGetLeagueListing(leagueId);
+  const { data: seasonsData } = useListSeasons(leagueId);
   const updateListing = useUpdateLeagueListing();
+
+  // True only when there is at least one is_active season
+  const hasActiveSeason = (seasonsData?.data ?? []).some(
+    (s: { is_active?: boolean }) => s.is_active
+  );
 
   const [isListed, setIsListed] = React.useState(false);
   const [acceptingSignups, setAcceptingSignups] = React.useState(false);
@@ -891,6 +897,30 @@ function DiscoveryTab({ leagueId }: { leagueId: string }) {
           </div>
         </div>
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* ── No-active-season warning */}
+          {isListed && !hasActiveSeason && (
+            <div style={{
+              padding: '12px 16px',
+              background: '#FEF3C7',
+              border: '1px solid #F59E0B',
+              borderRadius: '6px',
+              display: 'flex',
+              gap: '10px',
+              alignItems: 'flex-start',
+            }}>
+              <span style={{ fontSize: '16px', flexShrink: 0 }}>⚠️</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '13px', color: '#92400E' }}>
+                  No active season
+                </div>
+                <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: '#92400E', marginTop: '3px', lineHeight: 1.5 }}>
+                  Applicants won't be able to see seat availability until you create and activate a season.
+                  Saving with listing turned on will be blocked until a season is active.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── List toggle */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: isListed ? '#F0FAF5' : '#F6F8FA', borderRadius: '6px', border: `1px solid ${isListed ? '#A3D9BC' : 'var(--rule)'}` }}>

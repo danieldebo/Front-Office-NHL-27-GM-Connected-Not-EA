@@ -462,6 +462,22 @@ router.put(
       return;
     }
 
+    // Guard: cannot list a league that has no active season — applicants would
+    // see NULL seat counts in v_open_leagues, which is misleading.
+    if (is_listed === true) {
+      const activeSeason = await pool.query<{ id: string }>(
+        `SELECT id FROM season WHERE league_id = $1 AND is_active = TRUE LIMIT 1`,
+        [leagueId]
+      );
+      if (!activeSeason.rows[0]) {
+        badRequest(
+          res,
+          "Cannot list a league with no active season. Create and activate a season first so applicants can see seat availability."
+        );
+        return;
+      }
+    }
+
     // Upsert the listing row
     const now = new Date();
     const listedAt = is_listed ? now : undefined;
