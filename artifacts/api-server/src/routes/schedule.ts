@@ -11,6 +11,7 @@
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
+import type { PoolClient } from "pg";
 import { getCurrentUser } from "../server/auth";
 import { can } from "../server/authz";
 import {
@@ -70,8 +71,7 @@ async function getLeagueOwnerByGameId(
   return { leagueId: row.league_id, ownerId: row.owner_replit_id, seasonId: row.season_id };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function writeAuditLog(client: any, opts: {
+async function writeAuditLog(client: PoolClient, opts: {
   actorUserId: string | null;
   leagueId: string;
   entityType: string;
@@ -84,7 +84,7 @@ async function writeAuditLog(client: any, opts: {
   // Look up app_user.id from replit_id for the actor
   let appUserId: string | null = null;
   if (opts.actorUserId) {
-    const r = await client.query(
+    const r = await client.query<{ id: string }>(
       `SELECT id FROM app_user WHERE replit_id = $1`,
       [opts.actorUserId]
     );
