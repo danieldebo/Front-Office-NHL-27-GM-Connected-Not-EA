@@ -32,7 +32,27 @@ button{appearance:none;border:none;background:transparent;cursor:pointer}
 .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
 
 /* ---------- custom utilities ---------- */
-.login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+.login-card { background: var(--paper); border: 1px solid var(--rule); border-radius: 3px; box-shadow: 0 4px 16px rgba(0,0,0,0.07); width: 100%; max-width: 380px; overflow: hidden; }
+.login-card-head { background: var(--slab); padding: 32px 32px 28px; text-align: center; }
+.login-card-head h1 { font-family: var(--display); font-size: 38px; letter-spacing: .03em; text-transform: uppercase; margin: 0 0 8px; color: #fff; }
+.login-card-head p { color: var(--bulb); font-family: var(--data); font-size: 11px; text-transform: uppercase; letter-spacing: .12em; margin: 0; }
+.login-card-body { padding: 28px 28px 20px; }
+.login-section-label { font-family: var(--data); font-size: 10px; text-transform: uppercase; letter-spacing: .14em; color: var(--steel); margin: 0 0 12px; text-align: center; }
+.login-social-row { display: flex; gap: 8px; }
+.login-social-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px; font-family: var(--data); font-size: 10px; letter-spacing: .07em; text-transform: uppercase; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); padding: 9px 4px; border-radius: 3px; text-decoration: none; transition: background .12s, border-color .12s; white-space: nowrap; }
+.login-social-btn:hover { background: var(--ice); border-color: var(--steel); color: var(--ink); }
+.login-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
+.login-divider::before, .login-divider::after { content: ''; flex: 1; border-top: 1px solid var(--rule); }
+.login-divider span { font-family: var(--data); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--steel); }
+.login-form { display: flex; flex-direction: column; gap: 12px; }
+.login-submit { width: 100%; margin-top: 4px; }
+.login-error { font-family: var(--data); font-size: 11px; letter-spacing: .04em; color: var(--goal); margin: 0; }
+.login-toggle { font-family: var(--data); font-size: 11px; letter-spacing: .04em; color: var(--steel); margin: 16px 0 0; text-align: center; }
+.login-toggle-btn { background: none; border: none; cursor: pointer; color: var(--crease); font-family: var(--data); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; padding: 0; text-decoration: underline; }
+.login-psn-note { margin: 0; padding: 14px 28px; background: var(--ice); border-top: 1px solid var(--rule); font-family: var(--data); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--steel); line-height: 1.65; }
+
+/* legacy selector kept for any remaining references */
 .login-panel { background: var(--paper); border: 1px solid var(--rule); padding: 40px; border-radius: 3px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 .login-panel h1 { font-family: var(--display); font-size: 42px; letter-spacing: .02em; text-transform: uppercase; margin: 0 0 10px; }
 .login-panel p { color: var(--steel); font-family: var(--data); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; margin: 0 0 30px; }
