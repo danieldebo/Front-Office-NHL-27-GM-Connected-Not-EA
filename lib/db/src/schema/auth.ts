@@ -87,7 +87,34 @@ export const authAccountsTable = pgTable(
   ],
 );
 
+/**
+ * Time-limited tokens for local-account password resets.
+ * One active token per user at a time; old tokens are invalidated on first use
+ * or when a new one is generated. Tokens expire after 1 hour.
+ */
+export const passwordResetTokensTable = pgTable(
+  'password_reset_tokens',
+  {
+    id: varchar('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: varchar('user_id')
+      .notNull()
+      .references(() => usersTable.id, { onDelete: 'cascade' }),
+    // 64-char hex token sent in the reset URL. Stored as-is — short-lived and
+    // single-use, so hashing adds no meaningful security benefit here.
+    token: varchar('token', { length: 128 }).notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('password_reset_tokens_user_idx').on(table.userId)],
+);
+
 export type UpsertUser = typeof usersTable.$inferInsert;
 export type User = typeof usersTable.$inferSelect;
 export type AuthAccount = typeof authAccountsTable.$inferSelect;
 export type InsertAuthAccount = typeof authAccountsTable.$inferInsert;
+export type PasswordResetToken = typeof passwordResetTokensTable.$inferSelect;

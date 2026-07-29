@@ -17,6 +17,8 @@ import DqFindings from '@/pages/DqFindings';
 import JoinInvite from '@/pages/JoinInvite';
 import JoinByCode from '@/pages/JoinByCode';
 import OpenLeagues from '@/pages/OpenLeagues';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
 import Footer from '@/components/Footer';
 
 const queryClient = new QueryClient();
@@ -61,6 +63,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/leagues/new">
         <AuthGate>
           <CreateLeague />

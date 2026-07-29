@@ -16,8 +16,10 @@
  *   GET  /logout                     → clear session + redirect to /
  */
 import { GetCurrentAuthUserResponse } from '@workspace/api-zod';
-import { db, usersTable, authAccountsTable } from '@workspace/db';
-import { eq } from 'drizzle-orm';
+import { db, usersTable, authAccountsTable, passwordResetTokensTable } from '@workspace/db';
+import { eq, and, gt, isNull } from 'drizzle-orm';
+import crypto from 'node:crypto';
+import { sendPasswordResetEmail } from '../lib/email';
 import {
   Router,
   type IRouter,
@@ -167,6 +169,139 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     }
     res.status(201).json(GetCurrentAuthUserResponse.parse({ user: req.user }));
   });
+});
+
+// ---------------------------------------------------------------------------
+// POST /auth/forgot-password
+// ---------------------------------------------------------------------------
+
+router.post('/auth/forgot-password', async (req: Request, res: Response) => {
+  const { email } = req.body ?? {};
+  if (!email || typeof email !== 'string') {
+    res.status(400).json({ error: 'email is required' });
+    return;
+  }
+
+  // Always return 200 — never reveal whether the address is registered.
+  const [user] = await db
+    .select({ id: usersTable.id, email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.email, email.toLowerCase().trim()));
+
+  if (!user?.email) {
+    res.json({ ok: true });
+    return;
+  }
+
+  // Verify account has a local password (no point resetting an OAuth-only account)
+  const [localAccount] = await db
+    .select({ id: authAccountsTable.id })
+    .from(authAccountsTable)
+    .where(
+      and(
+        eq(authAccountsTable.userId, user.id),
+        eq(authAccountsTable.provider, 'local'),
+      ),
+    );
+
+  if (!localAccount) {
+    // Account exists but is OAuth-only — silently succeed
+    res.json({ ok: true });
+    return;
+  }
+
+  // Invalidate any prior unused tokens for this user before creating a new one
+  await db
+    .delete(passwordResetTokensTable)
+    .where(
+      and(
+        eq(passwordResetTokensTable.userId, user.id),
+        isNull(passwordResetTokensTable.usedAt),
+      ),
+    );
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await db.insert(passwordResetTokensTable).values({
+    userId: user.id,
+    token,
+    expiresAt,
+  });
+
+  const BASE_URL =
+    process.env.CALLBACK_BASE_URL ??
+    (process.env.REPLIT_DOMAINS
+      ? `https://${process.env.REPLIT_DOMAINS}`
+      : 'http://localhost:8080');
+
+  const resetUrl = `${BASE_URL}/reset-password?token=${token}`;
+
+  try {
+    await sendPasswordResetEmail({ to: user.email, resetUrl });
+  } catch (err) {
+    req.log?.error({ err }, 'Failed to send password reset email');
+    // Don't surface email errors to the caller
+  }
+
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// POST /auth/reset-password
+// ---------------------------------------------------------------------------
+
+router.post('/auth/reset-password', async (req: Request, res: Response) => {
+  const { token, password } = req.body ?? {};
+
+  if (!token || typeof token !== 'string') {
+    res.status(400).json({ error: 'token is required' });
+    return;
+  }
+  if (!password || typeof password !== 'string' || password.length < 8) {
+    res.status(400).json({ error: 'password must be at least 8 characters' });
+    return;
+  }
+
+  const now = new Date();
+
+  const [resetToken] = await db
+    .select()
+    .from(passwordResetTokensTable)
+    .where(eq(passwordResetTokensTable.token, token));
+
+  if (!resetToken) {
+    res.status(400).json({ error: 'This reset link is invalid or has already been used.' });
+    return;
+  }
+  if (resetToken.usedAt) {
+    res.status(400).json({ error: 'This reset link has already been used.' });
+    return;
+  }
+  if (resetToken.expiresAt < now) {
+    res.status(400).json({ error: 'This reset link has expired. Please request a new one.' });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  // Update the password and mark the token used in one go
+  await db
+    .update(authAccountsTable)
+    .set({ passwordHash })
+    .where(
+      and(
+        eq(authAccountsTable.userId, resetToken.userId),
+        eq(authAccountsTable.provider, 'local'),
+      ),
+    );
+
+  await db
+    .update(passwordResetTokensTable)
+    .set({ usedAt: now })
+    .where(eq(passwordResetTokensTable.id, resetToken.id));
+
+  res.json({ ok: true });
 });
 
 // ---------------------------------------------------------------------------

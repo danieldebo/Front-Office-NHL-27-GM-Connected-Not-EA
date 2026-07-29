@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { useAuth } from '@workspace/replit-auth-web';
-import { useLocation } from 'wouter';
+import { useLocation, Link } from 'wouter';
 
 type Mode = 'login' | 'register';
 
@@ -122,7 +122,17 @@ export default function Login() {
             </div>
 
             <div className="field">
-              <label htmlFor="lf-password">Password</label>
+              <label htmlFor="lf-password" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span>Password</span>
+                {mode === 'login' && (
+                  <Link
+                    href="/forgot-password"
+                    style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--crease)', textDecoration: 'underline', fontWeight: 400 }}
+                  >
+                    Forgot password?
+                  </Link>
+                )}
+              </label>
               <input
                 id="lf-password"
                 type="password"
