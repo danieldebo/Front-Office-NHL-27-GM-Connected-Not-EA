@@ -45,21 +45,20 @@ export interface AuthUserEnvelope {
   user: AuthUser | null;
 }
 
-export interface MobileTokenExchangeInput {
+export interface LocalLoginInput {
+  email: string;
   /** @minLength 1 */
-  code: string;
-  /** @minLength 1 */
-  code_verifier: string;
-  /** @minLength 1 */
-  redirect_uri: string;
-  /** @minLength 1 */
-  state: string;
-  /** @minLength 1 */
-  nonce?: string;
+  password: string;
 }
 
-export interface MobileTokenExchangeSuccess {
-  token: string;
+export interface RegisterInput {
+  email: string;
+  /** @minLength 8 */
+  password: string;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
 }
 
 export interface LogoutSuccess {
@@ -1083,16 +1082,6 @@ export type IfMatchParameter = string;
 export type AuthorizationSessionHeaderParameter = string;
 
 export type BeginBrowserLoginParams = {
-returnTo?: string;
-};
-
-export type HandleBrowserLoginCallbackParams = {
-code?: string;
-state?: string;
-iss?: string;
-};
-
-export type LogoutBrowserSessionParams = {
 returnTo?: string;
 };
 

@@ -1,144 +1,72 @@
+/**
+ * Auth routes — multi-provider (Google, Microsoft, Discord, local).
+ *
+ * Endpoints:
+ *   GET  /auth/user                  → current authenticated user (or null)
+ *   POST /auth/login                 → local email+password login
+ *   POST /auth/register              → create local account + auto-login
+ *   GET  /auth/google                → initiate Google OAuth
+ *   GET  /auth/google/callback       → Google OAuth callback
+ *   GET  /auth/microsoft             → initiate Microsoft OAuth
+ *   GET  /auth/microsoft/callback    → Microsoft OAuth callback
+ *   GET  /auth/discord               → initiate Discord OAuth
+ *   GET  /auth/discord/callback      → Discord OAuth callback
+ *   GET  /login                      → backward-compat entry; picks first
+ *                                       configured provider (preserves returnTo)
+ *   GET  /logout                     → clear session + redirect to /
+ */
+import { GetCurrentAuthUserResponse } from '@workspace/api-zod';
+import { db, usersTable, authAccountsTable } from '@workspace/db';
+import { eq } from 'drizzle-orm';
 import {
-  ExchangeMobileAuthorizationCodeBody,
-  ExchangeMobileAuthorizationCodeResponse,
-  GetCurrentAuthUserResponse,
-  LogoutMobileSessionResponse,
-} from '@workspace/api-zod';
-import { db, usersTable } from '@workspace/db';
-import { Router, type IRouter, type Request, type Response } from 'express';
-import * as oidc from 'openid-client';
+  Router,
+  type IRouter,
+  type Request,
+  type Response,
+  type NextFunction,
+} from 'express';
+import bcrypt from 'bcryptjs';
+import { passport, provisionAppUser } from '../lib/passport';
 
-import {
-  clearSession,
-  createSession,
-  deleteSession,
-  getOidcConfig,
-  getSessionId,
-  ISSUER_URL,
-  SESSION_COOKIE,
-  SESSION_TTL,
-  type SessionData,
-} from '../lib/auth';
-
-const OIDC_COOKIE_TTL = 10 * 60 * 1000;
+// Allow session to carry a validated returnTo destination between the
+// login initiation and the OAuth callback redirect.
+declare module 'express-session' {
+  interface SessionData {
+    returnTo?: string;
+  }
+}
 
 const router: IRouter = Router();
 
-function getOrigin(req: Request): string {
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  const host =
-    req.headers['x-forwarded-host'] || req.headers['host'] || 'localhost';
-  return `${proto}://${host}`;
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-function setSessionCookie(res: Response, sid: string) {
-  res.cookie(SESSION_COOKIE, sid, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: SESSION_TTL,
-  });
-}
-
-function setOidcCookie(res: Response, name: string, value: string) {
-  res.cookie(name, value, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: OIDC_COOKIE_TTL,
-  });
-}
-
-function getSafeReturnTo(value: unknown): string {
-  if (
-    typeof value !== 'string' ||
-    !value.startsWith('/') ||
-    value.startsWith('//')
-  ) {
-    return '/';
+/**
+ * Validate that a returnTo value is a safe relative path (starts with /,
+ * not //).  Prevents open-redirect attacks from attacker-supplied values.
+ */
+function safeReturnTo(value: unknown, fallback = '/'): string {
+  if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')) {
+    return value;
   }
-  return value;
+  return fallback;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+/**
+ * After a successful OAuth callback, redirect the user to wherever they
+ * were trying to go before login (stored in session as returnTo), then
+ * clear it so subsequent logins start clean.
+ */
+function redirectAfterLogin(req: Request, res: Response): void {
+  const dest = safeReturnTo(req.session.returnTo);
+  delete req.session.returnTo;
+  res.redirect(dest);
 }
 
-function getErrorStatus(
-  value: Record<string, unknown>,
-): number | string | undefined {
-  if (typeof value.status === 'number' || typeof value.status === 'string') {
-    return value.status;
-  }
-  if (
-    typeof value.statusCode === 'number' ||
-    typeof value.statusCode === 'string'
-  ) {
-    return value.statusCode;
-  }
-  return undefined;
-}
-
-function getSafeErrorMetadata(error: unknown) {
-  if (!isRecord(error)) {
-    return { errorName: typeof error };
-  }
-
-  const errorStatus = getErrorStatus(error);
-  const causeStatus = isRecord(error.cause)
-    ? getErrorStatus(error.cause)
-    : undefined;
-
-  return {
-    errorName: error instanceof Error ? error.name : 'Error',
-    errorStatus: errorStatus ?? causeStatus,
-  };
-}
-
-async function upsertUser(claims: Record<string, unknown>) {
-  const userData = {
-    id: claims.sub as string,
-    email: (claims.email as string) || null,
-    firstName: (claims.first_name as string) || null,
-    lastName: (claims.last_name as string) || null,
-    profileImageUrl: (claims.profile_image_url || claims.picture) as
-      | string
-      | null,
-  };
-
-  const [user] = await db
-    .insert(usersTable)
-    .values(userData)
-    .onConflictDoUpdate({
-      target: usersTable.id,
-      set: {
-        ...userData,
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
-
-  // Provision app_user — the domain-level profile linked by replit_id.
-  // This is the row all route handlers resolve to via WHERE replit_id = $1.
-  // Uses pool (raw SQL) because app_user is not in the Drizzle schema.
-  const { pool } = await import('@workspace/db');
-  const displayName = [userData.firstName, userData.lastName].filter(Boolean).join(' ')
-    || userData.email?.split('@')[0]
-    || 'GM';
-  const email = userData.email ?? `${userData.id}@replit.noreply`;
-
-  await pool.query(
-    `INSERT INTO app_user (replit_id, display_name, email, external_ids)
-     VALUES ($1, $2, $3, '{}'::jsonb)
-     ON CONFLICT (replit_id) DO UPDATE
-       SET display_name = EXCLUDED.display_name`,
-    [userData.id, displayName, email]
-  );
-
-  return user;
-}
+// ---------------------------------------------------------------------------
+// GET /auth/user
+// ---------------------------------------------------------------------------
 
 router.get('/auth/user', (req: Request, res: Response) => {
   res.json(
@@ -148,183 +76,226 @@ router.get('/auth/user', (req: Request, res: Response) => {
   );
 });
 
-router.get('/login', async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const callbackUrl = `${getOrigin(req)}/api/callback`;
-
-  const returnTo = getSafeReturnTo(req.query.returnTo);
-
-  const state = oidc.randomState();
-  const nonce = oidc.randomNonce();
-  const codeVerifier = oidc.randomPKCECodeVerifier();
-  const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
-
-  const redirectTo = oidc.buildAuthorizationUrl(config, {
-    redirect_uri: callbackUrl,
-    scope: 'openid email profile offline_access',
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
-    prompt: 'login consent',
-    state,
-    nonce,
-  });
-
-  setOidcCookie(res, 'code_verifier', codeVerifier);
-  setOidcCookie(res, 'nonce', nonce);
-  setOidcCookie(res, 'state', state);
-  setOidcCookie(res, 'return_to', returnTo);
-
-  res.redirect(redirectTo.href);
-});
-
-// Query params are not validated because the OIDC provider may include
-// parameters not expressed in the schema.
-router.get('/callback', async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const callbackUrl = `${getOrigin(req)}/api/callback`;
-
-  const codeVerifier = req.cookies?.code_verifier;
-  const nonce = req.cookies?.nonce;
-  const expectedState = req.cookies?.state;
-
-  if (!codeVerifier || !expectedState) {
-    res.redirect('/api/login');
-    return;
-  }
-
-  const currentUrl = new URL(
-    `${callbackUrl}?${new URL(req.url, `http://${req.headers.host}`).searchParams}`,
-  );
-
-  let tokens: oidc.TokenEndpointResponse & oidc.TokenEndpointResponseHelpers;
-  try {
-    tokens = await oidc.authorizationCodeGrant(config, currentUrl, {
-      pkceCodeVerifier: codeVerifier,
-      expectedNonce: nonce,
-      expectedState,
-      idTokenExpected: true,
-    });
-  } catch {
-    res.redirect('/api/login');
-    return;
-  }
-
-  const returnTo = getSafeReturnTo(req.cookies?.return_to);
-
-  res.clearCookie('code_verifier', { path: '/' });
-  res.clearCookie('nonce', { path: '/' });
-  res.clearCookie('state', { path: '/' });
-  res.clearCookie('return_to', { path: '/' });
-
-  const claims = tokens.claims();
-  if (!claims) {
-    res.redirect('/api/login');
-    return;
-  }
-
-  const dbUser = await upsertUser(claims as unknown as Record<string, unknown>);
-
-  const now = Math.floor(Date.now() / 1000);
-  const sessionData: SessionData = {
-    user: {
-      id: dbUser.id,
-      email: dbUser.email,
-      firstName: dbUser.firstName,
-      lastName: dbUser.lastName,
-      profileImageUrl: dbUser.profileImageUrl,
-    },
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-    expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
-  };
-
-  const sid = await createSession(sessionData);
-  setSessionCookie(res, sid);
-  res.redirect(returnTo);
-});
-
-router.get('/logout', async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const origin = getOrigin(req);
-  const returnTo = getSafeReturnTo(req.query.returnTo);
-  const postLogoutRedirectUrl = new URL(returnTo, `${origin}/`).href;
-
-  const sid = getSessionId(req);
-  await clearSession(res, sid);
-
-  const endSessionUrl = oidc.buildEndSessionUrl(config, {
-    client_id: process.env.REPL_ID!,
-    post_logout_redirect_uri: postLogoutRedirectUrl,
-  });
-
-  res.redirect(endSessionUrl.href);
-});
+// ---------------------------------------------------------------------------
+// POST /auth/login  (local email+password)
+// ---------------------------------------------------------------------------
 
 router.post(
-  '/mobile-auth/token-exchange',
-  async (req: Request, res: Response) => {
-    const parsed = ExchangeMobileAuthorizationCodeBody.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'Missing or invalid required parameters' });
-      return;
-    }
-
-    const { code, code_verifier, redirect_uri, state, nonce } = parsed.data;
-
-    try {
-      const config = await getOidcConfig();
-
-      const callbackUrl = new URL(redirect_uri);
-      callbackUrl.searchParams.set('code', code);
-      callbackUrl.searchParams.set('state', state);
-      callbackUrl.searchParams.set('iss', ISSUER_URL);
-
-      const tokens = await oidc.authorizationCodeGrant(config, callbackUrl, {
-        pkceCodeVerifier: code_verifier,
-        expectedNonce: nonce ?? undefined,
-        expectedState: state,
-        idTokenExpected: true,
-      });
-
-      const claims = tokens.claims();
-      if (!claims) {
-        res.status(401).json({ error: 'No claims in ID token' });
-        return;
-      }
-
-      const dbUser = await upsertUser(
-        claims as unknown as Record<string, unknown>,
-      );
-
-      const now = Math.floor(Date.now() / 1000);
-      const sessionData: SessionData = {
-        user: {
-          id: dbUser.id,
-          email: dbUser.email,
-          firstName: dbUser.firstName,
-          lastName: dbUser.lastName,
-          profileImageUrl: dbUser.profileImageUrl,
-        },
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
-      };
-
-      const sid = await createSession(sessionData);
-      res.json(ExchangeMobileAuthorizationCodeResponse.parse({ token: sid }));
-    } catch (err) {
-      req.log.error(getSafeErrorMetadata(err), 'Mobile token exchange error');
-      res.status(500).json({ error: 'Token exchange failed' });
-    }
+  '/auth/login',
+  (req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate(
+      'local',
+      (err: Error | null, user: Express.User | false) => {
+        if (err) {
+          req.log?.error({ err }, 'local auth error');
+          res.status(500).json({ error: 'Authentication error' });
+          return;
+        }
+        if (!user) {
+          res.status(401).json({ error: 'Invalid email or password' });
+          return;
+        }
+        req.login(user, (loginErr) => {
+          if (loginErr) {
+            req.log?.error({ err: loginErr }, 'session error after login');
+            res.status(500).json({ error: 'Session error' });
+            return;
+          }
+          res.json(GetCurrentAuthUserResponse.parse({ user: req.user }));
+        });
+      },
+    )(req, res, next);
   },
 );
 
-router.post('/mobile-auth/logout', async (req: Request, res: Response) => {
-  const sid = getSessionId(req);
-  if (sid) {
-    await deleteSession(sid);
+// ---------------------------------------------------------------------------
+// POST /auth/register
+// ---------------------------------------------------------------------------
+
+router.post('/auth/register', async (req: Request, res: Response) => {
+  const { email, password, firstName, lastName } = req.body ?? {};
+
+  if (
+    !email ||
+    typeof email !== 'string' ||
+    !password ||
+    typeof password !== 'string'
+  ) {
+    res.status(400).json({ error: 'email and password are required' });
+    return;
   }
-  res.json(LogoutMobileSessionResponse.parse({ success: true }));
+
+  if (password.length < 8) {
+    res.status(400).json({ error: 'Password must be at least 8 characters' });
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.email, email));
+
+  if (existing) {
+    res.status(409).json({ error: 'An account with that email already exists' });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  const [user] = await db
+    .insert(usersTable)
+    .values({
+      email,
+      firstName: typeof firstName === 'string' ? firstName : null,
+      lastName: typeof lastName === 'string' ? lastName : null,
+    })
+    .returning();
+
+  await db.insert(authAccountsTable).values({
+    userId: user.id,
+    provider: 'local',
+    passwordHash,
+  });
+
+  await provisionAppUser(user);
+
+  req.login(user, (err) => {
+    if (err) {
+      req.log?.error({ err }, 'session error after registration');
+      res.status(500).json({ error: 'Session error after registration' });
+      return;
+    }
+    res.status(201).json(GetCurrentAuthUserResponse.parse({ user: req.user }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /login  —  backward-compat bridge
+//
+// useAuth.login() and legacy hrefs call /api/login?returnTo=...
+// Until Task #26 ships a multi-provider picker UI we redirect to the
+// first configured OAuth provider (or the frontend /login page for
+// email+password when no OAuth is configured).
+// returnTo is stored in the session so it survives the OAuth round-trip.
+// ---------------------------------------------------------------------------
+
+const OAUTH_PROVIDERS: Array<{
+  envKey: string;
+  path: string;
+}> = [
+  { envKey: 'GOOGLE_CLIENT_ID', path: '/api/auth/google' },
+  { envKey: 'MICROSOFT_CLIENT_ID', path: '/api/auth/microsoft' },
+  { envKey: 'DISCORD_CLIENT_ID', path: '/api/auth/discord' },
+];
+
+router.get('/login', (req: Request, res: Response) => {
+  // Persist a validated returnTo so OAuth callbacks can restore it
+  const returnTo = safeReturnTo(req.query.returnTo);
+  if (returnTo !== '/') {
+    req.session.returnTo = returnTo;
+  }
+
+  // Pick the first provider that has credentials configured
+  const provider = OAUTH_PROVIDERS.find((p) => process.env[p.envKey]);
+  if (provider) {
+    res.redirect(provider.path);
+  } else {
+    // No OAuth providers configured — send to the frontend login page
+    // which will offer the email+password form (Task #26)
+    res.redirect('/login');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Strategy guard middleware
+//
+// Passport throws "Unknown authentication strategy" if .authenticate() is
+// called for a strategy that was never registered (i.e. env vars absent).
+// This guard returns a deterministic 503 before Passport is reached so the
+// caller gets a clear message instead of an uncaught exception.
+// ---------------------------------------------------------------------------
+
+// Map of provider name → [clientIdKey, clientSecretKey] pairs.
+// Both must be non-empty for the Passport strategy to have been registered.
+const PROVIDER_ENV_KEYS: Record<string, [string, string]> = {
+  Google: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+  Microsoft: ['MICROSOFT_CLIENT_ID', 'MICROSOFT_CLIENT_SECRET'],
+  Discord: ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET'],
+};
+
+function requireProvider(label: string) {
+  const [idKey, secretKey] = PROVIDER_ENV_KEYS[label]!;
+  return (_req: Request, res: Response, next: NextFunction): void => {
+    if (!process.env[idKey] || !process.env[secretKey]) {
+      res
+        .status(503)
+        .json({ error: `${label} sign-in is not configured on this server` });
+      return;
+    }
+    next();
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Google
+// ---------------------------------------------------------------------------
+
+router.get(
+  '/auth/google',
+  requireProvider('Google'),
+  passport.authenticate('google', { scope: ['profile', 'email'] }),
+);
+
+router.get(
+  '/auth/google/callback',
+  requireProvider('Google'),
+  passport.authenticate('google', { failureRedirect: '/?auth=failed' }),
+  (req: Request, res: Response) => redirectAfterLogin(req, res),
+);
+
+// ---------------------------------------------------------------------------
+// Microsoft
+// ---------------------------------------------------------------------------
+
+router.get(
+  '/auth/microsoft',
+  requireProvider('Microsoft'),
+  passport.authenticate('microsoft', { scope: ['user.read'] }),
+);
+
+router.get(
+  '/auth/microsoft/callback',
+  requireProvider('Microsoft'),
+  passport.authenticate('microsoft', { failureRedirect: '/?auth=failed' }),
+  (req: Request, res: Response) => redirectAfterLogin(req, res),
+);
+
+// ---------------------------------------------------------------------------
+// Discord
+// ---------------------------------------------------------------------------
+
+router.get(
+  '/auth/discord',
+  requireProvider('Discord'),
+  passport.authenticate('discord'),
+);
+
+router.get(
+  '/auth/discord/callback',
+  requireProvider('Discord'),
+  passport.authenticate('discord', { failureRedirect: '/?auth=failed' }),
+  (req: Request, res: Response) => redirectAfterLogin(req, res),
+);
+
+// ---------------------------------------------------------------------------
+// GET /logout
+// ---------------------------------------------------------------------------
+
+router.get('/logout', (req: Request, res: Response) => {
+  req.logout((err) => {
+    if (err) req.log?.warn({ err }, 'logout error');
+    res.redirect('/');
+  });
 });
 
 export default router;

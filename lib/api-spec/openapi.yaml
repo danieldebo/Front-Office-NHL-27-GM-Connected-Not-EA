@@ -66,7 +66,12 @@ paths:
     get:
       tags: [Auth]
       operationId: beginBrowserLogin
-      summary: Start the browser OIDC login flow
+      summary: Initiate browser login (redirects to configured OAuth provider or /login page)
+      description: >
+        Backward-compatible login entry point.  Stores returnTo in the session
+        then redirects to the first configured OAuth provider.  If no OAuth
+        provider is configured, redirects to the frontend /login page where
+        the email+password form is shown.
       parameters:
         - name: returnTo
           in: query
@@ -75,102 +80,86 @@ paths:
             type: string
       responses:
         '302':
-          description: Redirect to the OIDC authorization endpoint.
+          description: Redirect to an OAuth provider or the frontend login page.
 
-  /callback:
-    get:
-      tags: [Auth]
-      operationId: handleBrowserLoginCallback
-      summary: Complete the browser OIDC login flow
-      parameters:
-        - name: code
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: state
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: iss
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        '302':
-          description: Redirect to the returnTo path on success or /api/login on failure.
-
-  /logout:
-    get:
-      tags: [Auth]
-      operationId: logoutBrowserSession
-      summary: Clear the session and begin OIDC logout
-      parameters:
-        - $ref: '#/components/parameters/AuthorizationSessionHeader'
-        - $ref: '#/components/parameters/SessionCookie'
-        - name: returnTo
-          in: query
-          required: false
-          schema:
-            type: string
-            default: /
-      responses:
-        '302':
-          description: Redirect to the OIDC provider logout URL.
-
-  /mobile-auth/token-exchange:
+  /auth/login:
     post:
       tags: [Auth]
-      operationId: exchangeMobileAuthorizationCode
-      summary: Exchange a mobile OIDC code for a session token
+      operationId: localLogin
+      summary: Sign in with email and password
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MobileTokenExchangeInput'
+              $ref: '#/components/schemas/LocalLoginInput'
       responses:
         '200':
-          description: Session created successfully.
+          description: Login successful.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MobileTokenExchangeSuccess'
-        '400':
-          description: Missing or invalid required fields.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: '#/components/schemas/AuthUserEnvelope'
         '401':
-          description: Token did not contain usable claims.
+          description: Invalid credentials.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
         '500':
-          description: Token exchange failed.
+          description: Server error.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
 
-  /mobile-auth/logout:
+  /auth/register:
     post:
       tags: [Auth]
-      operationId: logoutMobileSession
-      summary: Delete a mobile session token
-      parameters:
-        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+      operationId: registerLocalAccount
+      summary: Create a new local account and sign in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
       responses:
-        '200':
-          description: Logout processed.
+        '201':
+          description: Account created and session started.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LogoutSuccess'
+                $ref: '#/components/schemas/AuthUserEnvelope'
+        '400':
+          description: Missing or invalid fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          description: Email already registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear the session cookie and redirect to /
+      parameters:
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '302':
+          description: Redirects to / after session is cleared.
 
   # ------------------------------------------------------------------ Discovery
 
@@ -2011,32 +2000,29 @@ components:
             - $ref: '#/components/schemas/AuthUser'
             - type: 'null'
 
-    MobileTokenExchangeInput:
+    LocalLoginInput:
       type: object
-      required: [code, code_verifier, redirect_uri, state]
+      required: [email, password]
       properties:
-        code:
+        email:
           type: string
-          minLength: 1
-        code_verifier:
-          type: string
-          minLength: 1
-        redirect_uri:
-          type: string
-          minLength: 1
-        state:
-          type: string
-          minLength: 1
-        nonce:
+        password:
           type: string
           minLength: 1
 
-    MobileTokenExchangeSuccess:
+    RegisterInput:
       type: object
-      required: [token]
+      required: [email, password]
       properties:
-        token:
+        email:
           type: string
+        password:
+          type: string
+          minLength: 8
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
 
     LogoutSuccess:
       type: object

@@ -44,7 +44,7 @@ export type { GameStatus } from "./generated/types/gameStatus";
 // GenerateScheduleResult intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { GetMyLeagues200 } from "./generated/types/getMyLeagues200";
 export type { GetStandings200 } from "./generated/types/getStandings200";
-export type { HandleBrowserLoginCallbackParams } from "./generated/types/handleBrowserLoginCallbackParams";
+// HandleBrowserLoginCallbackParams removed — /callback route was removed
 export type { HealthStatus } from "./generated/types/healthStatus";
 export type { IdempotencyKeyParameter } from "./generated/types/idempotencyKeyParameter";
 export type { IfMatchParameter } from "./generated/types/ifMatchParameter";
@@ -79,10 +79,11 @@ export type { ListOpenLeaguesSeatsOpen } from "./generated/types/listOpenLeagues
 export type { ListRulebookRevisions200 } from "./generated/types/listRulebookRevisions200";
 export type { ListSeasons200 } from "./generated/types/listSeasons200";
 export type { ListSeats200 } from "./generated/types/listSeats200";
-export type { LogoutBrowserSessionParams } from "./generated/types/logoutBrowserSessionParams";
+export type { LocalLoginInput } from "./generated/types/localLoginInput";
+// LogoutBrowserSessionParams removed — /logout no longer has query parameters
 export type { LogoutSuccess } from "./generated/types/logoutSuccess";
-export type { MobileTokenExchangeInput } from "./generated/types/mobileTokenExchangeInput";
-export type { MobileTokenExchangeSuccess } from "./generated/types/mobileTokenExchangeSuccess";
+// MobileTokenExchangeInput removed — mobile OIDC routes removed
+// MobileTokenExchangeSuccess removed — mobile OIDC routes removed
 // OpenLeague intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
@@ -93,6 +94,7 @@ export type { PublicLeagueEnvelope } from "./generated/types/publicLeagueEnvelop
 export type { PublicLeagueEnvelopeLeague } from "./generated/types/publicLeagueEnvelopeLeague";
 export type { PublicLeagueEnvelopeSeason } from "./generated/types/publicLeagueEnvelopeSeason";
 export type { PublishRulebookInput } from "./generated/types/publishRulebookInput";
+export type { RegisterInput } from "./generated/types/registerInput";
 export type { ResultInput } from "./generated/types/resultInput";
 export type { ResultInputDecision } from "./generated/types/resultInputDecision";
 export type { RevokeGmParams } from "./generated/types/revokeGmParams";

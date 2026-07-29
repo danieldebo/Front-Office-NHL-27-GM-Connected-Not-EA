@@ -251,90 +251,165 @@ tbody tr:hover{background:#F6F9FB}
 footer{border-top:1px solid var(--rule);background:var(--paper)}
 footer .wrap{padding:20px;font-family:var(--data);font-size:10.5px;letter-spacing:.05em;color:var(--steel);display:flex;flex-wrap:wrap;gap:16px}
 
-/* ---------- landing page ---------- */
-.landing{display:flex;flex-direction:column;min-height:100vh}
+/* ---------- landing page — Stadium design -------------------------------- */
+.landing{display:flex;flex-direction:column;min-height:100vh;background:var(--slab);color:#E8EEF3}
+
+/* Hero */
 .landing-hero{
-  background:var(--slab);
-  color:#E8EEF3;
-  padding:64px 0 56px;
-  position:relative;
-  overflow:hidden;
+  position:relative;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:96px 24px 80px;overflow:hidden;
 }
-.landing-rafter{
-  position:absolute;inset:0;pointer-events:none;
-  background:radial-gradient(ellipse 80% 60% at 80% 110%,rgba(242,169,59,.10) 0%,transparent 70%);
+.landing-hero-bg{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;overflow:hidden;
 }
-.landing-hero .wrap{position:relative;z-index:1}
+.landing-ice-outer{
+  position:absolute;width:900px;height:900px;border-radius:50%;
+  border:1px solid rgba(242,169,59,.08);
+}
+.landing-ice-inner{
+  position:absolute;width:540px;height:540px;border-radius:50%;
+  border:1px solid rgba(242,169,59,.10);
+}
+.landing-ice-line{
+  position:absolute;top:50%;left:0;right:0;height:1px;
+  background:rgba(242,169,59,.06);
+}
+.landing-ice-glow{
+  position:absolute;width:600px;height:600px;border-radius:50%;
+  background:var(--bulb);opacity:.03;filter:blur(100px);
+}
+
+/* Wordmark (top-left) */
+.landing-wordmark{
+  position:absolute;top:24px;left:24px;
+  display:flex;align-items:center;gap:12px;z-index:1;
+}
+.landing-crest{
+  width:34px;height:34px;background:#0E1620;flex:none;
+  display:grid;place-items:center;
+  font-family:var(--display);font-size:17px;color:var(--bulb);
+  padding-top:2px;
+}
+.landing-brand{font-family:var(--display);font-size:20px;color:#fff;text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
+.landing-brand-sep{width:1px;height:22px;background:rgba(255,255,255,.12);flex:none}
+.landing-badge{font-family:var(--data);font-size:10px;color:var(--bulb);letter-spacing:.18em;text-transform:uppercase;padding-top:2px}
+
+/* Center content */
+.landing-center{
+  position:relative;z-index:1;
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+  max-width:900px;width:100%;
+}
 .landing-eyebrow{
-  font-family:var(--data);font-size:11px;letter-spacing:.18em;
-  text-transform:uppercase;color:var(--bulb);margin-bottom:12px;
+  font-family:var(--data);font-size:11px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--bulb);margin-bottom:24px;
 }
 .landing-title{
-  font-family:var(--display);font-size:clamp(56px,9vw,100px);
-  line-height:.92;letter-spacing:.01em;text-transform:uppercase;
-  margin:0 0 20px;color:#fff;
+  font-family:var(--display);font-size:clamp(72px,10vw,120px);
+  line-height:.88;text-transform:uppercase;color:#fff;
+  margin:0 0 24px;
 }
-.landing-sub{
-  color:#9FB1BF;max-width:52ch;font-size:clamp(14px,2vw,16px);
-  line-height:1.6;margin:0;
+.landing-sub{color:#9FB1BF;font-size:clamp(14px,1.5vw,16px);line-height:1.6;max-width:52ch;margin:0}
+
+/* CTAs */
+.landing-ctas{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;margin-top:36px}
+.landing-cta-primary{
+  background:var(--bulb);color:#0E1620;
+  font-family:var(--display);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+  padding:14px 32px;border:none;cursor:pointer;transition:background .15s;
+}
+.landing-cta-primary:hover{background:#d99732}
+.landing-cta-outline{
+  background:transparent;color:var(--bulb);
+  font-family:var(--display);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+  padding:14px 32px;border:1px solid var(--bulb);cursor:pointer;
+  transition:background .15s;text-decoration:none;display:inline-block;
+}
+.landing-cta-outline:hover{background:rgba(242,169,59,.10);color:var(--bulb)}
+
+/* Scroll hint */
+.landing-scroll-hint{
+  position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+  font-family:var(--data);font-size:10px;color:var(--bulb);
+  letter-spacing:.2em;text-transform:uppercase;
+  animation:lpPulse 2s ease-in-out infinite;
+}
+@keyframes lpPulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* Features belt */
+.landing-features{
+  background:var(--slab-2);padding:72px 24px;
+  border-top:1px solid rgba(255,255,255,.05);
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.landing-section-label{
+  font-family:var(--data);font-size:10px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--bulb);text-align:center;margin-bottom:40px;
+}
+.landing-section-label--dark{color:var(--steel)}
+.landing-features-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:40px 32px;max-width:1080px;margin:0 auto;
+}
+.landing-feat-icon{font-size:40px;line-height:1}
+.landing-feat-title{
+  font-family:var(--display);font-size:15px;color:#fff;
+  text-transform:uppercase;letter-spacing:.03em;margin:12px 0 6px;
+}
+.landing-feat-desc{font-size:13px;color:#9FB1BF;line-height:1.5;max-width:28ch;margin:0}
+
+/* Entry cards */
+.landing-entry{background:var(--ice);padding:56px 24px}
+.landing-entry-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:16px;max-width:1080px;margin:0 auto;
 }
 
-.landing-cards-wrap{padding-top:44px;padding-bottom:56px}
-.landing-cards{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
-  gap:16px;
-}
-
+/* Card atoms (reused in entry section) */
 .lp-card{
   background:var(--paper);border:1px solid var(--rule);border-radius:4px;
-  display:flex;flex-direction:column;gap:0;overflow:hidden;
+  display:flex;flex-direction:column;overflow:hidden;
 }
-.lp-card--primary{
-  border-color:var(--slab);
-  box-shadow:0 2px 8px rgba(22,32,42,.10);
-}
-.lp-card-icon{
-  padding:20px 20px 0;
-  font-size:28px;line-height:1;
-}
-.lp-card-body{padding:12px 20px 16px;flex:1}
+.lp-card--primary{border-color:var(--slab);box-shadow:0 2px 8px rgba(22,32,42,.10)}
+.lp-card-body{padding:20px 20px 16px;flex:1}
 .lp-card-title{
-  font-family:var(--display);font-size:17px;letter-spacing:.03em;
-  text-transform:uppercase;margin:0 0 8px;line-height:1.1;
+  font-family:var(--display);font-size:16px;letter-spacing:.03em;
+  text-transform:uppercase;margin:0 0 8px;line-height:1.1;color:var(--ink);
 }
-.lp-card-desc{
-  font-size:13.5px;line-height:1.5;color:#33414c;margin:0;
-}
-.lp-card-foot{
-  padding:14px 20px 18px;border-top:1px solid var(--rule);
-  background:#FAFCFD;
-}
-.lp-card-foot--muted{background:transparent}
-
-.lp-signin-btn{font-size:11.5px;padding:9px 18px}
+.lp-card-desc{font-size:13.5px;line-height:1.5;color:#33414c;margin:0}
+.lp-card-foot{padding:14px 20px 18px;border-top:1px solid var(--rule);background:#FAFCFD}
+.lp-card-foot--muted{background:transparent;border-top:1px solid var(--rule)}
 
 .lp-code-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .lp-code-input{
-  font-family:var(--data);font-size:12px;letter-spacing:.06em;
-  text-transform:uppercase;
+  font-family:var(--data);font-size:12px;letter-spacing:.06em;text-transform:uppercase;
   padding:8px 10px;border:1px solid var(--rule);border-radius:3px;
   background:var(--paper);flex:1;min-width:100px;
 }
 .lp-code-input:focus{outline:2px solid var(--bulb);outline-offset:1px;border-color:var(--slab)}
 
-.lp-invite-note{
-  font-family:var(--data);font-size:11px;letter-spacing:.04em;
-  color:var(--steel);line-height:1.5;
-}
+.lp-invite-note{font-family:var(--data);font-size:11px;letter-spacing:.04em;color:var(--steel);line-height:1.5}
 .lp-invite-note code{
   background:#F1F3F5;border:1px solid var(--rule);
   border-radius:2px;padding:1px 5px;font-size:11px;
 }
 
+/* Footer */
+.landing-footer{
+  background:var(--slab);height:50px;display:flex;align-items:center;justify-content:center;
+  border-top:1px solid rgba(255,255,255,.05);
+}
+.landing-footer-text{font-family:var(--data);font-size:10px;color:var(--steel);letter-spacing:.1em;text-transform:uppercase}
+
+/* Responsive */
 @media(max-width:640px){
-  .landing-title{font-size:clamp(48px,12vw,70px)}
-  .landing-cards{grid-template-columns:1fr}
+  .landing-title{font-size:clamp(56px,14vw,80px)}
+  .landing-features-grid{grid-template-columns:1fr}
+  .landing-entry-grid{grid-template-columns:1fr}
+  .landing-badge{display:none}
+  .landing-brand-sep{display:none}
 }
 
 /* ---------- motion ---------- */

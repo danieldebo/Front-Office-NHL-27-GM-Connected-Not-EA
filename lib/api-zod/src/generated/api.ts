@@ -36,7 +36,8 @@ export const GetCurrentAuthUserResponse = zod.object({
 
 
 /**
- * @summary Start the browser OIDC login flow
+ * Backward-compatible login entry point.  Stores returnTo in the session then redirects to the first configured OAuth provider.  If no OAuth provider is configured, redirects to the frontend /login page where the email+password form is shown.
+ * @summary Initiate browser login (redirects to configured OAuth provider or /login page)
  */
 export const BeginBrowserLoginQueryParams = zod.object({
   "returnTo": zod.coerce.string().optional()
@@ -46,66 +47,56 @@ export const BeginBrowserLoginResponse = zod.void()
 
 
 /**
- * @summary Complete the browser OIDC login flow
+ * @summary Sign in with email and password
  */
-export const HandleBrowserLoginCallbackQueryParams = zod.object({
-  "code": zod.coerce.string().optional(),
-  "state": zod.coerce.string().optional(),
-  "iss": zod.coerce.string().optional()
+
+
+
+export const LocalLoginBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string().min(1)
 })
 
-export const HandleBrowserLoginCallbackResponse = zod.void()
+export const LocalLoginResponse = zod.object({
+  "user": zod.union([zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullable(),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "profileImageUrl": zod.string().nullable()
+}),zod.null()])
+})
 
 
 /**
- * @summary Clear the session and begin OIDC logout
+ * @summary Create a new local account and sign in
  */
-export const logoutBrowserSessionQueryReturnToDefault = `/`;
+export const registerLocalAccountBodyPasswordMin = 8;
 
-export const LogoutBrowserSessionQueryParams = zod.object({
-  "returnTo": zod.coerce.string().default(logoutBrowserSessionQueryReturnToDefault)
+
+
+export const RegisterLocalAccountBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string().min(registerLocalAccountBodyPasswordMin),
+  "firstName": zod.string().nullish(),
+  "lastName": zod.string().nullish()
 })
 
-export const LogoutBrowserSessionHeader = zod.object({
-  "Authorization": zod.string().optional().describe('Opaque session token — Bearer <sid>.')
+export const RegisterLocalAccountResponse = zod.object({
+  "user": zod.union([zod.object({
+  "id": zod.string(),
+  "email": zod.string().nullable(),
+  "firstName": zod.string().nullable(),
+  "lastName": zod.string().nullable(),
+  "profileImageUrl": zod.string().nullable()
+}),zod.null()])
 })
 
+
+/**
+ * @summary Clear the session cookie and redirect to /
+ */
 export const LogoutBrowserSessionResponse = zod.void()
-
-
-/**
- * @summary Exchange a mobile OIDC code for a session token
- */
-
-
-
-
-
-
-
-export const ExchangeMobileAuthorizationCodeBody = zod.object({
-  "code": zod.string().min(1),
-  "code_verifier": zod.string().min(1),
-  "redirect_uri": zod.string().min(1),
-  "state": zod.string().min(1),
-  "nonce": zod.string().min(1).optional()
-})
-
-export const ExchangeMobileAuthorizationCodeResponse = zod.object({
-  "token": zod.string()
-})
-
-
-/**
- * @summary Delete a mobile session token
- */
-export const LogoutMobileSessionHeader = zod.object({
-  "Authorization": zod.string().optional().describe('Opaque session token — Bearer <sid>.')
-})
-
-export const LogoutMobileSessionResponse = zod.object({
-  "success": zod.boolean()
-})
 
 
 /**

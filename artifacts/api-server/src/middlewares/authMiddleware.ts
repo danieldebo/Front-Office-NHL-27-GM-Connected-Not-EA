@@ -1,85 +1,43 @@
+/**
+ * authMiddleware — type declarations + no-op middleware.
+ *
+ * Runtime auth (session hydration, req.user, req.isAuthenticated) is handled
+ * entirely by Passport's `passport.initialize()` + `passport.session()`
+ * middleware wired in app.ts.
+ *
+ * This file is kept to:
+ *   1. Merge AuthUser fields into Express.User so the TypeScript type of
+ *      req.user throughout the codebase matches the AuthUser shape.
+ *   2. Provide the AuthedRequest interface used by route-level type guards.
+ *   3. Avoid breaking any existing imports of `authMiddleware`.
+ */
 import type { AuthUser } from '@workspace/api-zod';
 import { type NextFunction, type Request, type Response } from 'express';
-import * as oidc from 'openid-client';
-
-import {
-  clearSession,
-  getOidcConfig,
-  getSession,
-  getSessionId,
-  updateSession,
-  type SessionData,
-} from '../lib/auth';
 
 declare global {
   namespace Express {
+    /**
+     * Extends Passport's stub `Express.User` with the concrete AuthUser shape
+     * so that `req.user` is fully typed everywhere after authentication.
+     */
     interface User extends AuthUser {}
 
-    interface Request {
-      isAuthenticated(): this is AuthedRequest;
-
-      user?: User | undefined;
-    }
-
-    export interface AuthedRequest {
+    /**
+     * Convenience alias: a Request whose user has been confirmed non-null by
+     * `req.isAuthenticated()`. Passport's isAuthenticated() narrows to
+     * `AuthenticatedRequest` — AuthedRequest mirrors that for local usage.
+     */
+    interface AuthedRequest extends Request {
       user: User;
     }
   }
 }
 
-async function refreshIfExpired(
-  sid: string,
-  session: SessionData,
-): Promise<SessionData | null> {
-  const now = Math.floor(Date.now() / 1000);
-  if (!session.expires_at || now <= session.expires_at) return session;
-
-  if (!session.refresh_token) return null;
-
-  try {
-    const config = await getOidcConfig();
-    const tokens = await oidc.refreshTokenGrant(config, session.refresh_token);
-    session.access_token = tokens.access_token;
-    session.refresh_token = tokens.refresh_token ?? session.refresh_token;
-    session.expires_at = tokens.expiresIn()
-      ? now + tokens.expiresIn()!
-      : session.expires_at;
-    await updateSession(sid, session);
-    return session;
-  } catch {
-    return null;
-  }
-}
-
-export async function authMiddleware(
-  req: Request,
-  res: Response,
+/** No-op — Passport middleware in app.ts handles the actual auth work. */
+export function authMiddleware(
+  _req: Request,
+  _res: Response,
   next: NextFunction,
-) {
-  req.isAuthenticated = function (this: Request) {
-    return this.user != null;
-  } as Request['isAuthenticated'];
-
-  const sid = getSessionId(req);
-  if (!sid) {
-    next();
-    return;
-  }
-
-  const session = await getSession(sid);
-  if (!session?.user?.id) {
-    await clearSession(res, sid);
-    next();
-    return;
-  }
-
-  const refreshed = await refreshIfExpired(sid, session);
-  if (!refreshed) {
-    await clearSession(res, sid);
-    next();
-    return;
-  }
-
-  req.user = refreshed.user;
+): void {
   next();
 }

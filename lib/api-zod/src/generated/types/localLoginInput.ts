@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.3.0
  */
 
-export interface MobileTokenExchangeSuccess {
-  token: string;
+export interface LocalLoginInput {
+  email: string;
+  /** @minLength 1 */
+  password: string;
 }
