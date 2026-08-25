@@ -1,2 +1,3 @@
 - [Front Office architecture decisions](front-office-arch.md) — auth adapter pattern, raw SQL for domain tables, codegen patch, Zod v3 vs v4 constraint
 - [Commissioner links schema notes](commissioner-links-schema.md) — dq schema must be created first; FOR UPDATE on views unsupported; new tables/views added in v1.7.0
+- [Front-office test environment](front-office-testing.md) — browser tests use a standalone Vitest config because the Vite app config requires workflow-only environment variables
