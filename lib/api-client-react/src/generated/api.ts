@@ -33,6 +33,7 @@ import type {
   CreateInviteInput,
   CreateLeagueInput,
   CreateSeasonInput,
+  DeclineApplicantInput,
   DqFinding,
   DqFindingsEnvelope,
   ErrorEnvelope,
@@ -1710,14 +1711,15 @@ export const getDeclineApplicantUrl = (leagueId: string,
  * @summary Decline a sign-up applicant (commissioner only)
  */
 export const declineApplicant = async (leagueId: string,
-    signupId: string, options?: RequestInit): Promise<ApplicantActionResult> => {
+    signupId: string,
+    declineApplicantInput?: DeclineApplicantInput, options?: RequestInit): Promise<ApplicantActionResult> => {
 
   return customFetch<ApplicantActionResult>(getDeclineApplicantUrl(leagueId,signupId),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(declineApplicantInput)
   }
 );}
 
@@ -1726,8 +1728,8 @@ export const declineApplicant = async (leagueId: string,
 
 
 export const getDeclineApplicantMutationOptions = <TError = ErrorType<Problem>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineApplicant>>, TError,{leagueId: string;signupId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof declineApplicant>>, TError,{leagueId: string;signupId: string}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineApplicant>>, TError,{leagueId: string;signupId: string;data?: BodyType<DeclineApplicantInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof declineApplicant>>, TError,{leagueId: string;signupId: string;data?: BodyType<DeclineApplicantInput>}, TContext> => {
 
 const mutationKey = ['declineApplicant'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -1739,10 +1741,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declineApplicant>>, {leagueId: string;signupId: string}> = (props) => {
-          const {leagueId,signupId} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declineApplicant>>, {leagueId: string;signupId: string;data?: BodyType<DeclineApplicantInput>}> = (props) => {
+          const {leagueId,signupId,data} = props ?? {};
 
-          return  declineApplicant(leagueId,signupId,requestOptions)
+          return  declineApplicant(leagueId,signupId,data,requestOptions)
         }
 
 
@@ -1753,18 +1755,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type DeclineApplicantMutationResult = NonNullable<Awaited<ReturnType<typeof declineApplicant>>>
-
+    export type DeclineApplicantMutationBody = BodyType<DeclineApplicantInput> | undefined
     export type DeclineApplicantMutationError = ErrorType<Problem>
 
     /**
  * @summary Decline a sign-up applicant (commissioner only)
  */
 export const useDeclineApplicant = <TError = ErrorType<Problem>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineApplicant>>, TError,{leagueId: string;signupId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineApplicant>>, TError,{leagueId: string;signupId: string;data?: BodyType<DeclineApplicantInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof declineApplicant>>,
         TError,
-        {leagueId: string;signupId: string},
+        {leagueId: string;signupId: string;data?: BodyType<DeclineApplicantInput>},
         TContext
       > => {
       return useMutation(getDeclineApplicantMutationOptions(options));

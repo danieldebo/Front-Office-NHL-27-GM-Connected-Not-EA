@@ -610,6 +610,8 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
   const acceptApplicant = useAcceptApplicant();
   const declineApplicant = useDeclineApplicant();
   const reorderWaitlist = useReorderWaitlistEntry();
+  const [decliningSignupId, setDecliningSignupId] = useState<string | null>(null);
+  const [declineNote, setDeclineNote] = useState('');
 
   const signups = signupsData?.data ?? [];
   const waitlist = waitlistData?.data ?? [];
@@ -641,10 +643,18 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
     });
   };
 
-  const handleDecline = (signup: LeagueApplicant) => {
-    if (!confirm(`Decline ${signup.display_name ?? 'this applicant'}? Their application will be removed.`)) return;
-    declineApplicant.mutate({ leagueId, signupId: signup.signup_id }, {
-      onSuccess: () => invalidate(),
+  const handleDecline = (event: React.FormEvent, signup: LeagueApplicant) => {
+    event.preventDefault();
+    declineApplicant.mutate({
+      leagueId,
+      signupId: signup.signup_id,
+      data: declineNote.trim() ? { note: declineNote.trim() } : undefined,
+    }, {
+      onSuccess: () => {
+        setDecliningSignupId(null);
+        setDeclineNote('');
+        invalidate();
+      },
       onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to decline applicant'),
     });
   };
@@ -739,14 +749,69 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                     Accept
                   </button>
                   <button
-                    onClick={() => handleDecline(signup)}
+                    type="button"
+                    onClick={() => { setDecliningSignupId(signup.signup_id); setDeclineNote(''); }}
                     className="btn ghost"
-                    disabled={declineApplicant.isPending}
+                    disabled={declineApplicant.isPending || decliningSignupId !== null}
                     style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}
                   >
                     Decline
                   </button>
                 </div>
+
+                {decliningSignupId === signup.signup_id && (
+                  <form
+                    onSubmit={event => handleDecline(event, signup)}
+                    style={{
+                      borderTop: '1px solid var(--rule)',
+                      paddingTop: '12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                    }}
+                  >
+                    <label
+                      htmlFor={`decline-note-${signup.signup_id}`}
+                      style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.06em' }}
+                    >
+                      Decline note <span style={{ textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                    </label>
+                    <textarea
+                      id={`decline-note-${signup.signup_id}`}
+                      value={declineNote}
+                      onChange={event => setDeclineNote(event.target.value)}
+                      maxLength={500}
+                      rows={3}
+                      autoFocus
+                      placeholder="Add a brief note for your records"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        fontFamily: 'var(--body)',
+                        fontSize: '13px',
+                        border: '1px solid var(--rule)',
+                        borderRadius: '4px',
+                        resize: 'vertical',
+                      }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button type="submit" className="btn ghost" disabled={declineApplicant.isPending} style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}>
+                        {declineApplicant.isPending ? 'Declining…' : 'Confirm decline'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        disabled={declineApplicant.isPending}
+                        onClick={() => { setDecliningSignupId(null); setDeclineNote(''); }}
+                      >
+                        Cancel
+                      </button>
+                      <span style={{ marginLeft: 'auto', fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)' }}>
+                        {declineNote.length}/500
+                      </span>
+                    </div>
+                  </form>
+                )}
               </div>
             ))}
           </div>

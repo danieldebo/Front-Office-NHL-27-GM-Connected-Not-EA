@@ -26,6 +26,7 @@ export type { CreateInviteInput } from "./generated/types/createInviteInput";
 export type { CreateLeagueInput } from "./generated/types/createLeagueInput";
 export type { CreateLeagueInputVisibility } from "./generated/types/createLeagueInputVisibility";
 export type { CreateSeasonInput } from "./generated/types/createSeasonInput";
+export type { DeclineApplicantInput } from "./generated/types/declineApplicantInput";
 export type { DqFinding } from "./generated/types/dqFinding";
 export type { DqFindingSeverity } from "./generated/types/dqFindingSeverity";
 export type { DqFindingsEnvelope } from "./generated/types/dqFindingsEnvelope";

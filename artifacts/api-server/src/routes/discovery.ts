@@ -499,6 +499,12 @@ router.post(
       return;
     }
 
+    const { note } = (req.body ?? {}) as { note?: unknown };
+    if (note !== undefined && (typeof note !== "string" || note.length > 500)) {
+      badRequest(res, "note must be a string of 500 characters or fewer");
+      return;
+    }
+
     // Load the signup
     const signupRow = await pool.query<{ id: string; user_id: string; league_id: string }>(
       `SELECT id, user_id, league_id FROM league_signup WHERE id = $1 AND league_id = $2`,
@@ -517,9 +523,9 @@ router.post(
       // also captured. Nulling signup_id is idempotent and keeps the FK safe.
       await client.query(
         `UPDATE waitlist_entry
-            SET signup_id = NULL, status = 'declined', resolved_at = now()
+            SET signup_id = NULL, status = 'declined', resolved_at = now(), decline_note = $3
           WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
-        [leagueId, signup.user_id]
+        [leagueId, signup.user_id, note ?? null]
       );
 
       // Remove the signup so it no longer appears in the pending queue.

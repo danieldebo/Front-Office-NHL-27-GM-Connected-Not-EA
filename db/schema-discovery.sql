@@ -140,6 +140,7 @@ CREATE TABLE waitlist_entry (
     invited_at     TIMESTAMPTZ,
     invite_expires_at TIMESTAMPTZ,
     resolved_at    TIMESTAMPTZ,
+    decline_note   TEXT,
     UNIQUE (league_id, user_id),                      -- one spot per person per league
     UNIQUE (league_id, position) DEFERRABLE INITIALLY DEFERRED
 );

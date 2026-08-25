@@ -864,6 +864,14 @@ export interface WaitlistPositionInput {
   position: number;
 }
 
+export interface DeclineApplicantInput {
+  /**
+     * Optional note explaining why the applicant was declined.
+     * @maxLength 500
+     */
+  note?: string;
+}
+
 export type WaitlistEntryStatus = typeof WaitlistEntryStatus[keyof typeof WaitlistEntryStatus];
 
 

@@ -547,6 +547,14 @@ export const DeclineApplicantParams = zod.object({
   "signupId": zod.coerce.string()
 })
 
+export const declineApplicantBodyNoteMax = 500;
+
+
+
+export const DeclineApplicantBody = zod.object({
+  "note": zod.string().max(declineApplicantBodyNoteMax).optional().describe('Optional note explaining why the applicant was declined.')
+})
+
 export const DeclineApplicantResponse = zod.object({
   "signup_id": zod.string(),
   "user_id": zod.string(),

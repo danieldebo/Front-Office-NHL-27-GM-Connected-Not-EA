@@ -386,7 +386,7 @@ describe("POST /api/leagues/:id/signups/:signupId/decline", () => {
     try {
       const response = await request(app).post(
         `/api/leagues/${leagueId}/signups/${signupId}/decline`,
-      );
+      ).send({ note: "Not the right fit for this season" });
 
       expect(response.status).toBe(200);
       expect(response.body).toMatchObject({
@@ -399,12 +399,14 @@ describe("POST /api/leagues/:id/signups/:signupId/decline", () => {
       const [waitlistRow] = await sql<{
         status: string;
         signup_id: string | null;
-      }>(`SELECT status, signup_id FROM waitlist_entry WHERE id = $1`, [
+        decline_note: string | null;
+      }>(`SELECT status, signup_id, decline_note FROM waitlist_entry WHERE id = $1`, [
         waitlistId,
       ]);
       expect(waitlistRow).toMatchObject({
         status: "declined",
         signup_id: null,
+        decline_note: "Not the right fit for this season",
       });
 
       const signupRows = await sql<{ id: string }>(
@@ -412,6 +414,46 @@ describe("POST /api/leagues/:id/signups/:signupId/decline", () => {
         [signupId],
       );
       expect(signupRows).toHaveLength(0);
+    } finally {
+      await sql(`DELETE FROM waitlist_entry WHERE id = $1`, [waitlistId]);
+      await sql(`DELETE FROM league_signup WHERE id = $1`, [signupId]);
+    }
+  });
+
+  it("rejects a decline note longer than 500 characters", async (ctx) => {
+    if (!schemaReady) return ctx.skip();
+    mockGetCurrentUser.mockReturnValue({
+      id: commissionerReplitId,
+      name: "Commissioner",
+    });
+    const { signupId, waitlistId } = await makeSignupWithWaitlist(
+      applicantAppUserIds[3]!,
+      5,
+    );
+
+    try {
+      const response = await request(app)
+        .post(`/api/leagues/${leagueId}/signups/${signupId}/decline`)
+        .send({ note: "a".repeat(501) });
+
+      expect(response.status).toBe(400);
+
+      const [waitlistRow] = await sql<{
+        status: string;
+        decline_note: string | null;
+      }>(`SELECT status, decline_note FROM waitlist_entry WHERE id = $1`, [
+        waitlistId,
+      ]);
+      expect(waitlistRow).toMatchObject({
+        status: "waiting",
+        decline_note: null,
+      });
+
+      const signupRows = await sql<{ id: string }>(
+        `SELECT id FROM league_signup WHERE id = $1`,
+        [signupId],
+      );
+      expect(signupRows).toHaveLength(1);
     } finally {
       await sql(`DELETE FROM waitlist_entry WHERE id = $1`, [waitlistId]);
       await sql(`DELETE FROM league_signup WHERE id = $1`, [signupId]);

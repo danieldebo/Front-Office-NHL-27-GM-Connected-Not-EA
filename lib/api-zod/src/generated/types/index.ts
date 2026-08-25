@@ -28,6 +28,7 @@ export * from './createInviteInput';
 export * from './createLeagueInput';
 export * from './createLeagueInputVisibility';
 export * from './createSeasonInput';
+export * from './declineApplicantInput';
 export * from './dqFinding';
 export * from './dqFindingsEnvelope';
 export * from './dqFindingSeverity';
