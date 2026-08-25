@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useCreateLeague } from '@workspace/api-client-react';
 
@@ -8,17 +8,21 @@ export default function CreateLeague() {
 
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [slugEdited, setSlugEdited] = useState(false);
   const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('unlisted');
   const [primaryColor, setPrimaryColor] = useState('');
   const [secondaryColor, setSecondaryColor] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
 
-  // Auto-derive slug from name if slug hasn't been manually edited heavily
-  useEffect(() => {
-    if (name && !slug) {
-      setSlug(name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+  const slugify = (value: string) =>
+    value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (!slugEdited) {
+      setSlug(slugify(value));
     }
-  }, [name]);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +55,7 @@ export default function CreateLeague() {
               required
               type="text" 
               value={name} 
-              onChange={e => setName(e.target.value)}
+              onChange={e => handleNameChange(e.target.value)}
               style={inputStyle}
               placeholder="e.g. Can-Am Elite"
             />
@@ -63,10 +67,13 @@ export default function CreateLeague() {
               required
               type="text" 
               value={slug} 
-              onChange={e => setSlug(e.target.value)}
+              onChange={e => {
+                setSlug(e.target.value);
+                setSlugEdited(true);
+              }}
               style={inputStyle}
               placeholder="can-am-elite"
-              pattern="^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
               title="Lowercase letters, numbers, and hyphens only."
             />
           </div>
@@ -147,6 +154,11 @@ export default function CreateLeague() {
               Cancel
             </Link>
           </div>
+          {createLeague.isError && (
+            <p role="alert" style={{ margin: 0, color: 'var(--goal)', fontSize: '13px' }}>
+              {createLeague.error.message}
+            </p>
+          )}
         </form>
       </div>
     </div>
