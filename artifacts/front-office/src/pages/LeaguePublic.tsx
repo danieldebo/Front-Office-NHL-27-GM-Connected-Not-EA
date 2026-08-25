@@ -230,7 +230,7 @@ export default function LeaguePublic() {
   const slug = params.slug ?? '';
 
   const { data, isLoading, isError } = useGetPublicLeague(slug, {
-    query: { enabled: slug.length > 0 },
+    query: { enabled: slug.length > 0 } as any,
   });
 
   if (isLoading) {

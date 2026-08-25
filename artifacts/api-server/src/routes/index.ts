@@ -1,6 +1,5 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
-import authRouter from "./auth";
 import leaguesRouter from "./leagues";
 import leaguesManageRouter from "./leagues-manage";
 import seatsRouter from "./seats";
@@ -16,7 +15,6 @@ import dqRouter from "./dq";
 const router: IRouter = Router();
 
 router.use(healthRouter);
-router.use(authRouter);
 router.use(discoveryRouter);   // before leaguesRouter — /leagues/open must not match /leagues/:leagueId
 router.use(leaguesRouter);
 router.use(leaguesManageRouter);

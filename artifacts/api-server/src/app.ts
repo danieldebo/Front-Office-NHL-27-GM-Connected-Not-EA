@@ -1,24 +1,15 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
-import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
-import { pool } from "@workspace/db";
+import { clerkMiddleware } from "@clerk/express";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import { passport } from "./lib/passport";
-
-const PgStore = connectPgSimple(session);
-
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-if (!process.env.SESSION_SECRET) {
-  throw new Error(
-    'SESSION_SECRET environment variable is required. ' +
-    'Generate one with: openssl rand -hex 32',
-  );
-}
+import { clerkIdentityMiddleware } from "./server/auth/clerkIdentityMiddleware";
+import {
+  CLERK_PROXY_PATH,
+  clerkProxyMiddleware,
+  getClerkProxyHost,
+} from "./middlewares/clerkProxyMiddleware";
 
 const app: Express = express();
 
@@ -40,9 +31,7 @@ app.use(
   }),
 );
 
-// Trust one layer of reverse-proxy headers (X-Forwarded-Proto, X-Forwarded-For).
-// Required so express-session issues `secure` cookies correctly when TLS is
-// terminated upstream (Replit dev proxy, Deployments CDN, etc.).
+// Trust one layer of reverse-proxy headers so Clerk sees the public host and protocol.
 app.set('trust proxy', 1);
 
 // Allow the front-office frontend (same origin / proxied) to send credentials
@@ -53,37 +42,16 @@ app.use(
   }),
 );
 
-app.use(cookieParser());
+// Clerk's Frontend API proxy must be mounted before body parsers.
+app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
+app.use(
+  clerkMiddleware((req) => ({
+    proxyUrl: `https://${getClerkProxyHost(req) ?? req.hostname}${CLERK_PROXY_PATH}`,
+  })),
+);
+app.use(clerkIdentityMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// ── Session store ───────────────────────────────────────────────────────────
-// Uses the existing `sessions` table (sid / sess / expire) via pg pool.
-app.use(
-  session({
-    store: new PgStore({
-      pool,
-      tableName: "sessions",
-      createTableIfMissing: false,
-      // Prune expired sessions every hour
-      pruneSessionInterval: 60 * 60,
-    }),
-    secret: process.env.SESSION_SECRET!,
-    resave: false,
-    saveUninitialized: false,
-    name: "sid",
-    cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: SESSION_TTL_MS,
-    },
-  }),
-);
-
-// ── Passport ─────────────────────────────────────────────────────────────────
-app.use(passport.initialize());
-app.use(passport.session());
 
 app.use("/api", router);
 

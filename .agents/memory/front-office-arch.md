@@ -4,11 +4,11 @@ description: Key non-obvious decisions made during Checkpoint 1 of the Front Off
 ---
 
 ## Auth adapter pattern
-`artifacts/api-server/src/server/auth/index.ts` exports `getCurrentUser(req)`. Route handlers NEVER import Replit Auth directly. This decouples the auth provider so Discord OAuth can swap in Phase 2 without touching any route handler.
+`artifacts/api-server/src/server/auth/index.ts` exports `getCurrentUser(req)`. Route handlers never import Clerk directly; a middleware derives the identity from Clerk’s session claims.
 
-**Why:** Stated requirement in the build spec — auth provider is Phase 1-only.
+**Why:** Domain tables identify people through the legacy subject held in `app_user.replit_id`, while Clerk has its own native user ID. Migrated users retain the legacy subject in `sessionClaims.userId`.
 
-**How to apply:** Any new route that needs the current user calls `getCurrentUser(req)` from `../server/auth`. Never import from `lib/replit-auth-web` or `openid-client` in route files.
+**How to apply:** Any route needing the current user calls `getCurrentUser(req)` from `../server/auth`. Use `sessionClaims.userId` as the domain bridge, falling back to Clerk’s native ID only for a new account. Web requests use Clerk session cookies only—never add browser bearer tokens.
 
 ## Raw SQL for Front Office domain tables
 Drizzle ORM is used ONLY for the `sessions` and `users` auth tables (see `lib/db/src/schema/auth.ts`). All Front Office domain tables (`league`, `season`, `franchise`, `game`, `game_result`, etc.) use `pool.query()` with raw SQL.
@@ -41,10 +41,11 @@ From `design/league-hub-mockup.html`: fonts Anton (display), IBM Plex Mono (data
 ## Checkpoint scope
 Checkpoints 1, 2, and 3 are complete. CP4+ not yet started.
 
-## CP3: app_user.replit_id provisioning
-`app_user` was missing a `replit_id CITEXT UNIQUE` column that all route handlers rely on for `WHERE replit_id = $1` lookups. Added in migration v1.1.0 via `executeSql`. The OIDC `upsertUser()` in `routes/auth.ts` now also upserts `app_user` after writing to the Drizzle `usersTable`, using `ON CONFLICT (replit_id) DO UPDATE`.
+## app_user identity bridge
 
-**Why:** `users` (Drizzle auth table, id = Replit OIDC sub) and `app_user` (domain table, id = UUID) are separate. All routes need the UUID via `replit_id`. Without provisioning on login, every domain route 404s.
+`app_user.replit_id` is the domain’s stable external-identity bridge and must remain unique. The Clerk identity middleware provisions a row for a new account when an email claim is available.
+
+**Why:** `app_user` (domain table, id = UUID) is distinct from authentication identity. All domain routes need the UUID via this bridge; without provisioning, domain queries silently return nothing.
 
 ## CP3: Orval COLLIDING_NAMES — must add ALL new body schemas
 The patch script `lib/api-spec/patch-api-zod-index.mjs` maintains `COLLIDING_NAMES`. Any schema that Orval generates as BOTH a Zod const in `generated/api.ts` AND as a TypeScript type in `generated/types/` must be added here. Body schemas (e.g. `GenerateScheduleBody`, `ShiftWindowBody`) always collide. Symptom: "only refers to a type, but is being used as a value" in route files.

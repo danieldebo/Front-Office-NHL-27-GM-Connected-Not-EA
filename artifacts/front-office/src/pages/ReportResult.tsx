@@ -216,7 +216,7 @@ export default function ReportResult() {
           </h1>
           {game?.status && (
             <p style={{ color: '#9FB1BF', fontFamily: 'var(--data)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.1em' }}>
-              Week {game.week_number ?? '—'} · {game.status}
+              Week {(game as { week_number?: number }).week_number ?? '—'} · {game.status}
             </p>
           )}
         </div>

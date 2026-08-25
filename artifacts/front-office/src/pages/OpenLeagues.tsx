@@ -1,12 +1,12 @@
 /**
  * OpenLeagues — /leagues/open
  * Public page (no auth required) listing recruiting Connected Franchise leagues.
- * Unauthenticated users who click "Sign up" are redirected to /login with their
+ * Unauthenticated users who click "Sign up" are redirected to Clerk sign-in with their
  * form intent saved in sessionStorage, then brought back here automatically.
  */
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
-import { useAuth } from '@workspace/replit-auth-web';
+import { useAuth } from '@clerk/react';
 import SignupDrawer, { SignupFormValues } from '@/components/SignupDrawer';
 import { resolvePublicCode } from '@workspace/api-client-react';
 
@@ -116,7 +116,7 @@ export default function OpenLeagues() {
   const [selectedLeague, setSelectedLeague] = useState<OpenLeague | null>(null);
   const [drawerMode, setDrawerMode] = useState<'signup' | 'waitlist'>('signup');
   const [drawerInitialValues, setDrawerInitialValues] = useState<Partial<SignupFormValues> | undefined>(undefined);
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
   const [, navigate] = useLocation();
 
   // Code-search state
@@ -160,7 +160,7 @@ export default function OpenLeagues() {
 
   // After returning from login, restore any saved draft
   React.useEffect(() => {
-    if (authLoading || !isAuthenticated || loading) return;
+    if (!isLoaded || !isSignedIn || loading) return;
 
     const raw = sessionStorage.getItem(DRAFT_KEY);
     if (!raw) return;
@@ -178,13 +178,13 @@ export default function OpenLeagues() {
     } catch {
       sessionStorage.removeItem(DRAFT_KEY);
     }
-  }, [authLoading, isAuthenticated, loading, leagues]);
+  }, [isLoaded, isSignedIn, loading, leagues]);
 
   const filtered = leagues.filter(l => matchesFilter(l, activeFilter));
 
   /** Open the sign-up drawer, redirecting to login first if not authenticated. */
   const handleOpenSignup = (league: OpenLeague) => {
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       const emptyForm: SignupFormValues = {
         platform: league.platform ?? '',
         timezone: '',
@@ -201,7 +201,7 @@ export default function OpenLeagues() {
         formState: emptyForm,
       }));
       sessionStorage.setItem('fo_return_path', '/leagues/open');
-      navigate('/login');
+      navigate('/sign-in?redirect_url=/leagues/open');
       return;
     }
     setDrawerInitialValues(undefined);
@@ -211,7 +211,7 @@ export default function OpenLeagues() {
 
   /** Open the waitlist drawer, redirecting to login first if not authenticated. */
   const handleOpenWaitlist = (league: OpenLeague) => {
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
         leagueId: league.league_id,
         mode: 'waitlist',
@@ -219,7 +219,7 @@ export default function OpenLeagues() {
         formState: { platform: '', timezone: '', countryCode: '', location: '', division: '', message: '', preferredClub: '' },
       }));
       sessionStorage.setItem('fo_return_path', '/leagues/open');
-      navigate('/login');
+      navigate('/sign-in?redirect_url=/leagues/open');
       return;
     }
     setDrawerInitialValues(undefined);
@@ -373,7 +373,7 @@ export default function OpenLeagues() {
                       style={{ marginLeft: 'auto' }}
                       onClick={() => handleOpenSignup(league)}
                     >
-                      {isAuthenticated ? 'Sign up' : 'Log in to sign up'}
+                      {isSignedIn ? 'Sign up' : 'Log in to sign up'}
                     </button>
                   ) : (
                     <button
@@ -384,7 +384,7 @@ export default function OpenLeagues() {
                     >
                       {!league.accepting_waitlist
                         ? 'Closed'
-                        : isAuthenticated
+                        : isSignedIn
                           ? 'Join waitlist'
                           : 'Log in to join waitlist'}
                     </button>

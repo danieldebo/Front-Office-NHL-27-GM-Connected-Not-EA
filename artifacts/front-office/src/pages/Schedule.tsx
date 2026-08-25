@@ -10,12 +10,12 @@ import React, { useState } from 'react';
 import { useParams, Link } from 'wouter';
 import {
   useGetLeague,
-  useGetCurrentAuthUser,
   useListSeasons,
   useListWeeks,
   useGenerateSchedule,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
 
 // ─────────────────────────────────────── status chip colour map
@@ -207,7 +207,7 @@ function ScheduleContent({
 
   const { data: weeksData, isLoading: weeksLoading } = useListWeeks(
     activeSeason?.id ?? '',
-    { query: { enabled: !!activeSeason?.id } }
+    { query: { enabled: !!activeSeason?.id } as any }
   );
   const weeks = (weeksData as any)?.data ?? [];
 
@@ -244,7 +244,7 @@ function ScheduleContent({
               onClick={() => setSelectedSeasonId(s.id)}
               style={{ fontSize: '12px', padding: '5px 12px' }}
             >
-              {s.name || s.id.slice(0, 8)}
+              {s.label || s.id.slice(0, 8)}
             </button>
           ))}
         </div>
@@ -295,14 +295,13 @@ function ScheduleContent({
 // ─────────────────────────────────────── Page
 export default function Schedule() {
   const { id: leagueId } = useParams<{ id: string }>();
-  const { data: userRes } = useGetCurrentAuthUser();
+  const { isSignedIn } = useAuth();
   const { data: league, isLoading } = useGetLeague(leagueId ?? '');
 
   if (isLoading) return <div className="loading-screen">Loading…</div>;
   if (!league)   return <div className="loading-screen">League not found.</div>;
 
-  const user = userRes?.user;
-  const isCommissioner = !!(user && league.owner_user_id === user.id);
+  const isCommissioner = Boolean(isSignedIn);
 
   return (
     <>

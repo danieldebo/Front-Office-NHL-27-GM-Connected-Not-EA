@@ -10,11 +10,11 @@ import { useParams } from 'wouter';
 import {
   useListDqFindings,
   useResolveDqFinding,
-  useGetCurrentAuthUser,
   useGetLeague,
   type DqFinding,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
 
 // ── Detail parser ─────────────────────────────────────────────────────────────
@@ -284,17 +284,16 @@ export default function DqFindings() {
   const { id: leagueId = '' } = useParams<{ id: string }>();
   const [showResolved, setShowResolved] = useState(false);
 
-  const { data: userResp, isLoading: userLoading } = useGetCurrentAuthUser();
+  const { isLoaded, isSignedIn } = useAuth();
   const { data: league, isLoading: leagueLoading } = useGetLeague(leagueId);
   const { data: findingsResp, isLoading: findingsLoading, refetch } =
     useListDqFindings(leagueId, { resolved: showResolved });
 
-  if (userLoading || leagueLoading) {
+  if (!isLoaded || leagueLoading) {
     return <div className="loading-screen">Loading…</div>;
   }
 
-  const user = userResp?.user;
-  if (!user || !league || league.owner_user_id !== user.id) {
+  if (!isSignedIn || !league) {
     return (
       <div className="empty-state">
         <h2>Unauthorized</h2>

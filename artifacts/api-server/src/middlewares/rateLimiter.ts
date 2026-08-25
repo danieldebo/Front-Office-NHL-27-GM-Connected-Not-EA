@@ -8,6 +8,7 @@
  * Returns 429 Too Many Requests with a Retry-After header on excess.
  */
 import type { NextFunction, Request, Response } from "express";
+import { getCurrentUser } from "../server/auth";
 
 interface Bucket {
   tokens: number;
@@ -73,7 +74,7 @@ setInterval(() => {
  */
 export function rateLimiter(options: { getLeagueId?: (req: Request) => string | undefined } = {}) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const userId = req.user?.id;
+    const userId = getCurrentUser(req)?.id;
     const leagueId = options.getLeagueId?.(req);
 
     if (userId) {

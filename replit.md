@@ -31,7 +31,7 @@ disagreeing with its own game log will never trust it again.
 | Frontend | React + Vite |
 | Backend | Express 5 + TypeScript |
 | Database | Replit PostgreSQL |
-| Query layer | Drizzle ORM for auth tables only; raw `pool.query()` for all domain tables |
+| Query layer | Drizzle ORM for local identity tables only; raw `pool.query()` for all domain tables |
 | Validation | Zod v3 (not v4 — do not use `zod.uuid()`, `zod.email()`, `zod.url()`) |
 | API contract | `lib/api-spec/openapi.yaml` → Orval codegen → typed React Query hooks + Zod validators |
 | Testing | Vitest |
@@ -104,9 +104,9 @@ access and no imports from Express or Drizzle**. Test them independently.
 
 ### 9. All auth flows through one adapter
 
-Route handlers never import from Replit Auth or `openid-client` directly. They
-call `getCurrentUser(req)` from `artifacts/api-server/src/server/auth/index.ts`.
-This is the swap point for Discord OAuth in Phase 2.
+Route handlers never import Clerk directly. They call `getCurrentUser(req)` from
+`artifacts/api-server/src/server/auth/index.ts`. Clerk browser sessions use
+same-origin cookies; never add browser bearer-token handling.
 
 ### 10. OpenAPI is the contract
 
@@ -143,11 +143,12 @@ formats — Zod v4 APIs that don't exist in v3. Use only `format: date-time` and
 `format: date`. See `lib/api-spec/patch-api-zod-index.mjs` for the COLLIDING_NAMES
 patch that must run after every codegen.
 
-### 16. `app_user` is provisioned on every login
+### 16. `app_user` is provisioned for Clerk identities
 
-`upsertUser()` in `routes/auth.ts` writes both a `users` row (Drizzle auth
-table) and an `app_user` row (domain table, keyed by `replit_id`). Domain
-routes look up `app_user.id` by `replit_id`. If provisioning doesn't happen,
+The Clerk identity middleware preserves a migrated account's legacy subject
+from `sessionClaims.userId` and uses it as the domain bridge. It provisions a
+new `app_user` row for new Clerk accounts when their email is available.
+Domain routes look up `app_user.id` by that bridge; if provisioning breaks,
 every domain query silently returns nothing.
 
 ---
@@ -157,7 +158,7 @@ every domain query silently returns nothing.
 - **Connection pool**: bounded at `max: 10` (`@workspace/db`) — Replit restarts exhaust unpooled connections fast.
 - **Port**: read from `process.env.PORT`; never hardcode. Vite config uses it too.
 - **Drizzle push**: requires a TTY when other tables exist — can't run non-interactively. Apply schema changes with `executeSql` from the CodeExecution sandbox.
-- **Auth adapter**: `artifacts/api-server/src/server/auth/index.ts` — swap point for Discord OAuth Phase 2. Never import Replit Auth anywhere else.
+- **Auth adapter**: `artifacts/api-server/src/server/auth/index.ts` — the sole route-level identity bridge. Keep Clerk server-side and use cookies in the web app.
 - **Idempotency column**: DB column is `request_digest` (not `body_hash`). Middleware resolves `app_user.id` by `replit_id` before the DB lookup.
 - **Codegen patch**: `lib/api-spec/patch-api-zod-index.mjs` maintains `COLLIDING_NAMES`. Add every new body schema name when adding new OpenAPI operations, or expect TS2308 "only refers to a type" errors.
 

@@ -9,12 +9,8 @@ export type { ApplicantActionResultOutcome } from "./generated/types/applicantAc
 export type { AssignGmInput } from "./generated/types/assignGmInput";
 export type { AssignGmInputRole } from "./generated/types/assignGmInputRole";
 export type { AssignedGm } from "./generated/types/assignedGm";
-export type { AuthUser } from "./generated/types/authUser";
-export type { AuthUserEnvelope } from "./generated/types/authUserEnvelope";
-export type { AuthorizationSessionHeaderParameter } from "./generated/types/authorizationSessionHeaderParameter";
 // AvailabilitySlot intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // AvailabilitySlotBlock intentionally excluded — collides with Zod const of the same name in generated/api.ts
-export type { BeginBrowserLoginParams } from "./generated/types/beginBrowserLoginParams";
 export type { ClaimOutcome } from "./generated/types/claimOutcome";
 export type { ClaimOutcomeOutcome } from "./generated/types/claimOutcomeOutcome";
 export type { CommissionerInvite } from "./generated/types/commissionerInvite";
@@ -79,8 +75,6 @@ export type { ListOpenLeaguesSeatsOpen } from "./generated/types/listOpenLeagues
 export type { ListRulebookRevisions200 } from "./generated/types/listRulebookRevisions200";
 export type { ListSeasons200 } from "./generated/types/listSeasons200";
 export type { ListSeats200 } from "./generated/types/listSeats200";
-export type { LocalLoginInput } from "./generated/types/localLoginInput";
-export type { LogoutSuccess } from "./generated/types/logoutSuccess";
 // OpenLeague intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
@@ -92,7 +86,6 @@ export type { PublicLeagueEnvelopeLeague } from "./generated/types/publicLeagueE
 export type { PublicLeagueEnvelopeListing } from "./generated/types/publicLeagueEnvelopeListing";
 export type { PublicLeagueEnvelopeSeason } from "./generated/types/publicLeagueEnvelopeSeason";
 export type { PublishRulebookInput } from "./generated/types/publishRulebookInput";
-export type { RegisterInput } from "./generated/types/registerInput";
 export type { ReorderWaitlistEntry200 } from "./generated/types/reorderWaitlistEntry200";
 export type { ResultInput } from "./generated/types/resultInput";
 export type { ResultInputDecision } from "./generated/types/resultInputDecision";

@@ -134,7 +134,7 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
           formState: draft,
         }));
         sessionStorage.setItem('fo_return_path', '/leagues/open');
-        navigate('/login');
+        navigate('/sign-in?redirect_url=/leagues/open');
         return;
       }
 

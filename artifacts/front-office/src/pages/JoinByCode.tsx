@@ -12,7 +12,7 @@ export default function JoinByCode() {
 
   const { data, isLoading, isError } = useResolvePublicCode(
     code?.toUpperCase() ?? '',
-    { query: { enabled: !!code, retry: false } }
+    { query: { enabled: !!code, retry: false } as any }
   );
 
   React.useEffect(() => {

@@ -9,12 +9,18 @@
  */
 import { describe, it, expect } from "vitest";
 import { can, type Action } from "../../authz.js";
-import type { AuthUser } from "@workspace/api-zod";
+import type { AuthUser } from "../../auth/index.js";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 function user(id: string): AuthUser {
-  return { id, name: `User ${id}` };
+  return {
+    id,
+    email: null,
+    firstName: null,
+    lastName: null,
+    profileImageUrl: null,
+  };
 }
 
 const COMMISSIONER = user("commissioner-1");

@@ -12,6 +12,7 @@
 import { createHash } from "crypto";
 import type { NextFunction, Request, Response } from "express";
 import { pool } from "@workspace/db";
+import { getCurrentUser } from "../server/auth";
 
 export async function idempotencyMiddleware(
   req: Request,
@@ -31,7 +32,7 @@ export async function idempotencyMiddleware(
 
   // Resolve the app_user UUID for this OIDC user so we can scope the key
   // to the user (idempotency_key PK is (user_id, key)).
-  const replitId = (req as Express.Request).user?.id ?? null;
+  const replitId = getCurrentUser(req)?.id ?? null;
   let appUserId: string | null = null;
   if (replitId) {
     const ur = await pool.query<{ id: string }>(

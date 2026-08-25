@@ -10,8 +10,6 @@ servers:
 tags:
   - name: health
     description: Health operations
-  - name: Auth
-    description: Browser and mobile authentication endpoints.
   - name: Leagues
     description: League and season metadata.
   - name: Seats
@@ -43,123 +41,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
-
-  # ------------------------------------------------------------------ Auth
-
-  /auth/user:
-    get:
-      tags: [Auth]
-      operationId: getCurrentAuthUser
-      summary: Get the currently authenticated user
-      parameters:
-        - $ref: '#/components/parameters/AuthorizationSessionHeader'
-        - $ref: '#/components/parameters/SessionCookie'
-      responses:
-        '200':
-          description: Auth status resolved successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthUserEnvelope'
-
-  /login:
-    get:
-      tags: [Auth]
-      operationId: beginBrowserLogin
-      summary: Initiate browser login (redirects to configured OAuth provider or /login page)
-      description: >
-        Backward-compatible login entry point.  Stores returnTo in the session
-        then redirects to the first configured OAuth provider.  If no OAuth
-        provider is configured, redirects to the frontend /login page where
-        the email+password form is shown.
-      parameters:
-        - name: returnTo
-          in: query
-          required: false
-          schema:
-            type: string
-      responses:
-        '302':
-          description: Redirect to an OAuth provider or the frontend login page.
-
-  /auth/login:
-    post:
-      tags: [Auth]
-      operationId: localLogin
-      summary: Sign in with email and password
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LocalLoginInput'
-      responses:
-        '200':
-          description: Login successful.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthUserEnvelope'
-        '401':
-          description: Invalid credentials.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
-          description: Server error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-
-  /auth/register:
-    post:
-      tags: [Auth]
-      operationId: registerLocalAccount
-      summary: Create a new local account and sign in
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterInput'
-      responses:
-        '201':
-          description: Account created and session started.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthUserEnvelope'
-        '400':
-          description: Missing or invalid fields.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '409':
-          description: Email already registered.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
-          description: Server error.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-
-  /logout:
-    get:
-      tags: [Auth]
-      operationId: logoutBrowserSession
-      summary: Clear the session cookie and redirect to /
-      parameters:
-        - $ref: '#/components/parameters/SessionCookie'
-      responses:
-        '302':
-          description: Redirects to / after session is cleared.
 
   # ------------------------------------------------------------------ Discovery
 
@@ -1985,21 +1866,6 @@ components:
       required: false
       schema:
         type: string
-    AuthorizationSessionHeader:
-      name: Authorization
-      in: header
-      required: false
-      description: Opaque session token — Bearer <sid>.
-      schema:
-        type: string
-    SessionCookie:
-      name: sid
-      in: cookie
-      required: false
-      description: Browser session cookie.
-      schema:
-        type: string
-
   schemas:
 
     HealthStatus:
@@ -2039,63 +1905,6 @@ components:
           type: string
         message:
           type: string
-
-    # ------------------------------------------------------------------ Auth
-
-    AuthUser:
-      type: object
-      required: [id, email, firstName, lastName, profileImageUrl]
-      properties:
-        id:
-          type: string
-        email:
-          type: ["string", "null"]
-        firstName:
-          type: ["string", "null"]
-        lastName:
-          type: ["string", "null"]
-        profileImageUrl:
-          type: ["string", "null"]
-
-    AuthUserEnvelope:
-      type: object
-      required: [user]
-      properties:
-        user:
-          oneOf:
-            - $ref: '#/components/schemas/AuthUser'
-            - type: 'null'
-
-    LocalLoginInput:
-      type: object
-      required: [email, password]
-      properties:
-        email:
-          type: string
-        password:
-          type: string
-          minLength: 1
-
-    RegisterInput:
-      type: object
-      required: [email, password]
-      properties:
-        email:
-          type: string
-        password:
-          type: string
-          minLength: 8
-        firstName:
-          type: ["string", "null"]
-        lastName:
-          type: ["string", "null"]
-
-    LogoutSuccess:
-      type: object
-      required: [success]
-      properties:
-        success:
-          type: boolean
 
     ErrorEnvelope:
       type: object

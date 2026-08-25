@@ -1,20 +1,21 @@
 /**
- * Auth adapter — exposes getCurrentUser(req) as the ONLY way for route handlers
- * to obtain the current user. Callers never import Replit Auth directly.
- *
- * This thin wrapper isolates the rest of the server from the auth implementation
- * so swapping Replit Auth for Discord OAuth (Phase 2) touches only this file.
+ * Auth adapter — exposes getCurrentUser(req) as the only way route handlers
+ * obtain the authenticated identity.
  */
 import type { Request } from "express";
-import type { AuthUser } from "@workspace/api-zod";
+
+export interface AuthUser {
+  id: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  profileImageUrl: string | null;
+}
 
 /**
- * Returns the authenticated user attached to the request by authMiddleware,
- * or null if the request is unauthenticated / the session has expired.
+ * Returns the Clerk identity prepared by the request middleware, or null when
+ * the browser does not have a valid Clerk session.
  */
 export function getCurrentUser(req: Request): AuthUser | null {
-  if (req.isAuthenticated?.()) {
-    return req.user ?? null;
-  }
-  return null;
+  return req.authUser ?? null;
 }

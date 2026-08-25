@@ -6,7 +6,7 @@
  *  - Callers must not duplicate permission logic; they call can() and branch on the result.
  *  - No RLS in Phase 1. authz.ts is the single enforcement point.
  */
-import type { AuthUser } from "@workspace/api-zod";
+import type { AuthUser } from "./auth";
 
 export type Action =
   | "league:read"

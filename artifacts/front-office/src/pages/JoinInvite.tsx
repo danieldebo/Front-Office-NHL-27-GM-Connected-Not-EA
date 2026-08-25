@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useGetCommissionerInvitePublic, useClaimCommissionerInvite } from '@workspace/api-client-react';
-import { useGetCurrentAuthUser } from '@workspace/api-client-react';
+import { useAuth, useUser } from '@clerk/react';
 
 export default function JoinInvite() {
   const { token } = useParams<{ token: string }>();
@@ -16,15 +16,15 @@ export default function JoinInvite() {
   const [outcome, setOutcome] = useState<'member' | 'waitlist' | null>(null);
   const [claimedLeagueId, setClaimedLeagueId] = useState<string | null>(null);
 
-  const { data: userResponse, isLoading: isLoadingUser } = useGetCurrentAuthUser();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
   const { data: invite, isLoading: isLoadingInvite, isError } = useGetCommissionerInvitePublic(
     token ?? '',
-    { query: { enabled: !!token } }
+    { query: { enabled: !!token } as any }
   );
   const claim = useClaimCommissionerInvite();
 
-  const user = userResponse?.user;
-  const isAuthenticated = !!user;
+  const isAuthenticated = Boolean(isSignedIn);
 
   const handleClaim = () => {
     if (!token) return;
@@ -47,7 +47,7 @@ export default function JoinInvite() {
   };
 
   // ─── Loading
-  if (isLoadingUser || isLoadingInvite) {
+  if (!isLoaded || isLoadingInvite) {
     return (
       <>
         <header className="masthead">
@@ -134,7 +134,7 @@ export default function JoinInvite() {
           {!isAuthenticated && (
             <nav style={{ marginLeft: 'auto' }}>
               <a
-                href="/api/login"
+                href="/sign-in"
                 style={{
                   fontFamily: 'var(--data)',
                   fontSize: '11.5px',
@@ -210,7 +210,7 @@ export default function JoinInvite() {
               <h2>Request a Seat</h2>
               {invite.max_uses && (
                 <span className="note">
-                  {invite.max_uses - invite.uses} of {invite.max_uses} seats remaining
+                  {invite.max_uses - (invite.uses ?? 0)} of {invite.max_uses} seats remaining
                 </span>
               )}
             </div>
@@ -221,7 +221,7 @@ export default function JoinInvite() {
                     Sign in to claim your seat in <strong>{invite.league_name}</strong>.
                   </p>
                   <a
-                    href={`/api/login?returnTo=${encodeURIComponent(window.location.pathname)}`}
+                    href={`/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`}
                     className="btn"
                   >
                     Sign in to claim
@@ -230,7 +230,7 @@ export default function JoinInvite() {
               ) : (
                 <>
                   <p style={{ fontFamily: 'var(--body)', fontSize: '14px', color: 'var(--ink)' }}>
-                    You're signed in as <strong>{user.username || user.id}</strong>. Click below to request a seat in <strong>{invite.league_name}</strong>.
+                    You're signed in as <strong>{user?.username || user?.id}</strong>. Click below to request a seat in <strong>{invite.league_name}</strong>.
                   </p>
                   {claimError && (
                     <div style={{

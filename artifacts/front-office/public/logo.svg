@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title">
+  <title>Front Office</title>
+  <rect width="160" height="160" rx="28" fill="#16202A"/>
+  <path d="M31 36h98v23H57v14h61v21H57v30H31z" fill="#EDF1F4"/>
+  <path d="M123 35h11v90h-11z" fill="#F2A93B"/>
+</svg>

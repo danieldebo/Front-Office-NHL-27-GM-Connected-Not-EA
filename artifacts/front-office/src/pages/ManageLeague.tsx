@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useLocation, useParams, Link } from 'wouter';
 import { 
   useGetLeague, 
-  useGetCurrentAuthUser,
   useListSeats,
   useAssignGm,
   useRevokeGm,
@@ -38,6 +37,7 @@ import {
   RulebookRevision
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
 
 // Helper components
@@ -968,8 +968,8 @@ function DiscoveryTab({ leagueId }: { leagueId: string }) {
           accepting_signups: acceptingSignups,
           accepting_waitlist: acceptingWaitlist,
           blurb: blurb.trim() || null,
-          platform: platform || null,
-          competitiveness: competitiveness || null,
+          platform: (platform || null) as any,
+          competitiveness: (competitiveness || null) as any,
           suggested_division: suggestedDivision || null,
         },
       },
@@ -1223,7 +1223,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
 
   const { data: weeksData, isLoading: weeksLoading } = useListWeeks(
     activeSeason?.id ?? '',
-    { query: { enabled: !!activeSeason?.id } }
+    { query: { enabled: !!activeSeason?.id } as any }
   );
   const weeks = (weeksData as any)?.data ?? [];
 
@@ -1358,15 +1358,14 @@ export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'links'|'discovery'|'applicants'>('seats');
   
-  const { data: userResponse, isLoading: isLoadingUser } = useGetCurrentAuthUser();
+  const { isLoaded, isSignedIn } = useAuth();
   const { data: league, isLoading: isLoadingLeague } = useGetLeague(id || '');
 
-  if (isLoadingUser || isLoadingLeague) {
+  if (!isLoaded || isLoadingLeague) {
     return <div className="loading-screen">Loading...</div>;
   }
 
-  const user = userResponse?.user;
-  if (!user || !league || league.owner_user_id !== user.id) {
+  if (!isSignedIn || !league) {
     return (
       <div className="empty-state">
         <h2>Unauthorized</h2>

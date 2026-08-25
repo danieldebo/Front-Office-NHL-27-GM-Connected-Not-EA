@@ -57,6 +57,7 @@ button{appearance:none;border:none;background:transparent;cursor:pointer}
 .login-panel h1 { font-family: var(--display); font-size: 42px; letter-spacing: .02em; text-transform: uppercase; margin: 0 0 10px; }
 .login-panel p { color: var(--steel); font-family: var(--data); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; margin: 0 0 30px; }
 .loading-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: var(--data); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--steel); }
+.clerk-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--ice); }
 .empty-state { text-align: center; padding: 80px 20px; background: var(--paper); border: 1px solid var(--rule); border-radius: 3px; margin-top: 40px; }
 .empty-state h2 { font-family: var(--display); font-size: 24px; text-transform: uppercase; margin-top: 0; }
 

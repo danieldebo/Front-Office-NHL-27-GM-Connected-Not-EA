@@ -29,42 +29,6 @@ export interface Problem {
   errors?: ProblemError[];
 }
 
-export interface AuthUser {
-  id: string;
-  /** @nullable */
-  email: string | null;
-  /** @nullable */
-  firstName: string | null;
-  /** @nullable */
-  lastName: string | null;
-  /** @nullable */
-  profileImageUrl: string | null;
-}
-
-export interface AuthUserEnvelope {
-  user: AuthUser | null;
-}
-
-export interface LocalLoginInput {
-  email: string;
-  /** @minLength 1 */
-  password: string;
-}
-
-export interface RegisterInput {
-  email: string;
-  /** @minLength 8 */
-  password: string;
-  /** @nullable */
-  firstName?: string | null;
-  /** @nullable */
-  lastName?: string | null;
-}
-
-export interface LogoutSuccess {
-  success: boolean;
-}
-
 export interface ErrorEnvelope {
   error: string;
 }
@@ -1110,15 +1074,6 @@ export interface DqFindingsEnvelope {
 export type IdempotencyKeyParameter = string;
 
 export type IfMatchParameter = string;
-
-/**
- * Opaque session token — Bearer <sid>.
- */
-export type AuthorizationSessionHeaderParameter = string;
-
-export type BeginBrowserLoginParams = {
-returnTo?: string;
-};
 
 export type ListOpenLeaguesParams = {
 platform?: ListOpenLeaguesPlatform;

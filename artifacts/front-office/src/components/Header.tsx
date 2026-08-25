@@ -1,11 +1,10 @@
 import { Link, useLocation } from 'wouter';
-import { League, useGetCurrentAuthUser } from '@workspace/api-client-react';
+import { useClerk } from '@clerk/react';
+import { League } from '@workspace/api-client-react';
 
 export default function Header({ league }: { league?: League }) {
-  const { data: userResponse } = useGetCurrentAuthUser();
-  const user = userResponse?.user;
-  const isOwner = user && league && user.id === league.owner_user_id;
   const [location] = useLocation();
+  const { signOut } = useClerk();
 
   return (
     <header className="masthead">
@@ -33,11 +32,7 @@ export default function Header({ league }: { league?: League }) {
           {league && <a href="#wire">Wire</a>}
           {league && <a href="#">Front Office</a>}
           {league && <a href="#">Rulebook</a>}
-          {isOwner && (
-            <Link href={`/leagues/${league.id}/manage`} className="nav-link" style={{ color: 'var(--goal)' }}>
-              Manage
-            </Link>
-          )}
+          <button className="nav-link" onClick={() => signOut({ redirectUrl: '/' })}>Sign out</button>
         </nav>
       </div>
     </header>

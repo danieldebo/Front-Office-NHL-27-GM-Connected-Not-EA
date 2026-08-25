@@ -10,7 +10,6 @@
  */
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { useAuth } from '@workspace/replit-auth-web';
 
 const FEATURES = [
   { icon: '📊', title: 'Live Standings',           desc: 'Real-time NHL-style standings with GP, W, L, OTL, PTS, and tiebreakers.' },
@@ -22,7 +21,6 @@ const FEATURES = [
 ];
 
 export default function LandingPage() {
-  const { login } = useAuth();
   const [codeInput, setCodeInput] = React.useState('');
   const [, navigate] = useLocation();
 
@@ -62,9 +60,9 @@ export default function LandingPage() {
             and the tools commissioners need to run a tight ship.
           </p>
           <div className="landing-ctas">
-            <button className="landing-cta-primary" onClick={login}>
+            <Link href="/sign-in" className="landing-cta-primary">
               Sign In
-            </button>
+            </Link>
             <Link href="/leagues/open" className="landing-cta-outline">
               Browse Open Leagues
             </Link>
@@ -103,7 +101,7 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="lp-card-foot">
-              <button className="btn" onClick={login}>Sign In</button>
+              <Link href="/sign-in" className="btn">Sign In</Link>
             </div>
           </div>
 
