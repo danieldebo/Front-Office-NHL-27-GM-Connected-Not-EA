@@ -6,6 +6,7 @@ import type { Request } from "express";
 
 export interface AuthUser {
   id: string;
+  appUserId?: string | null;
   email: string | null;
   firstName: string | null;
   lastName: string | null;

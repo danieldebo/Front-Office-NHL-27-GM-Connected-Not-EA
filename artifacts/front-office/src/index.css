@@ -62,13 +62,16 @@ button{appearance:none;border:none;background:transparent;cursor:pointer}
 .empty-state h2 { font-family: var(--display); font-size: 24px; text-transform: uppercase; margin-top: 0; }
 
 /* ---------- masthead ---------- */
-.masthead{border-bottom:1px solid var(--rule);background:var(--paper)}
-.masthead .wrap{display:flex;align-items:center;gap:14px;height:60px}
+.masthead{
+  position:sticky;top:0;z-index:100;
+  border-bottom:1px solid var(--rule);background:rgba(255,255,255,.96);
+  box-shadow:0 3px 14px rgba(14,22,32,.08);
+  backdrop-filter:blur(12px);
+}
+.masthead .wrap{position:relative;display:flex;align-items:center;gap:14px;height:60px}
+.crest-link{display:block;flex:none;line-height:0}
 .crest{
-  width:34px;height:34px;flex:none;border-radius:3px;
-  background:var(--slab);color:var(--bulb);
-  font-family:var(--display);font-size:19px;
-  display:grid;place-items:center;letter-spacing:.02em;
+  display:block;width:34px;height:34px;border-radius:3px;
 }
 .league-name{font-family:var(--display);font-size:20px;letter-spacing:.04em;text-transform:uppercase;line-height:1}
 .league-meta{font-family:var(--data);font-size:11px;color:var(--steel);letter-spacing:.06em;text-transform:uppercase}
@@ -79,6 +82,13 @@ button{appearance:none;border:none;background:transparent;cursor:pointer}
 }
 .masthead nav a[aria-current]{color:var(--ink);border-bottom-color:var(--bulb)}
 .masthead nav a:hover{color:var(--ink)}
+.nav-toggle{
+  display:none;margin-left:auto;align-items:center;gap:7px;
+  border:1px solid var(--rule);border-radius:3px;padding:7px 10px;
+  color:var(--ink);background:var(--paper);
+  font-family:var(--data);font-size:10px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;
+}
 
 /* ---------- signature: the scoreboard slab ---------- */
 .slab{background:var(--slab);color:#E8EEF3;margin-top:0;position:relative;overflow:hidden}
@@ -443,8 +453,28 @@ footer .wrap{padding:20px;font-family:var(--data);font-size:10.5px;letter-spacin
   .cols{grid-template-columns:1fr;padding-top:22px}
   .slab .wrap{grid-template-columns:1fr;gap:24px;align-items:start}
 }
+@media (max-width:760px){
+  .league-meta{display:none}
+  .nav-toggle{display:flex}
+  .masthead nav{
+    display:none;position:absolute;top:60px;left:20px;right:20px;
+    margin:0;padding:10px;background:var(--paper);
+    border:1px solid var(--rule);box-shadow:0 12px 24px rgba(14,22,32,.16);
+    flex-direction:column;align-items:stretch;gap:0;
+  }
+  .masthead nav.is-open{display:flex}
+  .mast-nav a,.mast-nav .nav-link{
+    width:100%;padding:11px 10px;text-align:left;border-bottom:1px solid var(--rule);
+  }
+  .mast-nav .nav-link:last-child{border-bottom:0}
+  .manage-tabs{
+    width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;
+    overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch;
+  }
+  .manage-tabs > *{flex:none}
+  .manage-tabs > div{margin-left:0!important}
+}
 @media (max-width:640px){
-  .masthead nav{display:none}
   .hide-sm{display:none}
   .digit{font-size:24px;min-width:28px;padding:7px 6px}
   .slab .wrap{padding:24px 20px 28px}

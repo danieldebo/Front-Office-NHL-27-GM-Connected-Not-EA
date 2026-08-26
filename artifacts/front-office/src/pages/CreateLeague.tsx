@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useCreateLeague } from '@workspace/api-client-react';
+import Header from '@/components/Header';
 
 export default function CreateLeague() {
   const [, setLocation] = useLocation();
@@ -43,8 +44,10 @@ export default function CreateLeague() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-panel" style={{ width: '100%', maxWidth: '500px', textAlign: 'left' }}>
+    <>
+      <Header />
+      <div className="login-page">
+        <div className="login-panel" style={{ width: '100%', maxWidth: '500px', textAlign: 'left' }}>
         <h1 style={{ fontSize: '28px' }}>Create League</h1>
         <p>Establish a new connected-franchise Front Office.</p>
 
@@ -160,8 +163,9 @@ export default function CreateLeague() {
             </p>
           )}
         </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

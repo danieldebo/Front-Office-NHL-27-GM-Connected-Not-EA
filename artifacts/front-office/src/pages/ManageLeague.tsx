@@ -1360,6 +1360,8 @@ export default function ManageLeague() {
   
   const { isLoaded, isSignedIn } = useAuth();
   const { data: league, isLoading: isLoadingLeague } = useGetLeague(id || '');
+  const { data: seasonsData } = useListSeasons(id || '');
+  const activeSeason = (seasonsData?.data ?? []).find((season) => season.is_active);
 
   if (!isLoaded || isLoadingLeague) {
     return <div className="loading-screen">Loading...</div>;
@@ -1386,10 +1388,15 @@ export default function ManageLeague() {
         <div className="wrap" style={{ padding: '30px 20px', display: 'block' }}>
           <div className="eyebrow">Commissioner Desk</div>
           <h1 style={{ fontSize: '42px', marginTop: '5px' }}>{league.name} Operations</h1>
+          {activeSeason && (
+            <div className="eyebrow" style={{ marginTop: '8px', color: 'var(--ice)' }}>
+              Active season · {activeSeason.label}
+            </div>
+          )}
         </div>
       </div>
       <div className="wrap" style={{ paddingTop: '20px', paddingBottom: '60px' }}>
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--rule)', paddingBottom: '12px' }}>
+        <div className="manage-tabs" style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--rule)', paddingBottom: '12px' }}>
           <button 
             onClick={() => setActiveTab('seats')}
             className={`btn ${activeTab !== 'seats' ? 'ghost' : ''}`}

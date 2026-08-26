@@ -57,6 +57,7 @@ export function can(
   resource: Resource
 ): boolean {
   if (!user) return false;
+  const domainUserId = user.appUserId ?? user.id;
 
   switch (action) {
     case "league:read":
@@ -74,14 +75,14 @@ export function can(
     case "rulebook:write": {
       if (resource.kind !== "league") return false;
       // Only the league owner (commissioner) may write.
-      return resource.ownerId === user.id;
+      return resource.ownerId === domainUserId;
     }
 
     case "result:report": {
       if (resource.kind !== "game") return false;
       return (
-        resource.homeGmUserId === user.id ||
-        resource.awayGmUserId === user.id
+        resource.homeGmUserId === domainUserId ||
+        resource.awayGmUserId === domainUserId
       );
     }
 
@@ -89,10 +90,10 @@ export function can(
     case "result:dispute": {
       if (resource.kind !== "result") return false;
       const isGameGm =
-        resource.gameHomeGmUserId === user.id ||
-        resource.gameAwayGmUserId === user.id;
+        resource.gameHomeGmUserId === domainUserId ||
+        resource.gameAwayGmUserId === domainUserId;
       // Must be a GM in the game AND must not be the reporter (no self-confirmation).
-      return isGameGm && resource.reportedByUserId !== user.id;
+      return isGameGm && resource.reportedByUserId !== domainUserId;
     }
 
     default:

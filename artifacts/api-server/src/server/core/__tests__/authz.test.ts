@@ -96,6 +96,16 @@ const commissionerActions: Action[] = [
 ];
 
 describe("can() — commissioner-only actions", () => {
+  it("uses the domain user id when Clerk and app_user ids differ", () => {
+    const clerkUser = {
+      ...COMMISSIONER,
+      id: "user_clerk_123",
+      appUserId: COMMISSIONER.id,
+    };
+
+    expect(can(clerkUser, "season:create", LEAGUE_OWNED_BY_COMMISSIONER)).toBe(true);
+  });
+
   for (const action of commissionerActions) {
     it(`allows ${action} for the league owner`, () => {
       expect(can(COMMISSIONER, action, LEAGUE_OWNED_BY_COMMISSIONER)).toBe(true);

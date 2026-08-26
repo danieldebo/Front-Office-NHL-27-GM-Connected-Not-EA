@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
 import { useLocation, useParams, Link } from 'wouter';
-import { useCreateSeason } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  getListSeasonsQueryKey,
+  getListSeatsQueryKey,
+  useCreateSeason,
+  useGetLeague,
+} from '@workspace/api-client-react';
+import Header from '@/components/Header';
 
 export default function CreateSeason() {
   const { id: leagueId } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const createSeason = useCreateSeason();
+  const { data: league } = useGetLeague(leagueId || '');
 
   const [label, setLabel] = useState('Season 1');
   const [gameTitle, setGameTitle] = useState('Hockey 27');
@@ -60,15 +69,21 @@ export default function CreateSeason() {
         tiebreakers
       }
     }, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: getListSeasonsQueryKey(leagueId) }),
+          queryClient.invalidateQueries({ queryKey: getListSeatsQueryKey(leagueId) }),
+        ]);
         setLocation(`/leagues/${leagueId}/manage`);
       }
     });
   };
 
   return (
-    <div className="login-page">
-      <div className="login-panel" style={{ width: '100%', maxWidth: '560px', textAlign: 'left', padding: '30px' }}>
+    <>
+      <Header league={league} />
+      <div className="login-page">
+        <div className="login-panel" style={{ width: '100%', maxWidth: '560px', textAlign: 'left', padding: '30px' }}>
         <h1 style={{ fontSize: '24px' }}>Create Season</h1>
         <p>Start a new campaign for your league.</p>
 
@@ -198,9 +213,15 @@ export default function CreateSeason() {
               Cancel
             </Link>
           </div>
+          {createSeason.isError && (
+            <p role="alert" style={{ margin: 0, color: 'var(--goal)', fontSize: '13px' }}>
+              {createSeason.error.message}
+            </p>
+          )}
         </form>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

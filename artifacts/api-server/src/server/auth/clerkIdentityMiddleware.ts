@@ -40,27 +40,37 @@ export async function clerkIdentityMiddleware(
     const lastName = claim(claims, "lastName");
     const profileImageUrl = claim(claims, "imageUrl");
 
+    // Migrated users already have a domain row. For new Clerk accounts, create
+    // one when Clerk supplied an email so domain authorization works immediately.
+    let appUserId: string | null = null;
+    if (email) {
+      const displayName = [firstName, lastName].filter(Boolean).join(" ") || email;
+      const result = await pool.query<{ id: string }>(
+        `INSERT INTO app_user (replit_id, display_name, email, external_ids)
+         VALUES ($1, $2, $3, jsonb_build_object('clerk_user_id', $4::text))
+         ON CONFLICT (replit_id) DO UPDATE
+           SET display_name = EXCLUDED.display_name,
+                external_ids = app_user.external_ids || EXCLUDED.external_ids
+         RETURNING id`,
+        [userId, displayName, email, auth.userId],
+      );
+      appUserId = result.rows[0]?.id ?? null;
+    } else {
+      const result = await pool.query<{ id: string }>(
+        `SELECT id FROM app_user WHERE replit_id = $1`,
+        [userId],
+      );
+      appUserId = result.rows[0]?.id ?? null;
+    }
+
     req.authUser = {
       id: userId,
+      appUserId,
       email,
       firstName,
       lastName,
       profileImageUrl,
     };
-
-    // Migrated users already have a domain row. For new Clerk accounts, create
-    // one when Clerk supplied an email so domain authorization works immediately.
-    if (email) {
-      const displayName = [firstName, lastName].filter(Boolean).join(" ") || email;
-      await pool.query(
-        `INSERT INTO app_user (replit_id, display_name, email, external_ids)
-         VALUES ($1, $2, $3, jsonb_build_object('clerk_user_id', $4::text))
-         ON CONFLICT (replit_id) DO UPDATE
-           SET display_name = EXCLUDED.display_name,
-               external_ids = app_user.external_ids || EXCLUDED.external_ids`,
-        [userId, displayName, email, auth.userId],
-      );
-    }
 
     next();
   } catch (error) {

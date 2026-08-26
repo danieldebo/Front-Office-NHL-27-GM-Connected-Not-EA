@@ -10,6 +10,10 @@ description: Key non-obvious decisions made during Checkpoint 1 of the Front Off
 
 **How to apply:** Any route needing the current user calls `getCurrentUser(req)` from `../server/auth`. Use `sessionClaims.userId` as the domain bridge, falling back to Clerk’s native ID only for a new account. Web requests use Clerk session cookies only—never add browser bearer tokens.
 
+Authorization resources store `app_user.id` UUIDs, so permission checks must compare them with the authenticated user’s resolved domain UUID rather than the Clerk/legacy external subject.
+
+**Why:** Comparing a league owner UUID with the external auth subject makes valid commissioners receive 403 responses even though authentication succeeded.
+
 ## Raw SQL for Front Office domain tables
 Drizzle ORM is used ONLY for the `sessions` and `users` auth tables (see `lib/db/src/schema/auth.ts`). All Front Office domain tables (`league`, `season`, `franchise`, `game`, `game_result`, etc.) use `pool.query()` with raw SQL.
 
