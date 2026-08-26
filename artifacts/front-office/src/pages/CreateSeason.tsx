@@ -8,7 +8,7 @@ export default function CreateSeason() {
   const createSeason = useCreateSeason();
 
   const [label, setLabel] = useState('Season 1');
-  const [gameTitle, setGameTitle] = useState('NHL 27');
+  const [gameTitle, setGameTitle] = useState('Hockey 27');
   const [salaryCapStr, setSalaryCapStr] = useState('');
   const [rosterMin, setRosterMin] = useState('20');
   const [rosterMax, setRosterMax] = useState('23');
@@ -93,7 +93,7 @@ export default function CreateSeason() {
                 value={gameTitle} 
                 onChange={e => setGameTitle(e.target.value)}
                 style={inputStyle}
-                placeholder="NHL 27"
+                placeholder="Hockey 27"
               />
             </div>
           </div>
@@ -149,7 +149,7 @@ export default function CreateSeason() {
                 onChange={e => setPointSystem(e.target.value as 'traditional' | 'three_point')}
                 style={inputStyle}
               >
-                <option value="traditional">2-1-0 (NHL Standard)</option>
+                <option value="traditional">2-1-0 (Traditional)</option>
                 <option value="three_point">3-2-1-0 (IIHF Standard)</option>
               </select>
             </div>

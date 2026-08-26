@@ -46,7 +46,7 @@ export default function CreateLeague() {
     <div className="login-page">
       <div className="login-panel" style={{ width: '100%', maxWidth: '500px', textAlign: 'left' }}>
         <h1 style={{ fontSize: '28px' }}>Create League</h1>
-        <p>Establish a new NHL 27 Front Office.</p>
+        <p>Establish a new connected-franchise Front Office.</p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>

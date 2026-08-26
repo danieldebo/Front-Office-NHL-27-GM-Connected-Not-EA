@@ -238,7 +238,7 @@ export default function OpenLeagues() {
       <section className="slab" style={{ '--slab-wrap-grid': 'none' } as React.CSSProperties}>
         <div className="wrap" style={{ display: 'block', padding: '32px 20px 34px' }}>
           <div className="eyebrow">
-            {loading ? '…' : `${leagues.length} leagues recruiting · NHL 27`}
+            {loading ? '…' : `${leagues.length} leagues recruiting · Franchise 27`}
           </div>
           <h1 style={{ fontFamily: 'var(--display)', fontSize: 'clamp(30px,5vw,50px)', lineHeight: '.95', letterSpacing: '.01em', textTransform: 'uppercase', margin: '8px 0 6px' }}>
             Find your league.

@@ -261,7 +261,7 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
                 <input
                   id="su-message"
                   type="text"
-                  placeholder="Been running franchise mode since NHL 18, looking for a competitive PSN league…"
+                  placeholder="Been running franchise mode for years and looking for a competitive league…"
                   value={message}
                   onChange={e => setMessage(e.target.value)}
                   maxLength={500}

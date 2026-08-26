@@ -13,7 +13,7 @@ export default function Header({ league }: { league?: League }) {
         <div>
           <div className="league-name">{league ? league.name : 'Front Office'}</div>
           <div className="league-meta">
-            {league ? `Visibility: ${league.visibility} · NHL 27` : 'NHL 27 Connected Franchise Hub'}
+            {league ? `Visibility: ${league.visibility} · Franchise 27` : 'Connected Franchise 27 Hub'}
           </div>
         </div>
         <nav className="mast-nav">

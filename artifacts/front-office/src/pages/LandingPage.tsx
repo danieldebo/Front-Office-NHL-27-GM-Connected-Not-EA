@@ -12,7 +12,7 @@ import React from 'react';
 import { Link, useLocation } from 'wouter';
 
 const FEATURES = [
-  { icon: '📊', title: 'Live Standings',           desc: 'Real-time NHL-style standings with GP, W, L, OTL, PTS, and tiebreakers.' },
+  { icon: '📊', title: 'Live Standings',           desc: 'Real-time pro-style standings with GP, W, L, OTL, PTS, and tiebreakers.' },
   { icon: '📅', title: 'Auto-Balanced Scheduling', desc: 'Generates a fair home/away schedule for the whole season instantly.' },
   { icon: '📋', title: 'GM Sign-Ups',              desc: 'Application flow with commissioner review and integrated waitlist management.' },
   { icon: '🛠️', title: 'Commissioner Tools',       desc: 'Decline notes, reorder waitlists, audit logs, and data-quality dashboards.' },
@@ -48,12 +48,12 @@ export default function LandingPage() {
           <img src="/logo.svg" alt="" className="landing-crest" />
           <div className="landing-brand">Front Office</div>
           <div className="landing-brand-sep" aria-hidden="true" />
-          <div className="landing-badge">NHL 27 · Connected Franchise</div>
+          <div className="landing-badge">27 · Connected Franchise</div>
         </div>
 
         {/* Centered headline + CTAs */}
         <div className="landing-center">
-          <div className="landing-eyebrow">NHL 27 · Connected Franchise</div>
+          <div className="landing-eyebrow">27 · Connected Franchise</div>
           <h1 className="landing-title">Front Office</h1>
           <p className="landing-sub">
             The hub for serious GM leagues — standings, scheduling, sign-ups,

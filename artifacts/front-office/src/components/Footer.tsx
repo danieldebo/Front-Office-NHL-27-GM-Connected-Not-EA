@@ -17,7 +17,7 @@ export default function Footer() {
             Created by <b style={{ color: 'var(--bulb)', fontFamily: 'var(--body)', fontWeight: 700 }}>DeBo</b>
           </span>
           <span style={{ color: '#5C6B78' }}>·</span>
-          <span>Front Office · league tools for NHL 27</span>
+          <span>Front Office · connected-franchise league tools</span>
           <button
             className="fr-btn"
             onClick={() => setModalOpen(true)}
