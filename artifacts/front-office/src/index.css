@@ -308,10 +308,7 @@ footer .wrap{padding:20px;font-family:var(--data);font-size:10.5px;letter-spacin
   display:flex;align-items:center;gap:12px;z-index:1;
 }
 .landing-crest{
-  width:34px;height:34px;background:#0E1620;flex:none;
-  display:grid;place-items:center;
-  font-family:var(--display);font-size:17px;color:var(--bulb);
-  padding-top:2px;
+  display:block;width:34px;height:34px;flex:none;
 }
 .landing-brand{font-family:var(--display);font-size:20px;color:#fff;text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
 .landing-brand-sep{width:1px;height:22px;background:rgba(255,255,255,.12);flex:none}

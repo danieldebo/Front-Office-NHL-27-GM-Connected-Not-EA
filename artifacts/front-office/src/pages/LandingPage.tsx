@@ -45,7 +45,7 @@ export default function LandingPage() {
 
         {/* Top-left wordmark */}
         <div className="landing-wordmark">
-          <div className="landing-crest">FO</div>
+          <img src="/logo.svg" alt="" className="landing-crest" />
           <div className="landing-brand">Front Office</div>
           <div className="landing-brand-sep" aria-hidden="true" />
           <div className="landing-badge">NHL 27 · Connected Franchise</div>

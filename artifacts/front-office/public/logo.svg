@@ -1,6 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title">
-  <title>Front Office</title>
-  <rect width="160" height="160" rx="28" fill="#16202A"/>
-  <path d="M31 36h98v23H57v14h61v21H57v30H31z" fill="#EDF1F4"/>
-  <path d="M123 35h11v90h-11z" fill="#F2A93B"/>
+  <title id="title">Front Office</title>
+  <defs>
+    <pattern id="net" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M 0 10 L 10 0 M -1 1 L 1 -1 M 9 11 L 11 9" stroke="#5C6B78" stroke-width="0.5" stroke-opacity="0.25"/>
+    </pattern>
+  </defs>
+
+  <!-- Equipment Frame -->
+  <path d="M 12 4 L 148 4 L 156 12 L 156 148 L 148 156 L 12 156 L 4 148 L 4 12 Z" fill="#16202A" stroke="#5C6B78" stroke-width="2"/>
+  <!-- Net Texture -->
+  <path d="M 12 4 L 148 4 L 156 12 L 156 148 L 148 156 L 12 156 L 4 148 L 4 12 Z" fill="url(#net)"/>
+
+  <!-- Goal Line Motif -->
+  <path d="M 4 130 L 156 130" stroke="#B33A2B" stroke-width="3" stroke-opacity="0.8"/>
+  <path d="M 4 135 L 156 135" stroke="#B33A2B" stroke-width="1" stroke-opacity="0.4"/>
+
+  <!-- NHL 27 Superscript -->
+  <path d="
+    M 89 22 L 89 14 L 94 22 L 94 14
+    M 98 14 L 98 22
+    M 98 18 L 102 18
+    M 102 14 L 102 22
+    M 106 14 L 106 22 L 110 22
+    M 116 14 L 120 14 L 120 18 L 116 18 L 116 22 L 120 22
+    M 124 14 L 128 14 L 126 22
+  " fill="none" stroke="#B33A2B" stroke-width="3" stroke-linejoin="miter" stroke-linecap="square"/>
+
+  <!-- Custom Vector FO Lettering (Ice White) -->
+  <path d="M 34 35 L 70 35 L 58 55 L 42 55 L 42 75 L 60 75 L 51 90 L 42 90 L 42 125 L 22 125 L 22 47 Z" fill="#EDF1F4"/>
+  <path d="M 88 35 L 126 35 L 138 47 L 138 113 L 126 125 L 88 125 L 76 113 L 76 47 Z M 100 55 L 96 59 L 96 101 L 100 105 L 114 105 L 118 101 L 118 59 L 114 55 Z" fill="#EDF1F4"/>
 </svg>
