@@ -8,7 +8,8 @@
 import type { ApplicantActionResultOutcome } from './applicantActionResultOutcome';
 
 export interface ApplicantActionResult {
-  signup_id: string;
+  /** @nullable */
+  signup_id: string | null;
   user_id: string;
   league_id: string;
   outcome: ApplicantActionResultOutcome;

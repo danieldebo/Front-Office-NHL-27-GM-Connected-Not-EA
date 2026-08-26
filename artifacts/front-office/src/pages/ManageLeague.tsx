@@ -659,6 +659,36 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
     });
   };
 
+  const getWaitlistReviewId = (entry: WaitlistApplicant) =>
+    entry.signup_id ?? entry.waitlist_entry_id;
+
+  const handleWaitlistAccept = (entry: WaitlistApplicant) => {
+    if (!confirm(`Accept ${entry.display_name ?? 'this applicant'}?\n\nThey will be added as a league member. You can assign them to a franchise seat from the Seats tab.`)) return;
+    acceptApplicant.mutate(
+      { leagueId, signupId: getWaitlistReviewId(entry) },
+      {
+        onSuccess: () => invalidate(),
+        onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to accept applicant'),
+      },
+    );
+  };
+
+  const handleWaitlistDecline = (event: React.FormEvent, entry: WaitlistApplicant) => {
+    event.preventDefault();
+    declineApplicant.mutate({
+      leagueId,
+      signupId: getWaitlistReviewId(entry),
+      data: declineNote.trim() ? { note: declineNote.trim() } : undefined,
+    }, {
+      onSuccess: () => {
+        setDecliningSignupId(null);
+        setDeclineNote('');
+        invalidate();
+      },
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to decline applicant'),
+    });
+  };
+
   if (signupsLoading || waitlistLoading) {
     return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>Loading applicants…</div>;
   }
@@ -835,12 +865,19 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
           </div>
         ) : (
           <div className="panel">
-            {waitlist.map((entry: WaitlistApplicant, idx: number) => (
-              <div key={entry.user_id} style={{
+            {waitlist.map((entry: WaitlistApplicant, idx: number) => {
+              const reviewId = getWaitlistReviewId(entry);
+              return (
+              <div key={entry.waitlist_entry_id} style={{
                 display: 'flex',
-                gap: '12px',
+                flexDirection: 'column',
+                gap: '10px',
                 padding: '12px 16px',
                 borderBottom: idx < waitlist.length - 1 ? '1px solid var(--rule)' : 'none',
+              }}>
+              <div style={{
+                display: 'flex',
+                gap: '12px',
                 alignItems: 'center',
               }}>
                 {/* Position number */}
@@ -912,7 +949,53 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                   );
                 })()}
               </div>
-            ))}
+              <div style={{ display: 'flex', gap: '8px', paddingLeft: '40px' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => handleWaitlistAccept(entry)}
+                  disabled={acceptApplicant.isPending}
+                  style={{ background: '#1F7A4C', borderColor: '#1F7A4C', padding: '6px 10px', fontSize: '11px' }}
+                >
+                  Accept
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => { setDecliningSignupId(reviewId); setDeclineNote(''); }}
+                  disabled={declineApplicant.isPending || decliningSignupId !== null}
+                  style={{ color: 'var(--goal)', borderColor: 'var(--goal)', padding: '6px 10px', fontSize: '11px' }}
+                >
+                  Decline
+                </button>
+              </div>
+              {decliningSignupId === reviewId && (
+                <form onSubmit={event => handleWaitlistDecline(event, entry)} style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '40px' }}>
+                  <label htmlFor={`decline-note-${reviewId}`} style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', textTransform: 'uppercase' }}>
+                    Decline note (optional)
+                  </label>
+                  <textarea
+                    id={`decline-note-${reviewId}`}
+                    value={declineNote}
+                    onChange={event => setDeclineNote(event.target.value)}
+                    maxLength={500}
+                    rows={2}
+                    autoFocus
+                    placeholder="Add a brief note for your records"
+                    style={{ width: '100%', padding: '8px', fontFamily: 'var(--body)', fontSize: '12px', border: '1px solid var(--rule)', borderRadius: '4px', resize: 'vertical' }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button type="submit" className="btn ghost" disabled={declineApplicant.isPending} style={{ color: 'var(--goal)', borderColor: 'var(--goal)', padding: '6px 10px', fontSize: '11px' }}>
+                      {declineApplicant.isPending ? 'Declining…' : 'Confirm decline'}
+                    </button>
+                    <button type="button" className="btn ghost" disabled={declineApplicant.isPending} onClick={() => { setDecliningSignupId(null); setDeclineNote(''); }} style={{ padding: '6px 10px', fontSize: '11px' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+              </div>
+            );})}
           </div>
         )}
       </div>

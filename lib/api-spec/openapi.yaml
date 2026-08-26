@@ -2906,8 +2906,12 @@ components:
 
     WaitlistApplicant:
       type: object
-      required: [league_id, position, status, user_id, joined_at]
+      required: [waitlist_entry_id, signup_id, league_id, position, status, user_id, joined_at]
       properties:
+        waitlist_entry_id:
+          type: string
+        signup_id:
+          type: ['string', 'null']
         league_id:
           type: string
         position:
@@ -2944,7 +2948,7 @@ components:
       required: [signup_id, user_id, league_id, outcome]
       properties:
         signup_id:
-          type: string
+          type: ['string', 'null']
         user_id:
           type: string
         league_id:

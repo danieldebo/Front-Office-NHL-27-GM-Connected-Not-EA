@@ -378,22 +378,26 @@ router.get(
 
     const { rows } = await pool.query(
       `SELECT
-          league_id,
-          position,
-          status,
-          user_id,
-          display_name,
-          skill_division,
-          country_code,
-          location,
-          timezone,
-          platform,
-          joined_at,
-          invited_at,
-          invite_expires_at
-       FROM v_waitlist
-       WHERE league_id = $1
-       ORDER BY position ASC`,
+           w.id                                          AS waitlist_entry_id,
+           w.signup_id,
+           v.league_id,
+           v.position,
+           v.status,
+           v.user_id,
+           v.display_name,
+           v.skill_division,
+           v.country_code,
+           v.location,
+           v.timezone,
+           v.platform,
+           v.joined_at,
+           v.invited_at,
+           v.invite_expires_at
+        FROM v_waitlist v
+        JOIN waitlist_entry w
+          ON w.league_id = v.league_id AND w.user_id = v.user_id
+        WHERE v.league_id = $1
+        ORDER BY v.position ASC`,
       [leagueId]
     );
 
@@ -422,13 +426,23 @@ router.post(
       return;
     }
 
-    // Load the signup
+    // Load a signup-backed applicant first. Waitlist-only applicants are reviewed
+    // with their waitlist entry id because they have no league_signup row.
     const signupRow = await pool.query<{ id: string; user_id: string; league_id: string }>(
       `SELECT id, user_id, league_id FROM league_signup WHERE id = $1 AND league_id = $2`,
       [signupId, leagueId]
     );
-    if (!signupRow.rows[0]) { notFound(res, "Sign-up not found"); return; }
-    const signup = signupRow.rows[0];
+    const waitlistOnlyRow = signupRow.rows[0]
+      ? null
+      : (await pool.query<{ id: string; user_id: string; league_id: string }>(
+          `SELECT id, user_id, league_id
+             FROM waitlist_entry
+            WHERE id = $1 AND league_id = $2 AND signup_id IS NULL
+              AND status IN ('waiting','invited')`,
+          [signupId, leagueId]
+        )).rows[0] ?? null;
+    const applicant = signupRow.rows[0] ?? waitlistOnlyRow;
+    if (!applicant) { notFound(res, "Applicant not found"); return; }
 
     const client = await pool.connect();
     try {
@@ -443,7 +457,7 @@ router.post(
         `UPDATE waitlist_entry
             SET signup_id = NULL, status = 'placed', resolved_at = now()
           WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
-        [leagueId, signup.user_id]
+        [leagueId, applicant.user_id]
       );
 
       // Upsert league_membership so the applicant becomes a league member.
@@ -452,20 +466,22 @@ router.post(
         `INSERT INTO league_membership (league_id, user_id, role)
          VALUES ($1, $2, 'gm')
          ON CONFLICT (league_id, user_id) DO NOTHING`,
-        [leagueId, signup.user_id]
+        [leagueId, applicant.user_id]
       );
 
       // Remove the signup so it no longer appears in the pending queue.
-      await client.query(
-        `DELETE FROM league_signup WHERE id = $1`,
-        [signupId]
-      );
+      if (signupRow.rows[0]) {
+        await client.query(
+          `DELETE FROM league_signup WHERE id = $1`,
+          [signupId]
+        );
+      }
 
       await client.query("COMMIT");
 
       res.json({
-        signup_id: signupId,
-        user_id: signup.user_id,
+        signup_id: signupRow.rows[0]?.id ?? null,
+        user_id: applicant.user_id,
         league_id: leagueId,
         outcome: "accepted",
       });
@@ -505,13 +521,23 @@ router.post(
       return;
     }
 
-    // Load the signup
+    // Load a signup-backed applicant first. Waitlist-only applicants are reviewed
+    // with their waitlist entry id because they have no league_signup row.
     const signupRow = await pool.query<{ id: string; user_id: string; league_id: string }>(
       `SELECT id, user_id, league_id FROM league_signup WHERE id = $1 AND league_id = $2`,
       [signupId, leagueId]
     );
-    if (!signupRow.rows[0]) { notFound(res, "Sign-up not found"); return; }
-    const signup = signupRow.rows[0];
+    const waitlistOnlyRow = signupRow.rows[0]
+      ? null
+      : (await pool.query<{ id: string; user_id: string; league_id: string }>(
+          `SELECT id, user_id, league_id
+             FROM waitlist_entry
+            WHERE id = $1 AND league_id = $2 AND signup_id IS NULL
+              AND status IN ('waiting','invited')`,
+          [signupId, leagueId]
+        )).rows[0] ?? null;
+    const applicant = signupRow.rows[0] ?? waitlistOnlyRow;
+    if (!applicant) { notFound(res, "Applicant not found"); return; }
 
     const client = await pool.connect();
     try {
@@ -521,24 +547,35 @@ router.post(
       // Filter by (league_id, user_id) — not just signup_id — so rows where
       // the user joined the waitlist without a signup (signup_id IS NULL) are
       // also captured. Nulling signup_id is idempotent and keeps the FK safe.
-      await client.query(
-        `UPDATE waitlist_entry
-            SET signup_id = NULL, status = 'declined', resolved_at = now(), decline_note = $3
-          WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
-        [leagueId, signup.user_id, note ?? null]
-      );
+      if (note === undefined) {
+        await client.query(
+          `UPDATE waitlist_entry
+              SET signup_id = NULL, status = 'declined', resolved_at = now()
+            WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
+          [leagueId, applicant.user_id]
+        );
+      } else {
+        await client.query(
+          `UPDATE waitlist_entry
+              SET signup_id = NULL, status = 'declined', resolved_at = now(), decline_note = $3
+            WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
+          [leagueId, applicant.user_id, note]
+        );
+      }
 
       // Remove the signup so it no longer appears in the pending queue.
-      await client.query(
-        `DELETE FROM league_signup WHERE id = $1`,
-        [signupId]
-      );
+      if (signupRow.rows[0]) {
+        await client.query(
+          `DELETE FROM league_signup WHERE id = $1`,
+          [signupId]
+        );
+      }
 
       await client.query("COMMIT");
 
       res.json({
-        signup_id: signupId,
-        user_id: signup.user_id,
+        signup_id: signupRow.rows[0]?.id ?? null,
+        user_id: applicant.user_id,
         league_id: leagueId,
         outcome: "declined",
       });

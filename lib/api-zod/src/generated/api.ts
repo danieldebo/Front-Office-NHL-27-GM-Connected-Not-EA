@@ -105,6 +105,8 @@ export const ListLeagueWaitlistParams = zod.object({
 
 export const ListLeagueWaitlistResponse = zod.object({
   "data": zod.array(zod.object({
+  "waitlist_entry_id": zod.string(),
+  "signup_id": zod.string().nullable(),
   "league_id": zod.string(),
   "position": zod.number(),
   "status": zod.enum(['waiting', 'invited', 'placed', 'declined', 'withdrawn', 'expired']),
@@ -450,7 +452,7 @@ export const AcceptApplicantParams = zod.object({
 })
 
 export const AcceptApplicantResponse = zod.object({
-  "signup_id": zod.string(),
+  "signup_id": zod.string().nullable(),
   "user_id": zod.string(),
   "league_id": zod.string(),
   "outcome": zod.enum(['accepted', 'declined'])
@@ -474,7 +476,7 @@ export const DeclineApplicantBody = zod.object({
 })
 
 export const DeclineApplicantResponse = zod.object({
-  "signup_id": zod.string(),
+  "signup_id": zod.string().nullable(),
   "user_id": zod.string(),
   "league_id": zod.string(),
   "outcome": zod.enum(['accepted', 'declined'])

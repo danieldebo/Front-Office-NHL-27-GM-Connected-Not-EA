@@ -30,6 +30,7 @@ const RUN_ID = crypto.randomBytes(4).toString("hex");
 let schemaReady = false;
 let signupReadColumnsReady = false;
 let waitlistViewReady = false;
+let declineNoteReady = false;
 let leagueId: string;
 let commissionerReplitId: string;
 let commissionerAppUserId: string;
@@ -79,6 +80,19 @@ async function makeSignupWithWaitlist(
   return { signupId: signup!.id, waitlistId: waitlist!.id };
 }
 
+async function makeWaitlistOnly(
+  userId: string,
+  position: number,
+): Promise<string> {
+  const [waitlist] = await sql<{ id: string }>(
+    `INSERT INTO waitlist_entry (league_id, user_id, signup_id, status, position)
+     VALUES ($1, $2, NULL, 'waiting', $3)
+     RETURNING id`,
+    [leagueId, userId, position],
+  );
+  return waitlist!.id;
+}
+
 beforeAll(async () => {
   const { rows } = await pool.query<{ ready: boolean }>(
     `SELECT
@@ -106,6 +120,16 @@ beforeAll(async () => {
   );
   signupReadColumnsReady = columnRows[0]?.ready ?? false;
 
+  const { rows: declineNoteRows } = await pool.query<{ ready: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'waitlist_entry'
+         AND column_name = 'decline_note'
+     ) AS ready`,
+  );
+  declineNoteReady = declineNoteRows[0]?.ready ?? false;
+
   const { rows: viewRows } = await pool.query<{ ready: boolean }>(
     `SELECT to_regclass('public.v_waitlist') IS NOT NULL AS ready`,
   );
@@ -125,6 +149,8 @@ beforeAll(async () => {
     `signup-review-accept-${RUN_ID}`,
     `signup-review-decline-${RUN_ID}`,
     `signup-review-existing-${RUN_ID}`,
+    `signup-review-waitlist-accept-${RUN_ID}`,
+    `signup-review-waitlist-decline-${RUN_ID}`,
   ];
   for (const replitId of applicantReplitIds) {
     applicantAppUserIds.push(
@@ -261,6 +287,8 @@ describe("sign-up review authorization", () => {
       expect(waitlistResponse.body).toMatchObject({ total: 1 });
       expect(waitlistResponse.body.data).toEqual([
         expect.objectContaining({
+          waitlist_entry_id: waitlistId,
+          signup_id: signupId,
           league_id: leagueId,
           position: 1,
           status: "waiting",
@@ -369,11 +397,54 @@ describe("POST /api/leagues/:id/signups/:signupId/accept", () => {
       );
     }
   });
+
+  it("accepts a waitlist-only applicant without creating or requiring a signup", async (ctx) => {
+    if (!schemaReady) return ctx.skip();
+    mockGetCurrentUser.mockReturnValue({
+      id: commissionerReplitId,
+      name: "Commissioner",
+    });
+    const applicantId = applicantAppUserIds[4]!;
+    const waitlistId = await makeWaitlistOnly(applicantId, 6);
+
+    try {
+      const response = await request(app).post(
+        `/api/leagues/${leagueId}/signups/${waitlistId}/accept`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        signup_id: null,
+        league_id: leagueId,
+        user_id: applicantId,
+        outcome: "accepted",
+      });
+
+      const [waitlistRow] = await sql<{ status: string; signup_id: string | null }>(
+        `SELECT status, signup_id FROM waitlist_entry WHERE id = $1`,
+        [waitlistId],
+      );
+      expect(waitlistRow).toMatchObject({ status: "placed", signup_id: null });
+
+      const membershipRows = await sql<{ role: string }>(
+        `SELECT role FROM league_membership WHERE league_id = $1 AND user_id = $2`,
+        [leagueId, applicantId],
+      );
+      expect(membershipRows).toHaveLength(1);
+      expect(membershipRows[0]!.role).toBe("gm");
+    } finally {
+      await sql(`DELETE FROM waitlist_entry WHERE id = $1`, [waitlistId]);
+      await sql(
+        `DELETE FROM league_membership WHERE league_id = $1 AND user_id = $2`,
+        [leagueId, applicantId],
+      );
+    }
+  });
 });
 
 describe("POST /api/leagues/:id/signups/:signupId/decline", () => {
   it("marks the applicant declined and removes the signup", async (ctx) => {
-    if (!schemaReady) return ctx.skip();
+    if (!schemaReady || !declineNoteReady) return ctx.skip();
     mockGetCurrentUser.mockReturnValue({
       id: commissionerReplitId,
       name: "Commissioner",
@@ -421,7 +492,7 @@ describe("POST /api/leagues/:id/signups/:signupId/decline", () => {
   });
 
   it("rejects a decline note longer than 500 characters", async (ctx) => {
-    if (!schemaReady) return ctx.skip();
+    if (!schemaReady || !declineNoteReady) return ctx.skip();
     mockGetCurrentUser.mockReturnValue({
       id: commissionerReplitId,
       name: "Commissioner",
@@ -457,6 +528,44 @@ describe("POST /api/leagues/:id/signups/:signupId/decline", () => {
     } finally {
       await sql(`DELETE FROM waitlist_entry WHERE id = $1`, [waitlistId]);
       await sql(`DELETE FROM league_signup WHERE id = $1`, [signupId]);
+    }
+  });
+
+  it("declines a waitlist-only applicant without creating or requiring a signup", async (ctx) => {
+    if (!schemaReady) return ctx.skip();
+    mockGetCurrentUser.mockReturnValue({
+      id: commissionerReplitId,
+      name: "Commissioner",
+    });
+    const applicantId = applicantAppUserIds[5]!;
+    const waitlistId = await makeWaitlistOnly(applicantId, 7);
+
+    try {
+      const response = await request(app).post(
+        `/api/leagues/${leagueId}/signups/${waitlistId}/decline`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        signup_id: null,
+        league_id: leagueId,
+        user_id: applicantId,
+        outcome: "declined",
+      });
+
+      const [waitlistRow] = await sql<{
+        status: string;
+        signup_id: string | null;
+      }>(
+        `SELECT status, signup_id FROM waitlist_entry WHERE id = $1`,
+        [waitlistId],
+      );
+      expect(waitlistRow).toMatchObject({
+        status: "declined",
+        signup_id: null,
+      });
+    } finally {
+      await sql(`DELETE FROM waitlist_entry WHERE id = $1`, [waitlistId]);
     }
   });
 });

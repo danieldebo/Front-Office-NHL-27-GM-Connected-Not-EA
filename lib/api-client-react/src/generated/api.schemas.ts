@@ -985,6 +985,9 @@ export const WaitlistApplicantStatus = {
 } as const;
 
 export interface WaitlistApplicant {
+  waitlist_entry_id: string;
+  /** @nullable */
+  signup_id: string | null;
   league_id: string;
   position: number;
   status: WaitlistApplicantStatus;
@@ -1017,7 +1020,8 @@ export const ApplicantActionResultOutcome = {
 } as const;
 
 export interface ApplicantActionResult {
-  signup_id: string;
+  /** @nullable */
+  signup_id: string | null;
   user_id: string;
   league_id: string;
   outcome: ApplicantActionResultOutcome;

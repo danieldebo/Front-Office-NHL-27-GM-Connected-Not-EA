@@ -8,6 +8,9 @@
 import type { WaitlistApplicantStatus } from './waitlistApplicantStatus';
 
 export interface WaitlistApplicant {
+  waitlist_entry_id: string;
+  /** @nullable */
+  signup_id: string | null;
   league_id: string;
   position: number;
   status: WaitlistApplicantStatus;
