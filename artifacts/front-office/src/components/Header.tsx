@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'wouter';
-import { useClerk } from '@clerk/react';
+import { useAuth, useClerk } from '@clerk/react';
 import type { League } from '@workspace/api-client-react';
 
 export default function Header({ league }: { league?: League }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
 
   useEffect(() => {
@@ -72,7 +73,16 @@ export default function Header({ league }: { league?: League }) {
               Manage
             </Link>
           )}
-          <button className="nav-link" onClick={() => signOut({ redirectUrl: '/' })}>Sign out</button>
+          {isLoaded && isSignedIn ? (
+            <button className="nav-link" onClick={() => signOut({ redirectUrl: '/' })}>Sign out</button>
+          ) : (
+            <Link
+              href={`/sign-in?redirect_url=${encodeURIComponent(location)}`}
+              className="nav-link"
+            >
+              Sign in
+            </Link>
+          )}
         </nav>
       </div>
     </header>

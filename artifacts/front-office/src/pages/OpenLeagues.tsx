@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@clerk/react';
+import Header from '@/components/Header';
 import SignupDrawer, { SignupFormValues } from '@/components/SignupDrawer';
 import { resolvePublicCode } from '@workspace/api-client-react';
 
@@ -234,6 +235,7 @@ export default function OpenLeagues() {
 
   return (
     <>
+      <Header />
       {/* Hero slab */}
       <section className="slab" style={{ '--slab-wrap-grid': 'none' } as React.CSSProperties}>
         <div className="wrap" style={{ display: 'block', padding: '32px 20px 34px' }}>

@@ -17,6 +17,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
 import { getCurrentUser } from "../server/auth";
 import { can } from "../server/authz";
+import { repairActiveSeasonSeats } from "../server/seasonProvisioning";
 import {
   notFound,
   unauthorized,
@@ -466,6 +467,9 @@ router.get(
 
     const leagueCheck = await pool.query(`SELECT id FROM league WHERE id = $1`, [leagueId]);
     if (!leagueCheck.rows[0]) { notFound(res, "League not found"); return; }
+
+    // Self-heal seasons created before the club catalog was available in production.
+    await repairActiveSeasonSeats(leagueId);
 
     // Use the active season's team_seasons
     const seasonRow = await pool.query<{ id: string }>(

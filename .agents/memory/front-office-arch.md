@@ -21,6 +21,14 @@ Drizzle ORM is used ONLY for the `sessions` and `users` auth tables (see `lib/db
 
 **How to apply:** New domain queries go via `pool` from `@workspace/db`. Use `executeSql` for any schema changes, not `drizzle push`.
 
+## Required reference data must be provisioned by domain transactions
+
+Do not assume development seed rows will be present in production. Any reference rows required to complete a user-facing write must be ensured idempotently inside that write’s transaction, while preserving historical rows.
+
+**Why:** Production had the season schema but not the club catalog seed data, so season creation returned success while producing zero franchise seats.
+
+**How to apply:** Validate the required key set rather than total table cardinality, because historical reference rows may legitimately remain.
+
 ## Orval codegen patch (ListGamesParams TS2308)
 `lib/api-spec/patch-api-zod-index.mjs` must run after every Orval codegen. Orval v8.22 emits both a Zod const AND a TypeScript type named `ListGamesParams` (when an operation has both path + query params), causing TS2308 re-export collision. The patch rewrites `lib/api-zod/src/index.ts` with explicit `export type {}` lines that exclude `ListGamesParams`.
 

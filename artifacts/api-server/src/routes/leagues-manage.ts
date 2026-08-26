@@ -21,6 +21,7 @@ import {
   UpdateLeagueBody,
   CreateSeasonBody,
 } from "@workspace/api-zod";
+import { ensureClubCatalog, provisionSeasonSeats } from "../server/seasonProvisioning";
 
 const router: IRouter = Router();
 
@@ -104,7 +105,7 @@ router.patch(
       return;
     }
 
-    const { leagueId } = req.params;
+    const leagueId = req.params.leagueId as string;
 
     const leagueRow = await pool.query<{ id: string; owner_user_id: string }>(
       `SELECT id, owner_user_id FROM league WHERE id = $1`,
@@ -181,7 +182,7 @@ router.post(
       return;
     }
 
-    const { leagueId } = req.params;
+    const leagueId = req.params.leagueId as string;
 
     const leagueRow = await pool.query<{
       id: string;
@@ -221,16 +222,16 @@ router.post(
       tiebreakers = ["points", "row", "wins", "goal_diff", "goals_for"],
     } = parsed.data;
 
-    // Determine next ordinal
-    const ordinalRow = await pool.query<{ max_ord: string | null }>(
-      `SELECT MAX(ordinal) AS max_ord FROM season WHERE league_id = $1`,
-      [leagueId]
-    );
-    const nextOrdinal = (parseInt(ordinalRow.rows[0]?.max_ord ?? "0", 10)) + 1;
-
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [leagueId]);
+
+      const ordinalRow = await client.query<{ max_ord: string | null }>(
+        `SELECT MAX(ordinal) AS max_ord FROM season WHERE league_id = $1`,
+        [leagueId]
+      );
+      const nextOrdinal = (parseInt(ordinalRow.rows[0]?.max_ord ?? "0", 10)) + 1;
 
       // Deactivate any currently active season
       await client.query(
@@ -257,56 +258,8 @@ router.post(
 
       const seasonId = seasonRow.rows[0]!.id;
 
-      // Load all 32 NHL clubs ordered by conference + division + abbrev
-      const clubsRow = await client.query<{
-        id: string;
-        abbrev: string;
-        name: string;
-        conference: string | null;
-        division: string | null;
-      }>(
-        `SELECT id, abbrev, name, conference, division
-           FROM nhl_club
-          ORDER BY conference, division, abbrev`
-      );
-
-      // For each NHL club: find or create a franchise, then create team_season
-      for (const club of clubsRow.rows) {
-        // Reuse an existing franchise from a previous season if one exists,
-        // otherwise create a fresh one.
-        let franchiseId: string;
-
-        const existingFranchise = await client.query<{ id: string }>(
-          `SELECT f.id FROM franchise f
-            WHERE f.league_id = $1
-              AND EXISTS (
-                SELECT 1 FROM team_season ts
-                 WHERE ts.franchise_id = f.id AND ts.nhl_club_id = $2
-              )
-            LIMIT 1`,
-          [leagueId, club.id]
-        );
-
-        if (existingFranchise.rows[0]) {
-          franchiseId = existingFranchise.rows[0].id;
-        } else {
-          const newFranchise = await client.query<{ id: string }>(
-            `INSERT INTO franchise (league_id, name, founded_season_id)
-             VALUES ($1, $2, $3) RETURNING id`,
-            [leagueId, `${club.name}`, seasonId]
-          );
-          franchiseId = newFranchise.rows[0]!.id;
-        }
-
-        // Create team_season for this season
-        await client.query(
-          `INSERT INTO team_season
-             (season_id, franchise_id, nhl_club_id, conference, division, seat_status)
-           VALUES ($1, $2, $3, $4, $5, 'open')
-           ON CONFLICT (season_id, franchise_id) DO NOTHING`,
-          [seasonId, franchiseId, club.id, club.conference, club.division]
-        );
-      }
+      await ensureClubCatalog(client);
+      await provisionSeasonSeats(client, leagueId, seasonId);
 
       await client.query("COMMIT");
 
