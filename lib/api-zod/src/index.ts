@@ -53,6 +53,15 @@ export type { LeagueHub } from "./generated/types/leagueHub";
 export type { LeagueListing } from "./generated/types/leagueListing";
 export type { LeagueListingCompetitiveness } from "./generated/types/leagueListingCompetitiveness";
 export type { LeagueListingPlatform } from "./generated/types/leagueListingPlatform";
+export type { LeagueSettingsHistory } from "./generated/types/leagueSettingsHistory";
+export type { LeagueSettingsInput } from "./generated/types/leagueSettingsInput";
+export type { LeagueSettingsInputPlatform } from "./generated/types/leagueSettingsInputPlatform";
+export type { LeagueSettingsInputPlayoffFormat } from "./generated/types/leagueSettingsInputPlayoffFormat";
+export type { LeagueSettingsInputRosterSource } from "./generated/types/leagueSettingsInputRosterSource";
+export type { LeagueSettingsInputScheduleFormat } from "./generated/types/leagueSettingsInputScheduleFormat";
+export type { LeagueSettingsInputScheduleSettings } from "./generated/types/leagueSettingsInputScheduleSettings";
+export type { LeagueSettingsInputSliderPresets } from "./generated/types/leagueSettingsInputSliderPresets";
+export type { LeagueSettingsVersion } from "./generated/types/leagueSettingsVersion";
 // LeagueSignup intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // LeagueSignupInput intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { LeagueSignupInputStatedDivision } from "./generated/types/leagueSignupInputStatedDivision";

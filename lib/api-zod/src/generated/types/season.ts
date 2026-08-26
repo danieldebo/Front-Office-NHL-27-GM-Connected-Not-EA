@@ -9,6 +9,11 @@
 export interface Season {
   id: string;
   league_id?: string;
+  /**
+     * Immutable league settings version bound to this season.
+     * @nullable
+     */
+  settings_version_id?: string | null;
   /** @minimum 1 */
   ordinal: number;
   label: string;

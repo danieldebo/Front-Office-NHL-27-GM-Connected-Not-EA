@@ -9,6 +9,7 @@
  *
  * Every commissioner action writes to audit_log with a mandatory reason.
  */
+import { createHash } from "crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
 import type { PoolClient } from "pg";
@@ -22,7 +23,6 @@ import {
   conflict,
   unprocessable,
 } from "../server/errors";
-import { idempotencyMiddleware } from "../middlewares/idempotency";
 import { rateLimiter } from "../middlewares/rateLimiter";
 import { generateSchedule, checkScheduleBalance } from "../server/core/schedule";
 import {
@@ -39,36 +39,34 @@ const router: IRouter = Router();
 async function getLeagueOwnerBySeasonId(
   seasonId: string
 ): Promise<{ leagueId: string; ownerId: string } | null> {
-  const { rows } = await pool.query<{ league_id: string; owner_replit_id: string }>(
-    `SELECT s.league_id, u.replit_id AS owner_replit_id
+  const { rows } = await pool.query<{ league_id: string; owner_user_id: string }>(
+    `SELECT s.league_id, l.owner_user_id
        FROM season s
        JOIN league l ON l.id = s.league_id
-       JOIN app_user u ON u.id = l.owner_user_id
       WHERE s.id = $1`,
     [seasonId]
   );
   const row = rows[0];
   if (!row) return null;
-  return { leagueId: row.league_id, ownerId: row.owner_replit_id };
+  return { leagueId: row.league_id, ownerId: row.owner_user_id };
 }
 
 async function getLeagueOwnerByGameId(
   gameId: string
 ): Promise<{ leagueId: string; ownerId: string; seasonId: string } | null> {
   const { rows } = await pool.query<{
-    league_id: string; owner_replit_id: string; season_id: string;
+    league_id: string; owner_user_id: string; season_id: string;
   }>(
-    `SELECT s.league_id, u.replit_id AS owner_replit_id, g.season_id
+    `SELECT s.league_id, l.owner_user_id, g.season_id
        FROM game g
        JOIN season s ON s.id = g.season_id
        JOIN league l ON l.id = s.league_id
-       JOIN app_user u ON u.id = l.owner_user_id
       WHERE g.id = $1`,
     [gameId]
   );
   const row = rows[0];
   if (!row) return null;
-  return { leagueId: row.league_id, ownerId: row.owner_replit_id, seasonId: row.season_id };
+  return { leagueId: row.league_id, ownerId: row.owner_user_id, seasonId: row.season_id };
 }
 
 async function writeAuditLog(client: PoolClient, opts: {
@@ -81,11 +79,12 @@ async function writeAuditLog(client: PoolClient, opts: {
   after?: unknown;
   reason: string;
 }): Promise<void> {
-  // Look up app_user.id from replit_id for the actor
+  // Callers pass app_user.id when available; retain replit_id lookup for older
+  // routes while ensuring audit records remain domain UUIDs.
   let appUserId: string | null = null;
   if (opts.actorUserId) {
     const r = await client.query<{ id: string }>(
-      `SELECT id FROM app_user WHERE replit_id = $1`,
+      `SELECT id FROM app_user WHERE id::text = $1 OR replit_id = $1`,
       [opts.actorUserId]
     );
     appUserId = r.rows[0]?.id ?? null;
@@ -112,7 +111,6 @@ async function writeAuditLog(client: PoolClient, opts: {
 
 router.post(
   "/seasons/:seasonId/schedule",
-  idempotencyMiddleware,
   rateLimiter(),
   async (req: Request, res: Response): Promise<void> => {
     const user = getCurrentUser(req);
@@ -127,27 +125,50 @@ router.post(
       forbidden(res, "Only the league owner can generate a schedule"); return;
     }
 
-    // Reject if games already exist for this season
-    const existing = await pool.query<{ count: string }>(
-      `SELECT COUNT(*) AS count FROM game WHERE season_id = $1`,
-      [seasonId]
-    );
-    if (parseInt(existing.rows[0]?.count ?? "0", 10) > 0) {
-      conflict(res, "A schedule already exists for this season. Delete games first or use postpone/void on individual games.");
-      return;
-    }
-
     const parsed = GenerateScheduleBody.safeParse(req.body);
     if (!parsed.success) { badRequest(res, parsed.error.message); return; }
 
     const { week_duration_days = 7, start_date } = parsed.data;
+    const rawKey = req.headers["idempotency-key"];
+    const idempotencyKey = typeof rawKey === "string" && rawKey.length <= 255
+      ? rawKey : null;
+    const requestDigest = createHash("sha256")
+      .update(JSON.stringify(req.body ?? ""))
+      .digest("hex");
+    const actorAppUserId = user.appUserId ?? (
+      await pool.query<{ id: string }>(
+        `SELECT id FROM app_user WHERE id::text = $1 OR replit_id = $1`,
+        [user.id],
+      )
+    ).rows[0]?.id ?? null;
 
     // Load season
+    // Deployments that have not yet applied the settings migration retain the
+    // legacy season rules; once present, the immutable season binding wins.
+    const settingsBinding = await pool.query<{ available: boolean }>(
+      `SELECT to_regclass('public.league_settings_version') IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'public' AND table_name = 'season'
+                   AND column_name = 'settings_version_id'
+              ) AS available`,
+    );
     const seasonRow = await pool.query<{
       games_per_matchup: number;
       starts_on: string | null;
+      team_count: number | null;
+      schedule_format: string | null;
+      schedule_settings: Record<string, unknown> | null;
     }>(
-      `SELECT games_per_matchup, starts_on FROM season WHERE id = $1`,
+      settingsBinding.rows[0]?.available
+        ? `SELECT s.games_per_matchup, s.starts_on, v.team_count,
+                  v.schedule_format, v.schedule_settings
+             FROM season s
+             LEFT JOIN league_settings_version v ON v.id = s.settings_version_id
+            WHERE s.id = $1`
+        : `SELECT games_per_matchup, starts_on, NULL::int AS team_count,
+                  NULL::text AS schedule_format, NULL::jsonb AS schedule_settings
+             FROM season WHERE id = $1`,
       [seasonId]
     );
     const season = seasonRow.rows[0];
@@ -171,7 +192,7 @@ router.post(
       badRequest(res, "Invalid start_date"); return;
     }
 
-    // Load all 32 team_seasons for this season
+    // Load the configured team seats for this season.
     const teamsRow = await pool.query<{ id: string }>(
       `SELECT id FROM team_season WHERE season_id = $1 ORDER BY id`,
       [seasonId]
@@ -181,8 +202,33 @@ router.post(
     if (teams.length < 2) {
       unprocessable(res, "Need at least 2 team seats to generate a schedule"); return;
     }
-    if (teams.length % 2 !== 0) {
-      unprocessable(res, "Team count must be even"); return;
+    if (season.team_count !== null && teams.length !== season.team_count) {
+      unprocessable(
+        res,
+        `Season has ${teams.length} seats but active league settings require ${season.team_count}`,
+      );
+      return;
+    }
+
+    const configuredGamesPerMatchup =
+      season.schedule_format === "double_round_robin" ? 2 :
+      season.schedule_format === "round_robin" ? 1 :
+      season.schedule_format === "custom"
+        ? Number(season.schedule_settings?.games_per_matchup)
+        : season.games_per_matchup;
+    if (!Number.isInteger(configuredGamesPerMatchup) ||
+        configuredGamesPerMatchup < 1 || configuredGamesPerMatchup > 8) {
+      unprocessable(res, "Active schedule settings have an invalid games_per_matchup");
+      return;
+    }
+    const configuredWeekDuration = season.schedule_settings?.week_duration_days;
+    const effectiveWeekDuration = configuredWeekDuration === undefined
+      ? week_duration_days
+      : Number(configuredWeekDuration);
+    if (!Number.isInteger(effectiveWeekDuration) ||
+        effectiveWeekDuration < 1 || effectiveWeekDuration > 31) {
+      unprocessable(res, "Active schedule settings have an invalid week_duration_days");
+      return;
     }
 
     // Generate the balanced schedule (pure function)
@@ -190,16 +236,16 @@ router.post(
     try {
       result = generateSchedule({
         teams,
-        gamesPerMatchup: season.games_per_matchup,
+        gamesPerMatchup: configuredGamesPerMatchup,
         seasonStartDate,
-        weekDurationDays: week_duration_days,
+        weekDurationDays: effectiveWeekDuration,
       });
     } catch (e: unknown) {
       unprocessable(res, e instanceof Error ? e.message : "Schedule generation failed"); return;
     }
 
     // Verify balance invariants before touching the DB
-    const balanceError = checkScheduleBalance(result.games, teams.length, season.games_per_matchup);
+    const balanceError = checkScheduleBalance(result.games, teams.length, configuredGamesPerMatchup);
     if (balanceError) {
       // This is an internal bug; 500 is appropriate
       res.status(500).json({
@@ -216,6 +262,50 @@ router.post(
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      if (idempotencyKey && actorAppUserId) {
+        await client.query(
+          `SELECT pg_advisory_xact_lock(hashtext($1))`,
+          [`idempotency:${actorAppUserId}:${idempotencyKey}`],
+        );
+        const prior = await client.query<{
+          request_digest: string;
+          response_status: number;
+          response_body: Record<string, unknown>;
+        }>(
+          `SELECT request_digest, response_status, response_body
+             FROM idempotency_key
+            WHERE user_id = $1 AND key = $2`,
+          [actorAppUserId, idempotencyKey],
+        );
+        if (prior.rows[0]) {
+          await client.query("COMMIT");
+          if (prior.rows[0].request_digest !== requestDigest) {
+            res.status(422).json({
+              type: "https://frontoffice.example/probs/422",
+              title: "Unprocessable Entity",
+              status: 422,
+              detail: "This Idempotency-Key was previously used with a different request body.",
+              trace_id: req.id,
+            });
+            return;
+          }
+          res.status(prior.rows[0].response_status).json(prior.rows[0].response_body);
+          return;
+        }
+      }
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`schedule:${seasonId}`]);
+
+      // Serialize per season and re-check after acquiring the lock. This keeps
+      // distinct idempotency keys from generating two schedules concurrently.
+      const existing = await client.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM game WHERE season_id = $1`,
+        [seasonId],
+      );
+      if (parseInt(existing.rows[0]?.count ?? "0", 10) > 0) {
+        await client.query("ROLLBACK");
+        conflict(res, "A schedule already exists for this season. Delete games first or use postpone/void on individual games.");
+        return;
+      }
 
       // Bulk insert using unnest for efficiency
       const homeIds = result.games.map((g) => g.homeTeamSeasonId);
@@ -242,7 +332,7 @@ router.post(
 
       // Write audit entry
       await writeAuditLog(client, {
-        actorUserId: user.id,
+        actorUserId: user.appUserId ?? user.id,
         leagueId: league.leagueId,
         entityType: "season",
         entityId: seasonId,
@@ -250,21 +340,34 @@ router.post(
         after: {
           games_created: result.games.length,
           total_weeks: result.totalWeeks,
-          games_per_matchup: season.games_per_matchup,
+           games_per_matchup: configuredGamesPerMatchup,
+           schedule_format: season.schedule_format ?? "legacy_season",
           season_start: seasonStartDate.toISOString(),
         },
         reason: `Commissioner generated a ${result.games.length}-game schedule`,
       });
 
+      const response = {
+        total_weeks: result.totalWeeks,
+        season_start: seasonStartDate.toISOString(),
+        total_rounds: result.totalRounds,
+        games_created: result.games.length,
+        week_duration_days: effectiveWeekDuration,
+      };
+      let responseBody = response;
+      if (idempotencyKey && actorAppUserId) {
+        const persisted = await client.query<typeof response & Record<string, unknown>>(
+          `INSERT INTO idempotency_key
+             (user_id, key, request_digest, response_status, response_body, expires_at)
+           VALUES ($1,$2,$3,201,$4,NOW() + INTERVAL '24 hours')
+           RETURNING response_body`,
+          [actorAppUserId, idempotencyKey, requestDigest, JSON.stringify(response)],
+        );
+        responseBody = persisted.rows[0]!.response_body as typeof response;
+      }
       await client.query("COMMIT");
 
-      res.status(201).json({
-        games_created: result.games.length,
-        total_weeks: result.totalWeeks,
-        total_rounds: result.totalRounds,
-        season_start: seasonStartDate.toISOString(),
-        week_duration_days,
-      });
+      res.status(201).json(responseBody);
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
@@ -397,7 +500,7 @@ router.patch(
       );
 
       await writeAuditLog(client, {
-        actorUserId: user.id,
+        actorUserId: user.appUserId ?? user.id,
         leagueId: league.leagueId,
         entityType: "game",
         entityId: gameId,
@@ -465,7 +568,7 @@ router.post(
       );
 
       await writeAuditLog(client, {
-        actorUserId: user.id,
+        actorUserId: user.appUserId ?? user.id,
         leagueId: league.leagueId,
         entityType: "game",
         entityId: gameId,
@@ -548,7 +651,7 @@ router.post(
       }
 
       await writeAuditLog(client, {
-        actorUserId: user.id,
+        actorUserId: user.appUserId ?? user.id,
         leagueId: league.leagueId,
         entityType: "game",
         entityId: gameId,

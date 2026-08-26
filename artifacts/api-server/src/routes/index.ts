@@ -12,6 +12,7 @@ import discoveryRouter from "./discovery";
 import featureRequestsRouter from "./feature-requests";
 import dqRouter from "./dq";
 import usersRouter from "./users";
+import leagueSettingsRouter from "./league-settings";
 
 const router: IRouter = Router();
 
@@ -20,6 +21,7 @@ router.use(usersRouter);
 router.use(discoveryRouter);   // before leaguesRouter — /leagues/open must not match /leagues/:leagueId
 router.use(leaguesRouter);
 router.use(leaguesManageRouter);
+router.use(leagueSettingsRouter);
 router.use(seatsRouter);
 router.use(rulebookRouter);
 router.use(competitionRouter);

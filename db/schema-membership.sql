@@ -32,7 +32,7 @@ VALUES ('1.2.0', 'Membership provisioning, seat limit, relationship tiers, commi
 -- (a league may run 16 or 20), but it is enforced, not advisory.
 
 ALTER TABLE season
-    ADD COLUMN max_seats INT NOT NULL DEFAULT 32
+    ADD COLUMN IF NOT EXISTS max_seats INT NOT NULL DEFAULT 32
         CHECK (max_seats BETWEEN 2 AND 32);
 
 -- Enforce the cap at write time. A season can never hold more team_seasons than
@@ -42,7 +42,11 @@ DECLARE
     current_seats INT;
     limit_seats   INT;
 BEGIN
-    SELECT max_seats INTO limit_seats FROM season WHERE id = NEW.season_id;
+    SELECT COALESCE(v.team_count, s.max_seats)
+      INTO limit_seats
+      FROM season s
+      LEFT JOIN league_settings_version v ON v.id = s.settings_version_id
+     WHERE s.id = NEW.season_id;
     SELECT COUNT(*) INTO current_seats
         FROM team_season WHERE season_id = NEW.season_id;
     IF current_seats >= limit_seats THEN
@@ -204,11 +208,13 @@ WHERE lm.deleted_at IS NULL
 -- BLOCK: a season must never exceed its seat limit (trigger should prevent it;
 -- this catches a limit lowered below current occupancy).
 CREATE OR REPLACE VIEW dq.check_seat_limit AS
-SELECT s.id AS season_id, s.max_seats, COUNT(ts.id) AS seats_used
+SELECT s.id AS season_id, COALESCE(v.team_count, s.max_seats) AS max_seats,
+       COUNT(ts.id) AS seats_used
 FROM season s
 JOIN team_season ts ON ts.season_id = s.id
-GROUP BY s.id, s.max_seats
-HAVING COUNT(ts.id) > s.max_seats;
+LEFT JOIN league_settings_version v ON v.id = s.settings_version_id
+GROUP BY s.id, s.max_seats, v.team_count
+HAVING COUNT(ts.id) > COALESCE(v.team_count, s.max_seats);
 
 -- BLOCK: exactly one active template per league per kind.
 CREATE OR REPLACE VIEW dq.check_template_cardinality AS

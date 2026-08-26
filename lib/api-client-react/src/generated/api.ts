@@ -48,6 +48,9 @@ import type {
   League,
   LeagueHub,
   LeagueListing,
+  LeagueSettingsHistory,
+  LeagueSettingsInput,
+  LeagueSettingsVersion,
   LeagueSignup,
   LeagueSignupInput,
   ListDqFindingsParams,
@@ -1023,7 +1026,7 @@ export const getUpdateLeagueUrl = (leagueId: string,) => {
 }
 
 /**
- * @summary Update league settings (commissioner only)
+ * @summary Update league presentation metadata (commissioner only)
  */
 export const updateLeague = async (leagueId: string,
     updateLeagueInput: UpdateLeagueInput, options?: RequestInit): Promise<League> => {
@@ -1073,7 +1076,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateLeagueMutationError = ErrorType<Problem>
 
     /**
- * @summary Update league settings (commissioner only)
+ * @summary Update league presentation metadata (commissioner only)
  */
 export const useUpdateLeague = <TError = ErrorType<Problem>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateLeague>>, TError,{leagueId: string;data: BodyType<UpdateLeagueInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1085,6 +1088,233 @@ export const useUpdateLeague = <TError = ErrorType<Problem>,
       > => {
       return useMutation(getUpdateLeagueMutationOptions(options));
     }
+
+export const getGetLeagueSettingsUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/settings`
+}
+
+/**
+ * @summary Get the active immutable settings version (league members)
+ */
+export const getLeagueSettings = async (leagueId: string, options?: RequestInit): Promise<LeagueSettingsVersion> => {
+
+  return customFetch<LeagueSettingsVersion>(getGetLeagueSettingsUrl(leagueId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLeagueSettingsQueryKey = (leagueId: string,) => {
+    return [
+    `/api/leagues/${leagueId}/settings`
+    ] as const;
+    }
+
+
+export const getGetLeagueSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getLeagueSettings>>, TError = ErrorType<Problem>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeagueSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLeagueSettingsQueryKey(leagueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeagueSettings>>> = ({ signal }) => getLeagueSettings(leagueId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLeagueSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLeagueSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getLeagueSettings>>>
+export type GetLeagueSettingsQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary Get the active immutable settings version (league members)
+ */
+
+export function useGetLeagueSettings<TData = Awaited<ReturnType<typeof getLeagueSettings>>, TError = ErrorType<Problem>>(
+ leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeagueSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLeagueSettingsQueryOptions(leagueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLeagueSettingsVersionUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/settings/versions`
+}
+
+/**
+ * Existing settings versions are never updated or deleted.
+ * @summary Append and activate a new settings version (commissioner only)
+ */
+export const createLeagueSettingsVersion = async (leagueId: string,
+    leagueSettingsInput: LeagueSettingsInput, options?: RequestInit): Promise<LeagueSettingsVersion> => {
+
+  return customFetch<LeagueSettingsVersion>(getCreateLeagueSettingsVersionUrl(leagueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(leagueSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLeagueSettingsVersionMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<LeagueSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<LeagueSettingsInput>}, TContext> => {
+
+const mutationKey = ['createLeagueSettingsVersion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, {leagueId: string;data: BodyType<LeagueSettingsInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  createLeagueSettingsVersion(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLeagueSettingsVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createLeagueSettingsVersion>>>
+    export type CreateLeagueSettingsVersionMutationBody = BodyType<LeagueSettingsInput>
+    export type CreateLeagueSettingsVersionMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Append and activate a new settings version (commissioner only)
+ */
+export const useCreateLeagueSettingsVersion = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<LeagueSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLeagueSettingsVersion>>,
+        TError,
+        {leagueId: string;data: BodyType<LeagueSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLeagueSettingsVersionMutationOptions(options));
+    }
+
+export const getListLeagueSettingsHistoryUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/settings/history`
+}
+
+/**
+ * @summary List immutable settings history newest first (league members)
+ */
+export const listLeagueSettingsHistory = async (leagueId: string, options?: RequestInit): Promise<LeagueSettingsHistory> => {
+
+  return customFetch<LeagueSettingsHistory>(getListLeagueSettingsHistoryUrl(leagueId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeagueSettingsHistoryQueryKey = (leagueId: string,) => {
+    return [
+    `/api/leagues/${leagueId}/settings/history`
+    ] as const;
+    }
+
+
+export const getListLeagueSettingsHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueSettingsHistory>>, TError = ErrorType<Problem>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSettingsHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeagueSettingsHistoryQueryKey(leagueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueSettingsHistory>>> = ({ signal }) => listLeagueSettingsHistory(leagueId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeagueSettingsHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeagueSettingsHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listLeagueSettingsHistory>>>
+export type ListLeagueSettingsHistoryQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary List immutable settings history newest first (league members)
+ */
+
+export function useListLeagueSettingsHistory<TData = Awaited<ReturnType<typeof listLeagueSettingsHistory>>, TError = ErrorType<Problem>>(
+ leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSettingsHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeagueSettingsHistoryQueryOptions(leagueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetLeagueHubUrl = (leagueId: string,) => {
 
@@ -1699,7 +1929,7 @@ export const getCreateSeasonUrl = (leagueId: string,) => {
 }
 
 /**
- * @summary Create a new season and generate 32 franchise seats (commissioner only)
+ * @summary Create a new season and provision the configured number of franchise seats (commissioner only)
  */
 export const createSeason = async (leagueId: string,
     createSeasonInput: CreateSeasonInput, options?: RequestInit): Promise<Season> => {
@@ -1749,7 +1979,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateSeasonMutationError = ErrorType<Problem>
 
     /**
- * @summary Create a new season and generate 32 franchise seats (commissioner only)
+ * @summary Create a new season and provision the configured number of franchise seats (commissioner only)
  */
 export const useCreateSeason = <TError = ErrorType<Problem>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSeason>>, TError,{leagueId: string;data: BodyType<CreateSeasonInput>}, TContext>, request?: SecondParameter<typeof customFetch>}

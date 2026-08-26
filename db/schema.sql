@@ -151,7 +151,8 @@ CREATE TABLE season (
     salary_cap_cents    BIGINT,
     roster_min          INT,
     roster_max          INT,
-    games_per_matchup   INT NOT NULL DEFAULT 1,
+    games_per_matchup   INT NOT NULL DEFAULT 1 CHECK (games_per_matchup BETWEEN 1 AND 8),
+    max_seats           INT NOT NULL DEFAULT 32 CHECK (max_seats BETWEEN 3 AND 32),
     points_win          INT NOT NULL DEFAULT 2,
     points_ot_loss      INT NOT NULL DEFAULT 1,
     points_reg_loss     INT NOT NULL DEFAULT 0,
@@ -225,6 +226,154 @@ CREATE TABLE league_membership (
     left_at     TIMESTAMPTZ,
     UNIQUE (league_id, user_id)
 );
+
+-- Immutable, versioned operational settings.  The version rows are append-only;
+-- the small pointer table is the only mutable part and guarantees exactly one
+-- active version per league.
+CREATE TABLE league_settings_version (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    league_id           UUID NOT NULL REFERENCES league(id),
+    version             INT NOT NULL CHECK (version > 0),
+    ea_league_id        TEXT,
+    platform            TEXT NOT NULL DEFAULT 'both'
+                            CHECK (platform IN ('psn', 'xbox', 'both')),
+    team_count          INT NOT NULL DEFAULT 32 CHECK (team_count BETWEEN 3 AND 32),
+    roster_source       TEXT NOT NULL DEFAULT 'manual'
+                            CHECK (roster_source IN ('manual', 'ea', 'csv_import')),
+    schedule_format     TEXT NOT NULL DEFAULT 'round_robin'
+                            CHECK (schedule_format IN ('round_robin', 'double_round_robin', 'custom')),
+    schedule_settings   JSONB NOT NULL DEFAULT '{}'::jsonb
+                            CHECK (jsonb_typeof(schedule_settings) = 'object'),
+    playoff_format      JSONB NOT NULL DEFAULT '{}'::jsonb
+                            CHECK (jsonb_typeof(playoff_format) = 'object'),
+    salary_cap_cents    BIGINT CHECK (salary_cap_cents IS NULL OR salary_cap_cents >= 0),
+    roster_min          INT CHECK (roster_min IS NULL OR roster_min >= 1),
+    roster_max          INT CHECK (roster_max IS NULL OR roster_max >= 1),
+    divisions           JSONB NOT NULL DEFAULT '[]'::jsonb
+                            CHECK (jsonb_typeof(divisions) = 'array'),
+    conferences         JSONB NOT NULL DEFAULT '[]'::jsonb
+                            CHECK (jsonb_typeof(conferences) = 'array'),
+    rules_notes         TEXT,
+    slider_presets      JSONB NOT NULL DEFAULT '{}'::jsonb
+                            CHECK (jsonb_typeof(slider_presets) = 'object'),
+    migrated_from_season_id UUID UNIQUE REFERENCES season(id),
+    changed_by          UUID NOT NULL REFERENCES app_user(id),
+    changed_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    change_summary      TEXT NOT NULL CHECK (length(btrim(change_summary)) > 0),
+    UNIQUE (league_id, version),
+    UNIQUE (league_id, id),
+    CHECK (roster_min IS NULL OR roster_max IS NULL OR roster_min <= roster_max),
+    CHECK (
+      schedule_format <> 'custom'
+      OR (
+        schedule_settings ? 'games_per_matchup'
+        AND jsonb_typeof(schedule_settings->'games_per_matchup') = 'number'
+        AND (schedule_settings->>'games_per_matchup')::INT BETWEEN 1 AND 8
+      )
+    )
+);
+
+CREATE TABLE league_settings_active (
+    league_id           UUID PRIMARY KEY REFERENCES league(id) ON DELETE CASCADE,
+    settings_version_id UUID NOT NULL UNIQUE,
+    FOREIGN KEY (league_id, settings_version_id)
+        REFERENCES league_settings_version(league_id, id)
+);
+
+CREATE FUNCTION reject_league_settings_version_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'league_settings_version is append-only';
+END;
+$$;
+CREATE TRIGGER league_settings_version_append_only
+BEFORE UPDATE OR DELETE ON league_settings_version
+FOR EACH ROW EXECUTE FUNCTION reject_league_settings_version_mutation();
+
+-- A season keeps the ruleset that created it even after league-wide settings
+-- advance. The composite FK prevents accidentally binding a season to another
+-- league's version.
+ALTER TABLE season ADD COLUMN settings_version_id UUID;
+ALTER TABLE season
+    ADD CONSTRAINT season_settings_version_same_league
+    FOREIGN KEY (league_id, settings_version_id)
+    REFERENCES league_settings_version(league_id, id);
+
+-- Preserve every existing season independently. Historical seasons may have
+-- different seat, cap, roster, and matchup rules, so sharing one league-wide
+-- backfill version would rewrite history.
+WITH legacy AS (
+    SELECT s.*,
+           ROW_NUMBER() OVER (PARTITION BY s.league_id ORDER BY s.ordinal, s.id) AS seq
+      FROM season s
+),
+inserted AS (
+    INSERT INTO league_settings_version (
+        league_id, version, team_count, schedule_format, schedule_settings,
+        salary_cap_cents, roster_min, roster_max, migrated_from_season_id,
+        changed_by, change_summary
+    )
+    SELECT s.league_id, s.seq,
+           s.max_seats,
+           CASE s.games_per_matchup
+             WHEN 1 THEN 'round_robin'
+             WHEN 2 THEN 'double_round_robin'
+             ELSE 'custom'
+           END,
+           CASE WHEN s.games_per_matchup IN (1, 2) THEN '{}'::jsonb
+                ELSE jsonb_build_object('games_per_matchup', s.games_per_matchup)
+           END,
+           s.salary_cap_cents, s.roster_min, s.roster_max, s.id,
+           l.owner_user_id, 'Initial settings migrated for ' || s.label
+      FROM legacy s
+      JOIN league l ON l.id = s.league_id
+    RETURNING id, league_id, migrated_from_season_id
+)
+UPDATE season s
+   SET settings_version_id = i.id
+  FROM inserted i
+ WHERE i.migrated_from_season_id = s.id;
+
+-- The active pointer is a distinct snapshot for future seasons. It starts from
+-- the latest/active season when one exists without sharing that season's row.
+WITH latest AS (
+    SELECT DISTINCT ON (l.id)
+           l.id AS league_id, l.owner_user_id,
+           v.platform, v.team_count, v.roster_source, v.schedule_format,
+           v.schedule_settings, v.playoff_format, v.salary_cap_cents,
+           v.roster_min, v.roster_max, v.divisions, v.conferences,
+           v.slider_presets
+      FROM league l
+      LEFT JOIN season s ON s.league_id = l.id
+      LEFT JOIN league_settings_version v ON v.migrated_from_season_id = s.id
+     ORDER BY l.id, s.is_active DESC NULLS LAST, s.ordinal DESC NULLS LAST
+),
+inserted AS (
+    INSERT INTO league_settings_version (
+        league_id, version, platform, team_count, roster_source,
+        schedule_format, schedule_settings, playoff_format, salary_cap_cents,
+        roster_min, roster_max, divisions, conferences, slider_presets,
+        changed_by, change_summary
+    )
+    SELECT x.league_id,
+           COALESCE((SELECT MAX(v2.version) FROM league_settings_version v2
+                     WHERE v2.league_id = x.league_id), 0) + 1,
+           COALESCE(x.platform, 'both'),
+           COALESCE(x.team_count, 32),
+           COALESCE(x.roster_source, 'manual'),
+           COALESCE(x.schedule_format, 'round_robin'),
+           COALESCE(x.schedule_settings, '{}'::jsonb),
+           COALESCE(x.playoff_format, '{}'::jsonb),
+           x.salary_cap_cents, x.roster_min, x.roster_max,
+           COALESCE(x.divisions, '[]'::jsonb),
+           COALESCE(x.conferences, '[]'::jsonb),
+           COALESCE(x.slider_presets, '{}'::jsonb),
+           x.owner_user_id, 'Initial active settings for future seasons'
+      FROM latest x
+    RETURNING id, league_id
+)
+INSERT INTO league_settings_active (league_id, settings_version_id)
+SELECT league_id, id FROM inserted;
 
 -- Bylaws as a versioned document. Traceable, diffable, citable in disputes.
 CREATE TABLE rulebook_revision (

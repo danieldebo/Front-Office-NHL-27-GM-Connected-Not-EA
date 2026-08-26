@@ -35,6 +35,7 @@ const RUN_ID = crypto.randomBytes(4).toString("hex");
 
 // ── Fixtures (populated in beforeAll) ─────────────────────────────────────────
 let commissionerReplitId: string;
+let commissionerAppUserId: string;
 let leagueId: string;
 
 // Season used for POST /schedule tests — starts with no games
@@ -51,6 +52,14 @@ let gameTeamSeasonId2: string;
 async function sql<T extends object>(text: string, params: unknown[] = []): Promise<T[]> {
   const result = await pool.query<T>(text, params);
   return result.rows;
+}
+
+function commissionerAuth() {
+  return {
+    id: commissionerReplitId,
+    appUserId: commissionerAppUserId,
+    name: "Commissioner",
+  };
 }
 
 // ── Schema guard ──────────────────────────────────────────────────────────────
@@ -81,6 +90,7 @@ beforeAll(async () => {
     [commissionerReplitId, `Sched Commissioner ${RUN_ID}`, `${commissionerReplitId}@test.invalid`],
   );
   const commAppUserId = commRow!.id;
+  commissionerAppUserId = commAppUserId;
 
   // 2. Single league for all schedule tests
   const [leagueRow] = await sql<{ id: string }>(
@@ -157,6 +167,7 @@ afterAll(async () => {
   await sql(`DELETE FROM franchise WHERE league_id = $1`, [leagueId]);
   await sql(`DELETE FROM season WHERE league_id = $1`, [leagueId]);
   await sql(`DELETE FROM league WHERE id = $1`, [leagueId]);
+  await sql(`DELETE FROM idempotency_key WHERE user_id = $1`, [commissionerAppUserId]);
   await sql(`DELETE FROM app_user WHERE replit_id LIKE $1`, [`sched-%-${RUN_ID}`]);
 });
 
@@ -189,7 +200,7 @@ describe("POST /api/seasons/:seasonId/schedule — generate schedule", () => {
 
   it("returns 404 when season does not exist", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     const res = await request(app)
       .post(`/api/seasons/${crypto.randomUUID()}/schedule`)
@@ -198,17 +209,61 @@ describe("POST /api/seasons/:seasonId/schedule — generate schedule", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 201 and creates games for a valid season with 2 teams", async (ctx) => {
+  it("replays one result for simultaneous requests with the same idempotency key", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
+    const key = `schedule-same-${RUN_ID}`;
+
+    const [first, second] = await Promise.all([
+      request(app)
+        .post(`/api/seasons/${seasonId}/schedule`)
+        .set("Idempotency-Key", key)
+        .send({ week_duration_days: 7 }),
+      request(app)
+        .post(`/api/seasons/${seasonId}/schedule`)
+        .set("Idempotency-Key", key)
+        .send({ week_duration_days: 7 }),
+    ]);
+
+    expect([first.status, second.status]).toEqual([201, 201]);
+    expect(first.body).toEqual(second.body);
+    expect(first.text).toBe(second.text);
+    const [{ games }] = await sql<{ games: string }>(
+      `SELECT COUNT(*) AS games FROM game WHERE season_id = $1`,
+      [seasonId],
+    );
+    const [{ audits }] = await sql<{ audits: string }>(
+      `SELECT COUNT(*) AS audits FROM audit_log
+        WHERE entity_id = $1 AND action = 'schedule_generated'`,
+      [seasonId],
+    );
+    expect(Number(games)).toBe(1);
+    expect(Number(audits)).toBe(1);
+
+    await sql(`DELETE FROM audit_log WHERE entity_id = $1 AND action = 'schedule_generated'`, [seasonId]);
+    await sql(`DELETE FROM game WHERE season_id = $1`, [seasonId]);
+    await sql(`DELETE FROM idempotency_key WHERE user_id = $1 AND key = $2`, [commissionerAppUserId, key]);
+  });
+
+  it("serializes concurrent generation and creates exactly one schedule", async (ctx) => {
+    if (!schemaReady) return ctx.skip();
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     // 2 teams × games_per_matchup=1 → 1 game total
-    const res = await request(app)
-      .post(`/api/seasons/${seasonId}/schedule`)
-      .send({ week_duration_days: 7 });
+    const [first, second] = await Promise.all([
+      request(app)
+        .post(`/api/seasons/${seasonId}/schedule`)
+        .set("Idempotency-Key", `schedule-first-${RUN_ID}`)
+        .send({ week_duration_days: 7 }),
+      request(app)
+        .post(`/api/seasons/${seasonId}/schedule`)
+        .set("Idempotency-Key", `schedule-second-${RUN_ID}`)
+        .send({ week_duration_days: 7 }),
+    ]);
 
-    expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+    const created = first.status === 201 ? first : second;
+    expect(created.body).toMatchObject({
       games_created: 1,
       total_weeks: expect.any(Number),
       week_duration_days: 7,
@@ -224,7 +279,7 @@ describe("POST /api/seasons/:seasonId/schedule — generate schedule", () => {
 
   it("returns 409 when a schedule already exists for the season", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     // Games were created by the previous test
     const res = await request(app)
@@ -291,7 +346,7 @@ describe("PATCH /api/games/:gameId/window — shift window", () => {
 
   it("returns 404 when game does not exist", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     const res = await request(app)
       .patch(`/api/games/${crypto.randomUUID()}/window`)
@@ -302,7 +357,7 @@ describe("PATCH /api/games/:gameId/window — shift window", () => {
 
   it("returns 400 when window_closes_at is not after window_opens_at", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     const res = await request(app)
       .patch(`/api/games/${windowGameId}/window`)
@@ -317,7 +372,7 @@ describe("PATCH /api/games/:gameId/window — shift window", () => {
 
   it("returns 409 when the game is in a terminal status (confirmed)", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     const [{ id: confirmedId }] = await sql<{ id: string }>(
       `INSERT INTO game
@@ -341,7 +396,7 @@ describe("PATCH /api/games/:gameId/window — shift window", () => {
 
   it("returns 200, updates the window, and writes an audit log entry", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     const res = await request(app)
       .patch(`/api/games/${windowGameId}/window`)
@@ -414,7 +469,7 @@ describe("POST /api/games/:gameId/postpone — postpone game", () => {
 
   it("returns 404 when game does not exist", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     const res = await request(app)
       .post(`/api/games/${crypto.randomUUID()}/postpone`)
@@ -425,7 +480,7 @@ describe("POST /api/games/:gameId/postpone — postpone game", () => {
 
   it("returns 200, sets status to postponed, and writes an audit log entry", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     const res = await request(app)
       .post(`/api/games/${postponeGameId}/postpone`)
@@ -453,7 +508,7 @@ describe("POST /api/games/:gameId/postpone — postpone game", () => {
 
   it("returns 409 when game is already postponed", async (ctx) => {
     if (!schemaReady) return ctx.skip();
-    mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+    mockGetCurrentUser.mockReturnValue(commissionerAuth());
 
     // Game is now in 'postponed' status from the previous test
     const res = await request(app)

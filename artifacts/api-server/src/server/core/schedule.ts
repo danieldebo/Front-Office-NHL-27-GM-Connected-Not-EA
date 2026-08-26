@@ -49,14 +49,21 @@ export interface ScheduleResult {
  *  - Home and away counts differ by at most 1 per team.
  *  - No team plays itself.
  *
- * @throws {Error} if teams.length < 2 or is odd.
+ * Odd team counts are supported by adding a rotating bye.
  */
 export function generateSchedule(config: ScheduleConfig): ScheduleResult {
   const { teams, gamesPerMatchup, seasonStartDate, weekDurationDays = 7 } = config;
-  const n = teams.length;
+  const originalCount = teams.length;
 
-  if (n < 2) throw new Error("Need at least 2 teams to generate a schedule");
-  if (n % 2 !== 0) throw new Error("Team count must be even");
+  if (originalCount < 2) throw new Error("Need at least 2 teams to generate a schedule");
+  if (!Number.isInteger(gamesPerMatchup) || gamesPerMatchup < 1) {
+    throw new Error("gamesPerMatchup must be a positive integer");
+  }
+  const byeId = "__schedule_bye__";
+  const workingTeams = originalCount % 2 === 0
+    ? teams
+    : [...teams, { teamSeasonId: byeId }];
+  const n = workingTeams.length;
 
   const weekMs = weekDurationDays * 24 * 3600 * 1000;
   const games: ScheduledGame[] = [];
@@ -81,31 +88,35 @@ export function generateSchedule(config: ScheduleConfig): ScheduleResult {
 
       // Game 0: fixed vs rot[0]
       const fixedIsHome = (r % 2 === 0) !== swapHomeAway;
-      const fixedId = teams[fixed]!.teamSeasonId;
-      const rot0Id = teams[rot[0]!]!.teamSeasonId;
-      games.push({
-        homeTeamSeasonId: fixedIsHome ? fixedId : rot0Id,
-        awayTeamSeasonId: fixedIsHome ? rot0Id : fixedId,
-        weekNumber,
-        windowOpensAt,
-        windowClosesAt,
-      });
-
-      // Games 1..n/2-1: pair rot[i] vs rot[n-2-i]
-      for (let i = 1; i < n / 2; i++) {
-        const aId = teams[rot[i]!]!.teamSeasonId;
-        const bId = teams[rot[n - 1 - i]!]!.teamSeasonId;
-        // aId (rot[i]) is always home in pass 0 and always away in pass 1.
-        // This guarantees every pair gets one home and one away game per matchup
-        // and each team's home/away count differs by at most 1 over the schedule.
-        const aIsHome = !swapHomeAway;
+      const fixedId = workingTeams[fixed]!.teamSeasonId;
+      const rot0Id = workingTeams[rot[0]!]!.teamSeasonId;
+      if (fixedId !== byeId && rot0Id !== byeId) {
         games.push({
-          homeTeamSeasonId: aIsHome ? aId : bId,
-          awayTeamSeasonId: aIsHome ? bId : aId,
+          homeTeamSeasonId: fixedIsHome ? fixedId : rot0Id,
+          awayTeamSeasonId: fixedIsHome ? rot0Id : fixedId,
           weekNumber,
           windowOpensAt,
           windowClosesAt,
         });
+      }
+
+      // Games 1..n/2-1: pair rot[i] vs rot[n-2-i]
+      for (let i = 1; i < n / 2; i++) {
+        const aId = workingTeams[rot[i]!]!.teamSeasonId;
+        const bId = workingTeams[rot[n - 1 - i]!]!.teamSeasonId;
+        // aId (rot[i]) is always home in pass 0 and always away in pass 1.
+        // This guarantees every pair gets one home and one away game per matchup
+        // and each team's home/away count differs by at most 1 over the schedule.
+        const aIsHome = !swapHomeAway;
+        if (aId !== byeId && bId !== byeId) {
+          games.push({
+            homeTeamSeasonId: aIsHome ? aId : bId,
+            awayTeamSeasonId: aIsHome ? bId : aId,
+            weekNumber,
+            windowOpensAt,
+            windowClosesAt,
+          });
+        }
       }
     }
   }

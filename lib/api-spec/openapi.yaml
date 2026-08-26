@@ -436,7 +436,7 @@ paths:
     patch:
       tags: [Leagues]
       operationId: updateLeague
-      summary: Update league settings (commissioner only)
+      summary: Update league presentation metadata (commissioner only)
       requestBody:
         required: true
         content:
@@ -458,6 +458,113 @@ paths:
                 $ref: '#/components/schemas/Problem'
         '404':
           description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/settings:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: getLeagueSettings
+      summary: Get the active immutable settings version (league members)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Active settings version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueSettingsVersion'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Caller is not an active league member.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League or settings not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /leagues/{leagueId}/settings/versions:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Leagues]
+      operationId: createLeagueSettingsVersion
+      summary: Append and activate a new settings version (commissioner only)
+      description: Existing settings versions are never updated or deleted.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeagueSettingsInput'
+      responses:
+        '201':
+          description: New immutable settings version created and activated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueSettingsVersion'
+        '400':
+          description: Invalid settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Caller is not the commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Settings conflict with active season occupancy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/settings/history:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: listLeagueSettingsHistory
+      summary: List immutable settings history newest first (league members)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Settings history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueSettingsHistory'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Caller is not an active league member.
           content:
             application/json:
               schema:
@@ -746,7 +853,7 @@ paths:
     post:
       tags: [Leagues]
       operationId: createSeason
-      summary: Create a new season and generate 32 franchise seats (commissioner only)
+      summary: Create a new season and provision the configured number of franchise seats (commissioner only)
       requestBody:
         required: true
         content:
@@ -755,7 +862,7 @@ paths:
               $ref: '#/components/schemas/CreateSeasonInput'
       responses:
         '201':
-          description: Season created with 32 franchise seats.
+          description: Season created with seats from the active league settings.
           content:
             application/json:
               schema:
@@ -2035,6 +2142,101 @@ components:
         logo_url:
           type: ["string", "null"]
 
+    LeagueSettingsInput:
+      type: object
+      additionalProperties: false
+      required:
+        - platform
+        - team_count
+        - roster_source
+        - schedule_format
+        - schedule_settings
+        - playoff_format
+        - divisions
+        - conferences
+        - slider_presets
+        - change_summary
+      properties:
+        ea_league_id:
+          type: ["string", "null"]
+          maxLength: 100
+        platform:
+          type: string
+          enum: [psn, xbox, both]
+        team_count:
+          type: integer
+          minimum: 3
+          maximum: 32
+        roster_source:
+          type: string
+          enum: [manual, ea, csv_import]
+        schedule_format:
+          type: string
+          enum: [round_robin, double_round_robin, custom]
+        schedule_settings:
+          type: object
+          additionalProperties: true
+        playoff_format:
+          type: object
+          additionalProperties: true
+        salary_cap_cents:
+          type: ["integer", "null"]
+          minimum: 0
+        roster_min:
+          type: ["integer", "null"]
+          minimum: 1
+        roster_max:
+          type: ["integer", "null"]
+          minimum: 1
+        divisions:
+          type: array
+          items:
+            type: string
+        conferences:
+          type: array
+          items:
+            type: string
+        rules_notes:
+          type: ["string", "null"]
+        slider_presets:
+          type: object
+          additionalProperties: true
+        change_summary:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    LeagueSettingsVersion:
+      allOf:
+        - $ref: '#/components/schemas/LeagueSettingsInput'
+        - type: object
+          required: [id, league_id, version, changed_by, changed_at, is_active, can_manage]
+          properties:
+            id:
+              type: string
+            league_id:
+              type: string
+            version:
+              type: integer
+            changed_by:
+              type: string
+            changed_at:
+              type: string
+              format: date-time
+            is_active:
+              type: boolean
+            can_manage:
+              type: boolean
+
+    LeagueSettingsHistory:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeagueSettingsVersion'
+
     CreateSeasonInput:
       type: object
       required: [label, game_title]
@@ -2175,6 +2377,9 @@ components:
           type: string
         league_id:
           type: string
+        settings_version_id:
+          type: ["string", "null"]
+          description: Immutable league settings version bound to this season.
         ordinal:
           type: integer
           minimum: 1

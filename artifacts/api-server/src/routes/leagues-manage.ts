@@ -64,34 +64,55 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const insertRow = await pool.query<{
-    id: string;
-    slug: string;
-    name: string;
-    visibility: string;
-    logo_url: string | null;
-    primary_color: string | null;
-    secondary_color: string | null;
-    owner_user_id: string;
-    created_at: Date;
-  }>(
-    `INSERT INTO league (name, slug, visibility, primary_color, secondary_color, logo_url, owner_user_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, slug, name, visibility, logo_url, primary_color, secondary_color, owner_user_id, created_at`,
-    [name, slug, visibility, primary_color ?? null, secondary_color ?? null, logo_url ?? null, appUserId]
-  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const insertRow = await client.query<{
+      id: string;
+      slug: string;
+      name: string;
+      visibility: string;
+      logo_url: string | null;
+      primary_color: string | null;
+      secondary_color: string | null;
+      owner_user_id: string;
+      created_at: Date;
+    }>(
+      `INSERT INTO league (name, slug, visibility, primary_color, secondary_color, logo_url, owner_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, slug, name, visibility, logo_url, primary_color, secondary_color, owner_user_id, created_at`,
+      [name, slug, visibility, primary_color ?? null, secondary_color ?? null, logo_url ?? null, appUserId]
+    );
 
-  const league = insertRow.rows[0]!;
+    const league = insertRow.rows[0]!;
 
-  // Create the owner's league_membership row
-  await pool.query(
-    `INSERT INTO league_membership (league_id, user_id, role)
-     VALUES ($1, $2, 'owner')
-     ON CONFLICT (league_id, user_id) DO NOTHING`,
-    [league.id, appUserId]
-  );
+    await client.query(
+      `INSERT INTO league_membership (league_id, user_id, role)
+       VALUES ($1, $2, 'owner')
+       ON CONFLICT (league_id, user_id) DO NOTHING`,
+      [league.id, appUserId]
+    );
 
-  res.status(201).json(league);
+    const initial = await client.query<{ id: string }>(
+      `INSERT INTO league_settings_version
+         (league_id, version, changed_by, change_summary)
+       VALUES ($1, 1, $2, 'Initial league settings')
+       RETURNING id`,
+      [league.id, appUserId],
+    );
+    await client.query(
+      `INSERT INTO league_settings_active (league_id, settings_version_id)
+       VALUES ($1, $2)`,
+      [league.id, initial.rows[0]!.id],
+    );
+    await client.query("COMMIT");
+    res.status(201).json(league);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 });
 
 // ────────────────────────────────────────────── Update league
@@ -212,10 +233,6 @@ router.post(
       game_title,
       starts_on,
       ends_on,
-      salary_cap_cents,
-      roster_min,
-      roster_max,
-      games_per_matchup = 1,
       points_win = 2,
       points_ot_loss = 1,
       points_reg_loss = 0,
@@ -226,6 +243,31 @@ router.post(
     try {
       await client.query("BEGIN");
       await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [leagueId]);
+
+      const settingsRow = await client.query<{
+        settings_version_id: string;
+        team_count: number;
+        salary_cap_cents: string | null;
+        roster_min: number | null;
+        roster_max: number | null;
+        schedule_format: string;
+        schedule_settings: Record<string, unknown>;
+      }>(
+        `SELECT v.id AS settings_version_id, v.team_count, v.salary_cap_cents, v.roster_min, v.roster_max,
+                v.schedule_format, v.schedule_settings
+           FROM league_settings_active a
+           JOIN league_settings_version v ON v.id = a.settings_version_id
+          WHERE a.league_id = $1`,
+        [leagueId],
+      );
+      const settings = settingsRow.rows[0];
+      if (!settings) {
+        throw new Error(`League ${leagueId} has no active settings version`);
+      }
+      const configuredGamesPerMatchup =
+        settings.schedule_format === "double_round_robin" ? 2 :
+        settings.schedule_format === "round_robin" ? 1 :
+        Number(settings.schedule_settings.games_per_matchup);
 
       const ordinalRow = await client.query<{ max_ord: string | null }>(
         `SELECT MAX(ordinal) AS max_ord FROM season WHERE league_id = $1`,
@@ -243,29 +285,34 @@ router.post(
       const seasonRow = await client.query<{ id: string }>(
         `INSERT INTO season
            (league_id, ordinal, label, game_title, starts_on, ends_on,
-            salary_cap_cents, roster_min, roster_max, games_per_matchup,
-            points_win, points_ot_loss, points_reg_loss, tiebreakers, is_active)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,TRUE)
+             salary_cap_cents, roster_min, roster_max, games_per_matchup,
+             points_win, points_ot_loss, points_reg_loss, tiebreakers, is_active,
+             max_seats, settings_version_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,TRUE,$15,$16)
          RETURNING id`,
         [
           leagueId, nextOrdinal, label, game_title,
           starts_on ?? null, ends_on ?? null,
-          salary_cap_cents ?? null, roster_min ?? null, roster_max ?? null,
-          games_per_matchup, points_win, points_ot_loss, points_reg_loss,
-          tiebreakers,
+          settings.salary_cap_cents,
+          settings.roster_min,
+          settings.roster_max,
+          configuredGamesPerMatchup,
+          points_win, points_ot_loss, points_reg_loss, tiebreakers,
+          settings.team_count,
+          settings.settings_version_id,
         ]
       );
 
       const seasonId = seasonRow.rows[0]!.id;
 
       await ensureClubCatalog(client);
-      await provisionSeasonSeats(client, leagueId, seasonId);
+      await provisionSeasonSeats(client, leagueId, seasonId, settings.team_count);
 
       await client.query("COMMIT");
 
       // Return the created season
       const result = await pool.query(
-        `SELECT id, league_id, ordinal, label, game_title, starts_on, ends_on,
+        `SELECT id, league_id, settings_version_id, ordinal, label, game_title, starts_on, ends_on,
                 salary_cap_cents, roster_min, roster_max, games_per_matchup,
                 points_win, points_ot_loss, points_reg_loss, tiebreakers, is_active
            FROM season WHERE id = $1`,

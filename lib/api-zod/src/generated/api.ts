@@ -306,7 +306,7 @@ export const GetLeagueResponse = zod.object({
 
 
 /**
- * @summary Update league settings (commissioner only)
+ * @summary Update league presentation metadata (commissioner only)
  */
 export const UpdateLeagueParams = zod.object({
   "leagueId": zod.coerce.string()
@@ -334,6 +334,189 @@ export const UpdateLeagueResponse = zod.object({
   "secondary_color": zod.string().nullish(),
   "owner_user_id": zod.string().optional(),
   "created_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Get the active immutable settings version (league members)
+ */
+export const GetLeagueSettingsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const getLeagueSettingsResponseOneEaLeagueIdMax = 100;
+
+export const getLeagueSettingsResponseOneTeamCountMin = 3;
+export const getLeagueSettingsResponseOneTeamCountMax = 32;
+
+export const getLeagueSettingsResponseOneSalaryCapCentsMin = 0;
+
+
+
+export const getLeagueSettingsResponseOneChangeSummaryMax = 500;
+
+
+
+export const GetLeagueSettingsResponse = zod.object({
+  "ea_league_id": zod.string().max(getLeagueSettingsResponseOneEaLeagueIdMax).nullish(),
+  "platform": zod.enum(['psn', 'xbox', 'both']),
+  "team_count": zod.number().min(getLeagueSettingsResponseOneTeamCountMin).max(getLeagueSettingsResponseOneTeamCountMax),
+  "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
+  "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
+  "schedule_settings": zod.record(zod.string(), zod.unknown()),
+  "playoff_format": zod.record(zod.string(), zod.unknown()),
+  "salary_cap_cents": zod.number().min(getLeagueSettingsResponseOneSalaryCapCentsMin).nullish(),
+  "roster_min": zod.number().min(1).nullish(),
+  "roster_max": zod.number().min(1).nullish(),
+  "divisions": zod.array(zod.string()),
+  "conferences": zod.array(zod.string()),
+  "rules_notes": zod.string().nullish(),
+  "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "change_summary": zod.string().min(1).max(getLeagueSettingsResponseOneChangeSummaryMax)
+}).and(zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "version": zod.number(),
+  "changed_by": zod.string(),
+  "changed_at": zod.coerce.date(),
+  "is_active": zod.boolean(),
+  "can_manage": zod.boolean()
+}))
+
+
+/**
+ * Existing settings versions are never updated or deleted.
+ * @summary Append and activate a new settings version (commissioner only)
+ */
+export const CreateLeagueSettingsVersionParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const createLeagueSettingsVersionHeaderIdempotencyKeyMax = 255;
+
+
+
+export const CreateLeagueSettingsVersionHeader = zod.object({
+  "Idempotency-Key": zod.string().max(createLeagueSettingsVersionHeaderIdempotencyKeyMax).optional()
+})
+
+export const createLeagueSettingsVersionBodyEaLeagueIdMax = 100;
+
+export const createLeagueSettingsVersionBodyTeamCountMin = 3;
+export const createLeagueSettingsVersionBodyTeamCountMax = 32;
+
+export const createLeagueSettingsVersionBodySalaryCapCentsMin = 0;
+
+
+
+export const createLeagueSettingsVersionBodyChangeSummaryMax = 500;
+
+
+
+export const CreateLeagueSettingsVersionBody = zod.object({
+  "ea_league_id": zod.string().max(createLeagueSettingsVersionBodyEaLeagueIdMax).nullish(),
+  "platform": zod.enum(['psn', 'xbox', 'both']),
+  "team_count": zod.number().min(createLeagueSettingsVersionBodyTeamCountMin).max(createLeagueSettingsVersionBodyTeamCountMax),
+  "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
+  "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
+  "schedule_settings": zod.record(zod.string(), zod.unknown()),
+  "playoff_format": zod.record(zod.string(), zod.unknown()),
+  "salary_cap_cents": zod.number().min(createLeagueSettingsVersionBodySalaryCapCentsMin).nullish(),
+  "roster_min": zod.number().min(1).nullish(),
+  "roster_max": zod.number().min(1).nullish(),
+  "divisions": zod.array(zod.string()),
+  "conferences": zod.array(zod.string()),
+  "rules_notes": zod.string().nullish(),
+  "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "change_summary": zod.string().min(1).max(createLeagueSettingsVersionBodyChangeSummaryMax)
+})
+
+export const createLeagueSettingsVersionResponseOneEaLeagueIdMax = 100;
+
+export const createLeagueSettingsVersionResponseOneTeamCountMin = 3;
+export const createLeagueSettingsVersionResponseOneTeamCountMax = 32;
+
+export const createLeagueSettingsVersionResponseOneSalaryCapCentsMin = 0;
+
+
+
+export const createLeagueSettingsVersionResponseOneChangeSummaryMax = 500;
+
+
+
+export const CreateLeagueSettingsVersionResponse = zod.object({
+  "ea_league_id": zod.string().max(createLeagueSettingsVersionResponseOneEaLeagueIdMax).nullish(),
+  "platform": zod.enum(['psn', 'xbox', 'both']),
+  "team_count": zod.number().min(createLeagueSettingsVersionResponseOneTeamCountMin).max(createLeagueSettingsVersionResponseOneTeamCountMax),
+  "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
+  "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
+  "schedule_settings": zod.record(zod.string(), zod.unknown()),
+  "playoff_format": zod.record(zod.string(), zod.unknown()),
+  "salary_cap_cents": zod.number().min(createLeagueSettingsVersionResponseOneSalaryCapCentsMin).nullish(),
+  "roster_min": zod.number().min(1).nullish(),
+  "roster_max": zod.number().min(1).nullish(),
+  "divisions": zod.array(zod.string()),
+  "conferences": zod.array(zod.string()),
+  "rules_notes": zod.string().nullish(),
+  "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "change_summary": zod.string().min(1).max(createLeagueSettingsVersionResponseOneChangeSummaryMax)
+}).and(zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "version": zod.number(),
+  "changed_by": zod.string(),
+  "changed_at": zod.coerce.date(),
+  "is_active": zod.boolean(),
+  "can_manage": zod.boolean()
+}))
+
+
+/**
+ * @summary List immutable settings history newest first (league members)
+ */
+export const ListLeagueSettingsHistoryParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const listLeagueSettingsHistoryResponseDataItemOneEaLeagueIdMax = 100;
+
+export const listLeagueSettingsHistoryResponseDataItemOneTeamCountMin = 3;
+export const listLeagueSettingsHistoryResponseDataItemOneTeamCountMax = 32;
+
+export const listLeagueSettingsHistoryResponseDataItemOneSalaryCapCentsMin = 0;
+
+
+
+export const listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax = 500;
+
+
+
+export const ListLeagueSettingsHistoryResponse = zod.object({
+  "data": zod.array(zod.object({
+  "ea_league_id": zod.string().max(listLeagueSettingsHistoryResponseDataItemOneEaLeagueIdMax).nullish(),
+  "platform": zod.enum(['psn', 'xbox', 'both']),
+  "team_count": zod.number().min(listLeagueSettingsHistoryResponseDataItemOneTeamCountMin).max(listLeagueSettingsHistoryResponseDataItemOneTeamCountMax),
+  "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
+  "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
+  "schedule_settings": zod.record(zod.string(), zod.unknown()),
+  "playoff_format": zod.record(zod.string(), zod.unknown()),
+  "salary_cap_cents": zod.number().min(listLeagueSettingsHistoryResponseDataItemOneSalaryCapCentsMin).nullish(),
+  "roster_min": zod.number().min(1).nullish(),
+  "roster_max": zod.number().min(1).nullish(),
+  "divisions": zod.array(zod.string()),
+  "conferences": zod.array(zod.string()),
+  "rules_notes": zod.string().nullish(),
+  "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "change_summary": zod.string().min(1).max(listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax)
+}).and(zod.object({
+  "id": zod.string(),
+  "league_id": zod.string(),
+  "version": zod.number(),
+  "changed_by": zod.string(),
+  "changed_at": zod.coerce.date(),
+  "is_active": zod.boolean(),
+  "can_manage": zod.boolean()
+})))
 })
 
 
@@ -614,6 +797,7 @@ export const ListSeasonsResponse = zod.object({
   "data": zod.array(zod.object({
   "id": zod.string(),
   "league_id": zod.string().optional(),
+  "settings_version_id": zod.string().nullish().describe('Immutable league settings version bound to this season.'),
   "ordinal": zod.number().min(1),
   "label": zod.string(),
   "game_title": zod.string(),
@@ -633,7 +817,7 @@ export const ListSeasonsResponse = zod.object({
 
 
 /**
- * @summary Create a new season and generate 32 franchise seats (commissioner only)
+ * @summary Create a new season and provision the configured number of franchise seats (commissioner only)
  */
 export const CreateSeasonParams = zod.object({
   "leagueId": zod.coerce.string()
@@ -681,6 +865,7 @@ export const CreateSeasonBody = zod.object({
 export const CreateSeasonResponse = zod.object({
   "id": zod.string(),
   "league_id": zod.string().optional(),
+  "settings_version_id": zod.string().nullish().describe('Immutable league settings version bound to this season.'),
   "ordinal": zod.number().min(1),
   "label": zod.string(),
   "game_title": zod.string(),

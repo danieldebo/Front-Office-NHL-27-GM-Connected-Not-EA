@@ -129,10 +129,13 @@ describe("generateSchedule — error cases", () => {
     ).toThrow("at least 2");
   });
 
-  it("throws when team count is odd", () => {
-    expect(() =>
-      generateSchedule({ teams: makeTeams(3), gamesPerMatchup: 1, seasonStartDate: START }),
-    ).toThrow("even");
+  it("supports an odd configured team count with one rotating bye", () => {
+    const { games, totalWeeks } = generateSchedule({
+      teams: makeTeams(3), gamesPerMatchup: 1, seasonStartDate: START,
+    });
+    expect(games).toHaveLength(3);
+    expect(totalWeeks).toBe(3);
+    expect(checkScheduleBalance(games, 3, 1)).toBeNull();
   });
 });
 

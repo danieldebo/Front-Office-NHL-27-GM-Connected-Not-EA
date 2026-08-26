@@ -27,6 +27,7 @@ export interface LeagueResource {
   kind: "league";
   ownerId: string;
   memberIds?: string[];
+  commissionerIds?: string[];
 }
 
 export interface GameResource {
@@ -74,8 +75,8 @@ export function can(
     case "invite:manage":
     case "rulebook:write": {
       if (resource.kind !== "league") return false;
-      // Only the league owner (commissioner) may write.
-      return resource.ownerId === domainUserId;
+      return resource.ownerId === domainUserId ||
+        (resource.commissionerIds?.includes(domainUserId) ?? false);
     }
 
     case "result:report": {

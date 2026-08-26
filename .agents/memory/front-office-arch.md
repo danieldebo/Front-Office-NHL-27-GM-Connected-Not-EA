@@ -100,3 +100,11 @@ League hub SQL query LEFT JOINs `game_result` so `my_games_this_week` entries ca
 
 ## CP4: Idempotency key on report — stable per session
 `ReportResult.tsx` generates the idempotency key once with `useRef(crypto.randomUUID())` — same key if the component re-renders, new key on fresh mount. If the user navigates away and back, they get a new key (which is correct — new submission intent).
+
+## Seasons bind to immutable operational settings
+
+Each season must retain the exact league settings version active when the season is created. Later settings edits apply to future seasons and must not retroactively alter seat counts, cap/roster rules, or schedule generation for an existing season.
+
+**Why:** Reading the league's mutable active-settings pointer during season operations can make an established season internally inconsistent after an unrelated settings edit.
+
+**How to apply:** Resolve seat, roster, cap, and scheduling rules through the season's immutable settings-version binding. Treat null rules as intentional; never fall back to legacy request fields. Backfills must create one preserved snapshot per historical season, not bind all history to one active/default version.

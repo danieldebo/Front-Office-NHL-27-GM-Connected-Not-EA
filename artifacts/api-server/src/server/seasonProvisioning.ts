@@ -59,7 +59,11 @@ export async function provisionSeasonSeats(
   client: PoolClient,
   leagueId: string,
   seasonId: string,
+  teamCount: number = CLUBS.length,
 ): Promise<void> {
+  if (!Number.isInteger(teamCount) || teamCount < 3 || teamCount > CLUBS.length) {
+    throw new Error(`teamCount must be between 3 and ${CLUBS.length}`);
+  }
   const clubs = await client.query<{
     id: string;
     abbrev: string;
@@ -78,7 +82,8 @@ export async function provisionSeasonSeats(
     throw new Error(`Expected ${CLUBS.length} clubs, found ${clubs.rows.length}`);
   }
 
-  for (const club of clubs.rows) {
+  const configuredClubs = clubs.rows.slice(0, teamCount);
+  for (const club of configuredClubs) {
     const existingFranchise = await client.query<{ id: string }>(
       `SELECT f.id FROM franchise f
         WHERE f.league_id = $1
@@ -118,8 +123,8 @@ export async function provisionSeasonSeats(
         AND nc.abbrev = ANY($2::text[])`,
     [seasonId, CLUB_ABBREVS],
   );
-  if (Number(seatCount.rows[0]?.count ?? 0) !== CLUBS.length) {
-    throw new Error(`Season ${seasonId} was not provisioned with ${CLUBS.length} seats`);
+  if (Number(seatCount.rows[0]?.count ?? 0) !== teamCount) {
+    throw new Error(`Season ${seasonId} was not provisioned with ${teamCount} seats`);
   }
 }
 
@@ -129,27 +134,31 @@ export async function repairActiveSeasonSeats(leagueId: string): Promise<void> {
     await client.query("BEGIN");
     await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [leagueId]);
 
-    const activeSeason = await client.query<{ id: string; required_seat_count: string }>(
-      `SELECT s.id, COUNT(nc.id)::text AS required_seat_count
+    const activeSeason = await client.query<{
+      id: string; required_seat_count: string; team_count: number;
+    }>(
+      `SELECT s.id, COUNT(nc.id)::text AS required_seat_count,
+              COALESCE(v.team_count, s.max_seats, 32) AS team_count
          FROM season s
+          LEFT JOIN league_settings_version v ON v.id = s.settings_version_id
          LEFT JOIN team_season ts ON ts.season_id = s.id
          LEFT JOIN nhl_club nc
            ON nc.id = ts.nhl_club_id
           AND nc.abbrev = ANY($2::text[])
         WHERE s.league_id = $1 AND s.is_active = TRUE
-        GROUP BY s.id
+         GROUP BY s.id, v.team_count, s.max_seats
         LIMIT 1`,
       [leagueId, CLUB_ABBREVS],
     );
 
     const season = activeSeason.rows[0];
-    if (!season || Number(season.required_seat_count) === CLUBS.length) {
+    if (!season || Number(season.required_seat_count) >= season.team_count) {
       await client.query("COMMIT");
       return;
     }
 
     await ensureClubCatalog(client);
-    await provisionSeasonSeats(client, leagueId, season.id);
+    await provisionSeasonSeats(client, leagueId, season.id, season.team_count);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

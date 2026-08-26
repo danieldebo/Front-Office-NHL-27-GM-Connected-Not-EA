@@ -16,6 +16,8 @@ import {
   useListSeasons,
   useListWeeks,
   useGenerateSchedule,
+  useGetLeagueSettings,
+  useListLeagueSettingsHistory,
   useGetCommissionerInvite,
   useCreateCommissionerInvite,
   useRotateCommissionerInvite,
@@ -41,6 +43,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
+import LeagueSettings from '@/components/LeagueSettings';
 
 // Helper components
 export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) {
@@ -1304,6 +1307,8 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   const { data: seasonsData, isLoading: seasonsLoading } = useListSeasons(leagueId);
   const seasons = seasonsData?.data ?? [];
   const qc = useQueryClient();
+  const { data: settings } = useGetLeagueSettings(leagueId);
+  const { data: settingsHistory } = useListLeagueSettingsHistory(leagueId);
 
   // Pick first season by default
   React.useEffect(() => {
@@ -1313,6 +1318,9 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   }, [seasons, selectedSeasonId]);
 
   const activeSeason = seasons.find(s => s.id === selectedSeasonId) ?? seasons[0] ?? null;
+  const seasonSettings = settingsHistory?.data.find(
+    version => version.id === activeSeason?.settings_version_id,
+  ) ?? settings;
 
   const { data: weeksData, isLoading: weeksLoading } = useListWeeks(
     activeSeason?.id ?? '',
@@ -1324,14 +1332,14 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   const [genError, setGenError] = useState<string | null>(null);
 
   const handleGenerate = () => {
-    if (!activeSeason) return;
+    if (!activeSeason || !seasonSettings) return;
     setGenError(null);
     const startDate = activeSeason.starts_on
       ? activeSeason.starts_on.slice(0, 10)
       : new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-    if (!confirm(`Generate schedule for this season?\n\nStarts: ${startDate}\nWindow: 7 days each\n\nThis cannot be undone.`)) return;
+    if (!confirm(`Generate schedule from season settings version ${seasonSettings.version}?\n\nStarts: ${startDate}\nFormat: ${seasonSettings.schedule_format.replaceAll('_', ' ')}\n\nThis cannot be undone.`)) return;
     generate.mutate(
-      { seasonId: activeSeason.id, data: { week_duration_days: 7, start_date: startDate } },
+      { seasonId: activeSeason.id, data: { start_date: startDate } },
       {
         onSuccess: () => qc.invalidateQueries({ queryKey: ['/api/seasons', activeSeason.id, 'weeks'] as any }),
         onError: (err: unknown) => setGenError(err instanceof Error ? err.message : 'Failed'),
@@ -1378,7 +1386,9 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
           <div className="panel-head"><h2>No Schedule Yet</h2></div>
           <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', lineHeight: 1.6 }}>
-              Generate a balanced round-robin schedule. Every franchise plays every other franchise, home/away balanced within 1 game.
+              {seasonSettings
+                ? <>Generation uses season settings version {seasonSettings.version}: {seasonSettings.schedule_format.replaceAll('_', ' ')}, {String(seasonSettings.schedule_settings.games_per_matchup ?? 1)} game(s) per matchup, {String(seasonSettings.schedule_settings.week_duration_days ?? 7)} day weeks.</>
+                : <>Create active league settings before generating a schedule.</>}
             </div>
             {genError && (
               <div style={{ background: '#FCF2F0', border: '1px solid #E5B8B1', borderRadius: '3px', padding: '10px 14px', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--goal)' }}>
@@ -1386,7 +1396,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
               </div>
             )}
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <button className="btn" onClick={handleGenerate} disabled={generate.isPending}>
+              <button className="btn" onClick={handleGenerate} disabled={generate.isPending || !seasonSettings}>
                 {generate.isPending ? 'Generating…' : 'Generate Schedule'}
               </button>
               <Link href={`/leagues/${leagueId}/schedule`} className="btn ghost">
@@ -1449,7 +1459,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
 
 export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'links'|'discovery'|'applicants'>('seats');
+  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'settings'|'links'|'discovery'|'applicants'>('seats');
   
   const { isLoaded, isSignedIn } = useAuth();
   const { data: league, isLoading: isLoadingLeague } = useGetLeague(id || '');
@@ -1514,6 +1524,12 @@ export default function ManageLeague() {
           >
             Schedule
           </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`btn ${activeTab !== 'settings' ? 'ghost' : ''}`}
+          >
+            Settings
+          </button>
           <button 
             onClick={() => setActiveTab('links')}
             className={`btn ${activeTab !== 'links' ? 'ghost' : ''}`}
@@ -1549,6 +1565,7 @@ export default function ManageLeague() {
         {activeTab === 'schedule' && (
           <ScheduleTab leagueId={league.id} />
         )}
+        {activeTab === 'settings' && <LeagueSettings leagueId={league.id} editable />}
         {activeTab === 'links' && (
           <LinksTab leagueId={league.id} leagueSlug={league.slug} />
         )}

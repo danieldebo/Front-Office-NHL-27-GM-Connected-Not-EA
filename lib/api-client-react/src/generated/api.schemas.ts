@@ -111,6 +111,96 @@ export interface UpdateLeagueInput {
   logo_url?: string | null;
 }
 
+export type LeagueSettingsInputPlatform = typeof LeagueSettingsInputPlatform[keyof typeof LeagueSettingsInputPlatform];
+
+
+export const LeagueSettingsInputPlatform = {
+  psn: 'psn',
+  xbox: 'xbox',
+  both: 'both',
+} as const;
+
+export type LeagueSettingsInputRosterSource = typeof LeagueSettingsInputRosterSource[keyof typeof LeagueSettingsInputRosterSource];
+
+
+export const LeagueSettingsInputRosterSource = {
+  manual: 'manual',
+  ea: 'ea',
+  csv_import: 'csv_import',
+} as const;
+
+export type LeagueSettingsInputScheduleFormat = typeof LeagueSettingsInputScheduleFormat[keyof typeof LeagueSettingsInputScheduleFormat];
+
+
+export const LeagueSettingsInputScheduleFormat = {
+  round_robin: 'round_robin',
+  double_round_robin: 'double_round_robin',
+  custom: 'custom',
+} as const;
+
+export type LeagueSettingsInputScheduleSettings = { [key: string]: unknown };
+
+export type LeagueSettingsInputPlayoffFormat = { [key: string]: unknown };
+
+export type LeagueSettingsInputSliderPresets = { [key: string]: unknown };
+
+export interface LeagueSettingsInput {
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  ea_league_id?: string | null;
+  platform: LeagueSettingsInputPlatform;
+  /**
+     * @minimum 3
+     * @maximum 32
+     */
+  team_count: number;
+  roster_source: LeagueSettingsInputRosterSource;
+  schedule_format: LeagueSettingsInputScheduleFormat;
+  schedule_settings: LeagueSettingsInputScheduleSettings;
+  playoff_format: LeagueSettingsInputPlayoffFormat;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  salary_cap_cents?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  roster_min?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  roster_max?: number | null;
+  divisions: string[];
+  conferences: string[];
+  /** @nullable */
+  rules_notes?: string | null;
+  slider_presets: LeagueSettingsInputSliderPresets;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  change_summary: string;
+}
+
+export type LeagueSettingsVersion = LeagueSettingsInput & {
+  id: string;
+  league_id: string;
+  version: number;
+  changed_by: string;
+  changed_at: string;
+  is_active: boolean;
+  can_manage: boolean;
+};
+
+export interface LeagueSettingsHistory {
+  data: LeagueSettingsVersion[];
+}
+
 export interface CreateSeasonInput {
   /**
      * @minLength 1
@@ -383,6 +473,11 @@ export interface PublicLeagueEnvelope {
 export interface Season {
   id: string;
   league_id?: string;
+  /**
+     * Immutable league settings version bound to this season.
+     * @nullable
+     */
+  settings_version_id?: string | null;
   /** @minimum 1 */
   ordinal: number;
   label: string;

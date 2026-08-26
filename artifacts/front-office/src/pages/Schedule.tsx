@@ -14,12 +14,15 @@ import {
   useListWeeks,
   useListGames,
   useGenerateSchedule,
+  useGetLeagueSettings,
+  useListLeagueSettingsHistory,
   type Game,
+  type LeagueSettingsVersion,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
+import LeagueSettings from '@/components/LeagueSettings';
 
 // ─────────────────────────────────────── status chip colour map
 const STATUS_CHIP: Record<string, string> = {
@@ -149,10 +152,9 @@ function WeekRow({ week, isCommissioner, leagueId }: {
 // ─────────────────────────────────────── Generate schedule form
 function GenerateScheduleForm({
   seasonId,
-  leagueId,
+  settings,
   onSuccess,
-}: { seasonId: string; leagueId: string; onSuccess: () => void }) {
-  const [weekDays, setWeekDays] = useState(7);
+}: { seasonId: string; settings: LeagueSettingsVersion; onSuccess: () => void }) {
   const [startDate, setStartDate] = useState(
     new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10)
   );
@@ -162,16 +164,17 @@ function GenerateScheduleForm({
   const handleGenerate = () => {
     setError(null);
     if (!confirm(
-      `Generate a complete balanced schedule for this season?\n\n` +
+      `Generate this season's schedule from active league settings?\n\n` +
       `• Season starts: ${startDate}\n` +
-      `• Window duration: ${weekDays} days\n\n` +
+      `• Format: ${settings.schedule_format.replaceAll('_', ' ')}\n` +
+      `• Window duration: ${String(settings.schedule_settings.week_duration_days ?? 7)} days\n\n` +
       `This cannot be undone.`
     )) return;
 
     generate.mutate(
       {
         seasonId,
-        data: { week_duration_days: weekDays, start_date: startDate },
+        data: { start_date: startDate },
       },
       {
         onSuccess: () => onSuccess(),
@@ -199,20 +202,10 @@ function GenerateScheduleForm({
             style={{ fontFamily: 'var(--data)', fontSize: '13px', padding: '8px 10px', border: '1px solid var(--rule)', borderRadius: '3px', width: '100%', boxSizing: 'border-box' }}
           />
         </div>
-        <div>
-          <label style={{ fontFamily: 'var(--data)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--steel)', display: 'block', marginBottom: '6px' }}>
-            Window Duration (days)
-          </label>
-          <input
-            type="number"
-            min={1} max={30}
-            value={weekDays}
-            onChange={e => setWeekDays(parseInt(e.target.value, 10) || 7)}
-            style={{ fontFamily: 'var(--data)', fontSize: '13px', padding: '8px 10px', border: '1px solid var(--rule)', borderRadius: '3px', width: '100%', boxSizing: 'border-box' }}
-          />
-          <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', marginTop: '4px' }}>
-            Default 7 — each matchup gets this many days to play.
-          </div>
+        <div style={{ padding: '12px', border: '1px solid var(--rule)', borderRadius: '3px', background: '#FAFCFD', fontFamily: 'var(--data)', fontSize: '11px', lineHeight: 1.7 }}>
+          <strong>Active settings · version {settings.version}</strong><br />
+          {settings.schedule_format.replaceAll('_', ' ')} · {String(settings.schedule_settings.games_per_matchup ?? 1)} game(s) per matchup · {String(settings.schedule_settings.week_duration_days ?? 7)} day weeks
+          <div style={{ color: 'var(--steel)' }}>Authoritative schedule values are managed in League Settings.</div>
         </div>
         {error && (
           <div style={{ background: '#FCF2F0', border: '1px solid #E5B8B1', borderRadius: '3px', padding: '10px 14px', fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--goal)' }}>
@@ -228,8 +221,7 @@ function GenerateScheduleForm({
           {generate.isPending ? 'Generating…' : 'Generate Schedule'}
         </button>
         <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', lineHeight: 1.6 }}>
-          Uses the <strong>circle method</strong>: every team plays every other team, home/away balanced (±1).
-          For a 32-team league with 1 game per matchup, this produces 31 weeks × 16 games = 496 games.
+          Schedule structure is generated from the league's active immutable settings version.
         </div>
       </div>
     </div>
@@ -242,6 +234,8 @@ function ScheduleContent({
   isCommissioner,
 }: { leagueId: string; isCommissioner: boolean }) {
   const { data: seasonsData, isLoading: seasonsLoading } = useListSeasons(leagueId);
+  const { data: settings } = useGetLeagueSettings(leagueId);
+  const { data: settingsHistory } = useListLeagueSettingsHistory(leagueId);
   const seasons = seasonsData?.data ?? [];
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const qc = useQueryClient();
@@ -254,6 +248,9 @@ function ScheduleContent({
   }, [seasons, selectedSeasonId]);
 
   const activeSeason = seasons.find(s => s.id === selectedSeasonId) ?? seasons[0] ?? null;
+  const seasonSettings = settingsHistory?.data.find(
+    version => version.id === activeSeason?.settings_version_id,
+  ) ?? settings;
 
   const { data: weeksData, isLoading: weeksLoading } = useListWeeks(
     activeSeason?.id ?? '',
@@ -307,10 +304,10 @@ function ScheduleContent({
       )}
 
       {/* Generate schedule if empty */}
-      {noSchedule && isCommissioner && activeSeason && (
+      {noSchedule && isCommissioner && activeSeason && seasonSettings && (
         <GenerateScheduleForm
           seasonId={activeSeason.id}
-          leagueId={leagueId}
+          settings={seasonSettings}
           onSuccess={() => {
             qc.invalidateQueries({ queryKey: ['/api/seasons', activeSeason.id, 'weeks'] as any });
             qc.invalidateQueries({ queryKey: [`/api/seasons/${activeSeason.id}/games`] });
@@ -321,6 +318,11 @@ function ScheduleContent({
       {noSchedule && !isCommissioner && (
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
           No schedule generated yet. The commissioner will publish it soon.
+        </div>
+      )}
+      {noSchedule && isCommissioner && activeSeason && !settings && (
+        <div className="panel" style={{ padding: '20px', color: 'var(--goal)' }}>
+          Active league settings are required before generating a schedule.
         </div>
       )}
 
@@ -356,13 +358,13 @@ function ScheduleContent({
 // ─────────────────────────────────────── Page
 export default function Schedule() {
   const { id: leagueId } = useParams<{ id: string }>();
-  const { isSignedIn } = useAuth();
   const { data: league, isLoading } = useGetLeague(leagueId ?? '');
+  const { data: settings } = useGetLeagueSettings(leagueId ?? '');
 
   if (isLoading) return <div className="loading-screen">Loading…</div>;
   if (!league)   return <div className="loading-screen">League not found.</div>;
 
-  const isCommissioner = Boolean(isSignedIn);
+  const isCommissioner = Boolean(settings?.can_manage);
 
   return (
     <>
@@ -381,6 +383,9 @@ export default function Schedule() {
       </div>
       <div className="wrap" style={{ paddingTop: '24px', paddingBottom: '60px' }}>
         <ScheduleContent leagueId={leagueId ?? ''} isCommissioner={isCommissioner} />
+        <div style={{ marginTop: '24px' }}>
+          <LeagueSettings leagueId={leagueId ?? ''} />
+        </div>
       </div>
     </>
   );
