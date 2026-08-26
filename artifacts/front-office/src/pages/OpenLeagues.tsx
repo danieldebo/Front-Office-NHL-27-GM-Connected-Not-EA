@@ -36,10 +36,12 @@ interface SignupDraft {
   mode: 'signup' | 'waitlist';
   league: OpenLeague;
   formState: SignupFormValues;
+  savedAt: number;
 }
 
 const DRAFT_KEY = 'fo_signup_draft';
 
+const DRAFT_TTL_MS = 30 * 60 * 1000;
 type Filter = 'all' | 'psn' | 'xbox' | 'both' | 'seats_open' | 'competitive';
 
 const FILTERS: { key: Filter; label: string }[] = [
@@ -170,6 +172,14 @@ export default function OpenLeagues() {
       const draft: SignupDraft = JSON.parse(raw);
       sessionStorage.removeItem(DRAFT_KEY);
 
+      if (
+        typeof draft.savedAt !== 'number'
+        || !Number.isFinite(draft.savedAt)
+        || Date.now() - draft.savedAt > DRAFT_TTL_MS
+      ) {
+        return;
+      }
+
       // Try to find a fresh copy of the league from the loaded list (seats may have changed)
       const freshLeague = leagues.find(l => l.league_id === draft.leagueId) ?? draft.league;
 
@@ -200,6 +210,7 @@ export default function OpenLeagues() {
         mode: 'signup',
         league,
         formState: emptyForm,
+        savedAt: Date.now(),
       }));
       sessionStorage.setItem('fo_return_path', '/leagues/open');
       navigate('/sign-in?redirect_url=/leagues/open');
@@ -218,6 +229,7 @@ export default function OpenLeagues() {
         mode: 'waitlist',
         league,
         formState: { platform: '', timezone: '', countryCode: '', location: '', division: '', message: '', preferredClub: '' },
+        savedAt: Date.now(),
       }));
       sessionStorage.setItem('fo_return_path', '/leagues/open');
       navigate('/sign-in?redirect_url=/leagues/open');

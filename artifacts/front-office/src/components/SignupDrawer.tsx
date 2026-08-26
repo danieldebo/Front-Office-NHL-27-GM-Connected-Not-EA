@@ -132,6 +132,7 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
           mode,
           league,
           formState: draft,
+          savedAt: Date.now(),
         }));
         sessionStorage.setItem('fo_return_path', '/leagues/open');
         navigate('/sign-in?redirect_url=/leagues/open');
