@@ -49,8 +49,7 @@ export async function clerkIdentityMiddleware(
         `INSERT INTO app_user (replit_id, display_name, email, external_ids)
          VALUES ($1, $2, $3, jsonb_build_object('clerk_user_id', $4::text))
          ON CONFLICT (replit_id) DO UPDATE
-           SET display_name = EXCLUDED.display_name,
-                external_ids = app_user.external_ids || EXCLUDED.external_ids
+           SET external_ids = app_user.external_ids || EXCLUDED.external_ids
          RETURNING id`,
         [userId, displayName, email, auth.userId],
       );

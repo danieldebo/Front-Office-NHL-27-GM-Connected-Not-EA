@@ -34,13 +34,25 @@ import {
   InviteLink,
   LeagueApplicant,
   WaitlistApplicant,
-  RulebookRevision
+   RulebookRevision,
+   AssignedGm,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
+import { gmIdentityLabel } from '@/components/gmIdentity';
 
 // Helper components
+export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) {
+  const identity = gmIdentityLabel(gm);
+  return (
+    <div style={{ fontFamily: 'var(--data)', fontSize: '12px' }} data-testid={`text-seat-gm-${seatId}`}>
+      GM: <strong style={{ color: 'var(--ink)' }}>{gm.display_name || gm.user_id}</strong>
+      {identity && <span style={{ color: 'var(--steel)' }}> · {identity}</span>}
+    </div>
+  );
+}
+
 function SeatsTab({ leagueId }: { leagueId: string }) {
   const { data: seatsResponse, isLoading } = useListSeats(leagueId);
   const seats = seatsResponse?.data || [];
@@ -107,9 +119,7 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
           <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             {seat.gm ? (
               <>
-                <div style={{ fontFamily: 'var(--data)', fontSize: '12px' }}>
-                  GM: <strong style={{ color: 'var(--ink)' }}>{seat.gm.display_name || seat.gm.user_id}</strong>
-                </div>
+                <SeatGmLabel gm={seat.gm} seatId={seat.team_season_id} />
                 <button onClick={() => handleRevoke(seat)} className="btn ghost" style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}>Revoke</button>
               </>
             ) : (

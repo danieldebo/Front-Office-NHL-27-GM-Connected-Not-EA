@@ -26,6 +26,7 @@ import {
   conflict,
 } from "../server/errors";
 import { AssignGmBody, CreateInviteBody } from "@workspace/api-zod";
+import { canonicalGmIdentity } from "../server/core/playerIdentity";
 
 const router: IRouter = Router();
 
@@ -62,6 +63,11 @@ async function loadSeat(teamSeasonId: string) {
        ga.id AS assignment_id,
        ga.user_id AS gm_user_id,
        au.display_name AS gm_display_name,
+       au.primary_identity AS gm_primary_identity,
+       au.xbox_gamertag AS gm_xbox_gamertag,
+       au.psn_online_id AS gm_psn_online_id,
+       au.platform::text AS gm_legacy_platform,
+       au.platform_gamertag AS gm_legacy_gamertag,
        ga.started_at AS gm_started_at,
        ga.role AS gm_role
      FROM team_season ts
@@ -90,7 +96,14 @@ function formatSeat(r: Record<string, unknown>) {
       ? {
           assignment_id: r.assignment_id,
           user_id: r.gm_user_id,
-          display_name: r.gm_display_name ?? null,
+           ...canonicalGmIdentity({
+             gm_display_name: r.gm_display_name as string | null,
+             gm_primary_identity: r.gm_primary_identity as string | null,
+             gm_xbox_gamertag: r.gm_xbox_gamertag as string | null,
+             gm_psn_online_id: r.gm_psn_online_id as string | null,
+             gm_legacy_platform: r.gm_legacy_platform as string | null,
+             gm_legacy_gamertag: r.gm_legacy_gamertag as string | null,
+           }),
           started_at: r.gm_started_at,
           role: r.gm_role,
         }
@@ -496,6 +509,11 @@ router.get(
          ga.id AS assignment_id,
          ga.user_id AS gm_user_id,
          au.display_name AS gm_display_name,
+         au.primary_identity AS gm_primary_identity,
+         au.xbox_gamertag AS gm_xbox_gamertag,
+         au.psn_online_id AS gm_psn_online_id,
+         au.platform::text AS gm_legacy_platform,
+         au.platform_gamertag AS gm_legacy_gamertag,
          ga.started_at AS gm_started_at,
          ga.role AS gm_role
        FROM team_season ts

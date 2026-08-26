@@ -18,6 +18,53 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get the authenticated player's saved profile
+ */
+export const GetMyProfileResponse = zod.object({
+  "id": zod.string(),
+  "display_name": zod.string(),
+  "timezone": zod.string(),
+  "xbox_gamertag": zod.string().nullable(),
+  "psn_online_id": zod.string().nullable(),
+  "systems_played": zod.array(zod.enum(['xbox', 'playstation'])),
+  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()])
+})
+
+
+/**
+ * @summary Update the authenticated player's saved profile
+ */
+export const updateMyProfileBodyDisplayNameMax = 100;
+
+export const updateMyProfileBodyTimezoneMax = 100;
+
+export const updateMyProfileBodyXboxGamertagMax = 100;
+
+export const updateMyProfileBodyPsnOnlineIdMax = 100;
+
+
+
+export const UpdateMyProfileBody = zod.object({
+  "display_name": zod.string().min(1).max(updateMyProfileBodyDisplayNameMax).optional(),
+  "timezone": zod.string().min(1).max(updateMyProfileBodyTimezoneMax).optional(),
+  "xbox_gamertag": zod.string().min(1).max(updateMyProfileBodyXboxGamertagMax).nullish(),
+  "psn_online_id": zod.string().min(1).max(updateMyProfileBodyPsnOnlineIdMax).nullish(),
+  "systems_played": zod.array(zod.enum(['xbox', 'playstation'])).optional(),
+  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional()
+})
+
+export const UpdateMyProfileResponse = zod.object({
+  "id": zod.string(),
+  "display_name": zod.string(),
+  "timezone": zod.string(),
+  "xbox_gamertag": zod.string().nullable(),
+  "psn_online_id": zod.string().nullable(),
+  "systems_played": zod.array(zod.enum(['xbox', 'playstation'])),
+  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()])
+})
+
+
+/**
  * @summary Public list of recruiting leagues (no auth required)
  */
 export const ListOpenLeaguesQueryParams = zod.object({
@@ -72,8 +119,6 @@ export const signupForLeagueBodyPreferredClubMax = 100;
 
 
 export const SignupForLeagueBody = zod.object({
-  "platform": zod.string().optional(),
-  "timezone": zod.string().optional(),
   "country_code": zod.string().min(signupForLeagueBodyCountryCodeMin).max(signupForLeagueBodyCountryCodeMax).regex(signupForLeagueBodyCountryCodeRegExp).optional(),
   "location": zod.string().max(signupForLeagueBodyLocationMax).optional(),
   "stated_division": zod.enum(['bronze', 'silver', 'gold', 'diamond', 'platinum', 'elite', 'ultimate']).optional(),
@@ -86,6 +131,7 @@ export const SignupForLeagueResponse = zod.object({
   "league_id": zod.string(),
   "user_id": zod.string(),
   "platform": zod.string().nullish(),
+  "platform_gamertag": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "country_code": zod.string().nullish(),
   "location": zod.string().nullish(),
@@ -117,6 +163,7 @@ export const ListLeagueWaitlistResponse = zod.object({
   "location": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "platform": zod.string().nullish(),
+  "platform_gamertag": zod.string().nullish(),
   "joined_at": zod.coerce.date(),
   "invited_at": zod.coerce.date().nullish(),
   "invite_expires_at": zod.coerce.date().nullish()
@@ -330,7 +377,12 @@ export const GetLeagueHubResponse = zod.object({
   "franchise_name": zod.string().nullish(),
   "club_abbrev": zod.string().nullish(),
   "goals": zod.number().min(getLeagueHubResponseMyGamesThisWeekItemHomeGoalsMin).nullish(),
-  "gm_display_name": zod.string().nullish()
+  "gm_display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish()
 }),
   "away": zod.object({
   "team_season_id": zod.string(),
@@ -338,7 +390,12 @@ export const GetLeagueHubResponse = zod.object({
   "franchise_name": zod.string().nullish(),
   "club_abbrev": zod.string().nullish(),
   "goals": zod.number().min(getLeagueHubResponseMyGamesThisWeekItemAwayGoalsMin).nullish(),
-  "gm_display_name": zod.string().nullish()
+  "gm_display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish()
 }),
   "result": zod.union([zod.object({
   "id": zod.string(),
@@ -433,6 +490,11 @@ export const ListLeagueSignupsResponse = zod.object({
   "location": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "platform": zod.string().nullish(),
+  "platform_gamertag": zod.string().nullish(),
+  "xbox_gamertag": zod.string().nullish(),
+  "psn_online_id": zod.string().nullish(),
+  "systems_played": zod.array(zod.enum(['xbox', 'playstation'])).optional(),
+  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "message": zod.string().nullish(),
   "preferred_club": zod.string().nullish(),
   "created_at": zod.coerce.date(),
@@ -509,6 +571,11 @@ export const GetPublicLeagueResponse = zod.object({
   "franchise_name": zod.string().nullish(),
   "club_abbrev": zod.string().nullish(),
   "gm_display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish(),
   "GP": zod.number(),
   "W": zod.number(),
   "L": zod.number(),
@@ -822,6 +889,11 @@ export const ListSeatsResponse = zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
   "display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish(),
   "started_at": zod.coerce.date().optional(),
   "role": zod.string().optional()
 }),zod.null()]).optional()
@@ -860,6 +932,11 @@ export const AssignGmResponse = zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
   "display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish(),
   "started_at": zod.coerce.date().optional(),
   "role": zod.string().optional()
 }),zod.null()]).optional()
@@ -891,6 +968,11 @@ export const RevokeGmResponse = zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
   "display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish(),
   "started_at": zod.coerce.date().optional(),
   "role": zod.string().optional()
 }),zod.null()]).optional()
@@ -981,6 +1063,11 @@ export const GetStandingsResponse = zod.object({
   "franchise_name": zod.string().nullish(),
   "club_abbrev": zod.string().nullish(),
   "gm_display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish(),
   "GP": zod.number(),
   "W": zod.number(),
   "L": zod.number(),
@@ -1042,7 +1129,12 @@ export const ListGamesResponse = zod.object({
   "franchise_name": zod.string().nullish(),
   "club_abbrev": zod.string().nullish(),
   "goals": zod.number().min(listGamesResponseDataItemHomeGoalsMin).nullish(),
-  "gm_display_name": zod.string().nullish()
+  "gm_display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish()
 }),
   "away": zod.object({
   "team_season_id": zod.string(),
@@ -1050,7 +1142,12 @@ export const ListGamesResponse = zod.object({
   "franchise_name": zod.string().nullish(),
   "club_abbrev": zod.string().nullish(),
   "goals": zod.number().min(listGamesResponseDataItemAwayGoalsMin).nullish(),
-  "gm_display_name": zod.string().nullish()
+  "gm_display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish()
 }),
   "result": zod.union([zod.object({
   "id": zod.string(),

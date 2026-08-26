@@ -13,6 +13,8 @@ export interface LeagueSignup {
   /** @nullable */
   platform?: string | null;
   /** @nullable */
+  platform_gamertag?: string | null;
+  /** @nullable */
   timezone?: string | null;
   /** @nullable */
   country_code?: string | null;

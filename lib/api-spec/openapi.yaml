@@ -26,6 +26,8 @@ tags:
     description: Open-league directory, sign-up, and waitlist intake.
   - name: Feedback
     description: Feature request inbox.
+  - name: Users
+    description: Authenticated player profile.
 
 paths:
   /healthz:
@@ -41,6 +43,58 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /users/me:
+    get:
+      tags: [Users]
+      operationId: getMyProfile
+      summary: Get the authenticated player's saved profile
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Current player profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      tags: [Users]
+      operationId: updateMyProfile
+      summary: Update the authenticated player's saved profile
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: Updated player profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Invalid or inconsistent profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 
   # ------------------------------------------------------------------ Discovery
 
@@ -2255,6 +2309,20 @@ components:
           type: string
         display_name:
           type: ["string", "null"]
+        gm_platform:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_gamertag:
+          type: ["string", "null"]
+        gm_xbox_gamertag:
+          type: ["string", "null"]
+        gm_psn_online_id:
+          type: ["string", "null"]
         started_at:
           type: string
           format: date-time
@@ -2330,6 +2398,20 @@ components:
           type: ["integer", "null"]
           minimum: 0
         gm_display_name:
+          type: ["string", "null"]
+        gm_platform:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_gamertag:
+          type: ["string", "null"]
+        gm_xbox_gamertag:
+          type: ["string", "null"]
+        gm_psn_online_id:
           type: ["string", "null"]
 
     Game:
@@ -2725,10 +2807,6 @@ components:
     LeagueSignupInput:
       type: object
       properties:
-        platform:
-          type: string
-        timezone:
-          type: string
         country_code:
           type: string
           minLength: 2
@@ -2759,6 +2837,8 @@ components:
           type: string
         platform:
           type: ["string", "null"]
+        platform_gamertag:
+          type: ["string", "null"]
         timezone:
           type: ["string", "null"]
         country_code:
@@ -2774,6 +2854,67 @@ components:
         created_at:
           type: string
           format: date-time
+
+    PlayerSystem:
+      type: string
+      enum: [xbox, playstation]
+
+    UserProfile:
+      type: object
+      required:
+        [id, display_name, timezone, xbox_gamertag, psn_online_id,
+         systems_played, primary_identity]
+      properties:
+        id:
+          type: string
+        display_name:
+          type: string
+        timezone:
+          type: string
+        xbox_gamertag:
+          type: ["string", "null"]
+        psn_online_id:
+          type: ["string", "null"]
+        systems_played:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/PlayerSystem'
+        primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+
+    UserProfileUpdate:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+        xbox_gamertag:
+          type: ["string", "null"]
+          minLength: 1
+          maxLength: 100
+        psn_online_id:
+          type: ["string", "null"]
+          minLength: 1
+          maxLength: 100
+        systems_played:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/PlayerSystem'
+        primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
 
     WaitlistPositionInput:
       type: object
@@ -2892,6 +3033,20 @@ components:
           type: ['string', 'null']
         platform:
           type: ['string', 'null']
+        platform_gamertag:
+          type: ['string', 'null']
+        xbox_gamertag:
+          type: ['string', 'null']
+        psn_online_id:
+          type: ['string', 'null']
+        systems_played:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerSystem'
+        primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
         message:
           type: ['string', 'null']
         preferred_club:
@@ -2932,6 +3087,8 @@ components:
         timezone:
           type: ['string', 'null']
         platform:
+          type: ['string', 'null']
+        platform_gamertag:
           type: ['string', 'null']
         joined_at:
           type: string
@@ -3041,6 +3198,20 @@ components:
         club_abbrev:
           type: ["string", "null"]
         gm_display_name:
+          type: ["string", "null"]
+        gm_platform:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_gamertag:
+          type: ["string", "null"]
+        gm_xbox_gamertag:
+          type: ["string", "null"]
+        gm_psn_online_id:
           type: ["string", "null"]
         GP:
           type: integer

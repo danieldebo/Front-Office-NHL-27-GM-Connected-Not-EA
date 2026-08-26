@@ -4,7 +4,7 @@
  * "Join waitlist" (POST /api/leagues/:id/waitlist) flows.
  */
 import React, { useState } from 'react';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 
 interface League {
   league_id: string;
@@ -14,8 +14,6 @@ interface League {
 }
 
 export interface SignupFormValues {
-  platform: string;
-  timezone: string;
   countryCode: string;
   location: string;
   division: string;
@@ -31,23 +29,6 @@ interface Props {
 }
 
 const DIVISIONS = ['Bronze', 'Silver', 'Gold', 'Diamond', 'Platinum', 'Elite', 'Ultimate'];
-
-const COMMON_TIMEZONES = [
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'America/Phoenix',
-  'America/Toronto',
-  'America/Vancouver',
-  'America/Halifax',
-  'America/Winnipeg',
-  'Europe/London',
-  'Europe/Stockholm',
-  'Europe/Helsinki',
-  'Australia/Sydney',
-  'Pacific/Auckland',
-];
 
 const COUNTRIES = [
   { code: 'US', name: 'United States' },
@@ -73,8 +54,6 @@ type State = 'idle' | 'submitting' | 'success' | 'error';
 const DRAFT_KEY = 'fo_signup_draft';
 
 export default function SignupDrawer({ league, mode, onClose, initialValues }: Props) {
-  const [platform, setPlatform] = useState(initialValues?.platform ?? league.platform ?? '');
-  const [timezone, setTimezone] = useState(initialValues?.timezone ?? '');
   const [countryCode, setCountryCode] = useState(initialValues?.countryCode ?? '');
   const [location, setLocation] = useState(initialValues?.location ?? '');
   const [division, setDivision] = useState(initialValues?.division ?? '');
@@ -82,6 +61,7 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
   const [preferredClub, setPreferredClub] = useState(initialValues?.preferredClub ?? '');
   const [state, setState] = useState<State>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [profileError, setProfileError] = useState(false);
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
   const [, navigate] = useLocation();
 
@@ -97,6 +77,7 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
     }
     setState('submitting');
     setErrorMsg('');
+    setProfileError(false);
 
     try {
       const url =
@@ -107,8 +88,6 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
       const body =
         mode === 'signup'
           ? {
-              platform: platform || undefined,
-              timezone: timezone || undefined,
               country_code: countryCode !== 'OTHER' ? countryCode : undefined,
               location: location || undefined,
               stated_division: division ? division.toLowerCase() : undefined,
@@ -126,7 +105,7 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
 
       if (res.status === 401) {
         // Session expired mid-form — save state and redirect to login
-        const draft: SignupFormValues = { platform, timezone, countryCode, location, division, message, preferredClub };
+        const draft: SignupFormValues = { countryCode, location, division, message, preferredClub };
         sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
           leagueId,
           mode,
@@ -141,7 +120,11 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setErrorMsg((data as { detail?: string }).detail ?? 'Something went wrong. Please try again.');
+        const responseError = data as { detail?: string; code?: string; error?: string };
+        const detail = responseError.detail ?? responseError.error ?? 'Something went wrong. Please try again.';
+        const eligibilityText = `${responseError.code ?? ''} ${detail}`.toLowerCase();
+        setProfileError(/profile|identity|timezone|time zone|platform|system|eligib/.test(eligibilityText));
+        setErrorMsg(detail);
         setState('error');
         return;
       }
@@ -199,23 +182,10 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
         <form onSubmit={handleSubmit}>
           {mode === 'signup' && (
             <div className="signup-body">
-              <div className="field">
-                <label htmlFor="su-platform">Platform</label>
-                <select id="su-platform" value={platform} onChange={e => setPlatform(e.target.value)}>
-                  <option value="">Any</option>
-                  <option value="psn">PSN</option>
-                  <option value="xbox">Xbox</option>
-                  <option value="both">Crossplay</option>
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="su-tz">Time zone</label>
-                <select id="su-tz" value={timezone} onChange={e => setTimezone(e.target.value)}>
-                  <option value="">Select…</option>
-                  {COMMON_TIMEZONES.map(tz => (
-                    <option key={tz} value={tz}>{tz.replace('_', ' ')}</option>
-                  ))}
-                </select>
+              <div className="profile-eligibility full">
+                <strong>Eligibility uses your saved profile</strong>
+                <span>Your systems, primary gaming identity, and time zone are checked automatically. </span>
+                <Link href="/profile" data-testid="link-edit-profile-signup">Review profile</Link>
               </div>
               <div className="field">
                 <label htmlFor="su-country">Country <span style={{ textTransform: 'none', letterSpacing: 0, opacity: .8, fontFamily: 'var(--body)' }}>*</span></label>
@@ -287,6 +257,10 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
               <p style={{ margin: '0 0 12px' }}>
                 You're joining the waitlist for <strong>{league.name}</strong>. You'll be invited when a seat opens.
               </p>
+              <p className="profile-eligibility">
+                Your saved systems, primary gaming identity, and time zone determine eligibility.{' '}
+                <Link href="/profile" data-testid="link-edit-profile-waitlist">Review profile</Link>
+              </p>
             </div>
           )}
 
@@ -297,8 +271,9 @@ export default function SignupDrawer({ league, mode, onClose, initialValues }: P
               </span>
             )}
             {errorMsg && (
-              <span style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--goal)' }}>
+              <span role="alert" style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--goal)' }}>
                 {errorMsg}
+                {profileError && <> <Link href="/profile" data-testid="link-fix-profile-error">Update your profile</Link>.</>}
               </span>
             )}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>

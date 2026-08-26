@@ -4,6 +4,29 @@
  */
 import { useLocation } from 'wouter';
 import { Game } from '@workspace/api-client-react';
+import { gmIdentityLabel } from '@/components/gmIdentity';
+
+type ExtendedGameSide = Game['home'] & {
+  gm_primary_identity?: string | null;
+  gm_platform?: string | null;
+  gm_gamertag?: string | null;
+};
+
+function sideLabel(side: ExtendedGameSide, fallback: string) {
+  const club = side.club_abbrev ?? side.franchise_name ?? fallback;
+  const identity = gmIdentityLabel(side);
+  return (
+    <span className="mu-side">
+      <strong>{club}</strong>
+      {(side.gm_display_name || identity) && (
+        <small>
+          {side.gm_display_name ?? 'GM'}
+          {identity ? ` · ${identity}` : ''}
+        </small>
+      )}
+    </span>
+  );
+}
 
 function statusChip(status: string) {
   switch (status) {
@@ -34,8 +57,8 @@ export default function MyWeek({ games, isLoading }: { games: Game[]; isLoading:
         </div>
       ) : (
         games.map((game, i) => {
-          const home = game.home.club_abbrev ?? game.home.franchise_name ?? 'Home';
-          const away = game.away.club_abbrev ?? game.away.franchise_name ?? 'Away';
+          const home = game.home as ExtendedGameSide;
+          const away = game.away as ExtendedGameSide;
           const result = game.result;
 
           const scoreStr = result
@@ -52,7 +75,11 @@ export default function MyWeek({ games, isLoading }: { games: Game[]; isLoading:
               className="matchup anim"
               style={{ animationDelay: `${i * 0.04}s` }}
             >
-              <span className="mu-teams">{away} @ {home}</span>
+              <span className="mu-teams" data-testid={`matchup-identities-${game.id}`}>
+                {sideLabel(away, 'Away')}
+                <span className="mu-at" aria-label="at">@</span>
+                {sideLabel(home, 'Home')}
+              </span>
 
               <span className="mu-when">
                 {(game.status === 'scheduled' || game.status === 'in_window') && (

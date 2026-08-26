@@ -8,8 +8,6 @@
 import type { LeagueSignupInputStatedDivision } from './leagueSignupInputStatedDivision';
 
 export interface LeagueSignupInput {
-  platform?: string;
-  timezone?: string;
   /**
      * @minLength 2
      * @maxLength 2

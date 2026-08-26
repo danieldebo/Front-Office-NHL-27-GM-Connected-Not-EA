@@ -1,4 +1,11 @@
 import { useGetStandings, StandingsRow } from '@workspace/api-client-react';
+import { gmIdentityLabel } from '@/components/gmIdentity';
+
+type IdentityStandingsRow = StandingsRow & {
+  gm_primary_identity?: string | null;
+  gm_platform?: string | null;
+  gm_gamertag?: string | null;
+};
 
 type ProvenanceChip = 'conf' | 'man' | 'ocr' | 'ea' | 'dispute';
 
@@ -45,6 +52,7 @@ function StandingsTable({
           </thead>
           <tbody>
             {rows.map((row, i) => {
+              const identityRow = row as IdentityStandingsRow;
               const diff = row.DIFF ?? 0;
               // 8th place is the playoff cutline (top-8 format)
               const isPlayoffLine = i === 7;
@@ -63,7 +71,10 @@ function StandingsTable({
                     )}
                     {row.franchise_name}
                     {row.gm_display_name && (
-                      <span className="gm"> · @{row.gm_display_name}</span>
+                      <span className="gm"> · @{row.gm_display_name}{gmIdentityLabel(identityRow) ? ` · ${gmIdentityLabel(identityRow)}` : ''}</span>
+                    )}
+                    {!row.gm_display_name && gmIdentityLabel(identityRow) && (
+                      <span className="gm"> · {gmIdentityLabel(identityRow)}</span>
                     )}
                   </td>
                   <td>{row.GP}</td>

@@ -4,16 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import OpenLeagues from './OpenLeagues';
 
 const { authState, navigate } = vi.hoisted(() => ({
-  authState: { isAuthenticated: false, isLoading: false },
+  authState: { isSignedIn: false, isLoaded: true },
   navigate: vi.fn(),
 }));
 
-vi.mock('@workspace/replit-auth-web', () => ({
+vi.mock('@clerk/react', () => ({
   useAuth: () => authState,
+  useClerk: () => ({ signOut: vi.fn() }),
 }));
 
 vi.mock('wouter', () => ({
   useLocation: () => ['/leagues/open', navigate],
+  Link: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a href={href} {...props}>{children}</a>
+  ),
 }));
 
 vi.mock('@workspace/api-client-react', () => ({
@@ -57,8 +61,8 @@ function mockOpenLeagues(league: ReturnType<typeof makeLeague>) {
 describe('/leagues/open sign-up draft recovery', () => {
   beforeEach(() => {
     sessionStorage.clear();
-    authState.isAuthenticated = false;
-    authState.isLoading = false;
+    authState.isSignedIn = false;
+    authState.isLoaded = true;
     navigate.mockReset();
   });
 
@@ -80,8 +84,6 @@ describe('/leagues/open sign-up draft recovery', () => {
       mode: 'signup',
       league,
       formState: {
-        platform: league.platform,
-        timezone: '',
         countryCode: '',
         location: '',
         division: '',
@@ -91,15 +93,13 @@ describe('/leagues/open sign-up draft recovery', () => {
       savedAt: expect.any(Number),
     });
     expect(sessionStorage.getItem('fo_return_path')).toBe('/leagues/open');
-    expect(navigate).toHaveBeenCalledWith('/login');
+    expect(navigate).toHaveBeenCalledWith('/sign-in?redirect_url=/leagues/open');
   });
 
   it('restores the saved form into the fresh matching league after login', async () => {
     const staleLeague = makeLeague({ name: 'Old Rust Belt Name', seats_open: 3 });
     const freshLeague = makeLeague({ name: 'Rust Belt Hockey — Season 2', seats_open: 1 });
     const formState = {
-      platform: 'xbox',
-      timezone: 'America/Chicago',
       countryCode: 'CA',
       location: 'Toronto, ON',
       division: 'Diamond',
@@ -117,14 +117,13 @@ describe('/leagues/open sign-up draft recovery', () => {
         savedAt: Date.now(),
       }),
     );
-    authState.isAuthenticated = true;
+    authState.isSignedIn = true;
     mockOpenLeagues(freshLeague);
 
     render(<OpenLeagues />);
 
     expect(await screen.findByText(`Sign up — ${freshLeague.name}`)).toBeTruthy();
-    expect((screen.getByLabelText('Platform') as HTMLSelectElement).value).toBe(formState.platform);
-    expect((screen.getByLabelText('Time zone') as HTMLSelectElement).value).toBe(formState.timezone);
+    expect(screen.getByText('Eligibility uses your saved profile')).toBeTruthy();
     expect((screen.getByLabelText(/Country/) as HTMLSelectElement).value).toBe(formState.countryCode);
     expect((screen.getByLabelText(/Location/) as HTMLInputElement).value).toBe(formState.location);
     expect((screen.getByLabelText(/Message to the commissioner/) as HTMLInputElement).value).toBe(formState.message);
@@ -135,7 +134,7 @@ describe('/leagues/open sign-up draft recovery', () => {
 
   it('clears a corrupt saved draft without crashing or opening a drawer', async () => {
     sessionStorage.setItem(DRAFT_KEY, '{not valid json');
-    authState.isAuthenticated = true;
+    authState.isSignedIn = true;
     const league = makeLeague();
     mockOpenLeagues(league);
 
@@ -155,8 +154,6 @@ describe('/leagues/open sign-up draft recovery', () => {
         mode: 'signup',
         league,
         formState: {
-          platform: 'xbox',
-          timezone: '',
           countryCode: '',
           location: '',
           division: '',
@@ -166,7 +163,7 @@ describe('/leagues/open sign-up draft recovery', () => {
         savedAt: Date.now() - (30 * 60 * 1000 + 1),
       }),
     );
-    authState.isAuthenticated = true;
+    authState.isSignedIn = true;
     mockOpenLeagues(league);
 
     render(<OpenLeagues />);

@@ -13,6 +13,48 @@ import { rateLimiter } from "../middlewares/rateLimiter";
 
 const router: IRouter = Router();
 
+type EligibilityProfile = {
+  id: string;
+  timezone: string;
+  xbox_gamertag: string | null;
+  psn_online_id: string | null;
+  systems_played: string[];
+  primary_identity: string | null;
+};
+
+export function savedIdentityForLeague(
+  leaguePlatform: string,
+  profile: EligibilityProfile,
+): { platform: "xbox" | "playstation"; gamertag: string } | null {
+  const xbox = profile.systems_played.includes("xbox") && profile.xbox_gamertag
+    ? { platform: "xbox" as const, gamertag: profile.xbox_gamertag }
+    : null;
+  const playstation = profile.systems_played.includes("playstation") && profile.psn_online_id
+    ? { platform: "playstation" as const, gamertag: profile.psn_online_id }
+    : null;
+  if (leaguePlatform === "xbox") return xbox;
+  if (leaguePlatform === "playstation") return playstation;
+  if (profile.primary_identity === "xbox" && xbox) return xbox;
+  if (profile.primary_identity === "playstation" && playstation) return playstation;
+  return xbox ?? playstation;
+}
+
+async function getEligibility(
+  appUserId: string,
+  leagueId: string,
+): Promise<{ profile: EligibilityProfile; leaguePlatform: string } | null> {
+  const result = await pool.query<EligibilityProfile & { league_platform: string }>(
+    `SELECT u.id, u.timezone, u.xbox_gamertag, u.psn_online_id,
+            u.systems_played, u.primary_identity, l.platform::text AS league_platform
+       FROM app_user u CROSS JOIN league l
+      WHERE u.id = $1 AND u.deleted_at IS NULL
+        AND l.id = $2 AND l.deleted_at IS NULL`,
+    [appUserId, leagueId],
+  );
+  const row = result.rows[0];
+  return row ? { profile: row, leaguePlatform: row.league_platform } : null;
+}
+
 // ──────────────────────────────────────────────── GET /leagues/open
 
 router.get(
@@ -90,13 +132,8 @@ router.post(
 
     const leagueId = String(req.params.id);
 
-    // Resolve app_user id from replit_id
-    const userRow = await pool.query<{ id: string }>(
-      `SELECT id FROM app_user WHERE replit_id = $1`,
-      [user.id]
-    );
-    if (!userRow.rows[0]) { unauthorized(res, "User not found"); return; }
-    const appUserId = userRow.rows[0].id;
+    if (!user.appUserId) { unauthorized(res, "User not found"); return; }
+    const appUserId = user.appUserId;
 
     // Verify league is listed and accepting signups
     const listingRow = await pool.query<{
@@ -115,9 +152,16 @@ router.post(
       return;
     }
 
-    const { platform, timezone, country_code, location, stated_division, message, preferred_club } = req.body as {
-      platform?: string;
-      timezone?: string;
+    const eligibility = await getEligibility(appUserId, leagueId);
+    const identity = eligibility
+      ? savedIdentityForLeague(eligibility.leaguePlatform, eligibility.profile)
+      : null;
+    if (!eligibility || !identity) {
+      badRequest(res, "Your saved profile does not have an eligible console identity for this league");
+      return;
+    }
+
+    const { country_code, location, stated_division, message, preferred_club } = req.body as {
       country_code?: string;
       location?: string;
       stated_division?: string;
@@ -140,14 +184,21 @@ router.post(
     try {
       const { rows } = await pool.query<{ id: string; created_at: Date }>(
         `INSERT INTO league_signup
-           (league_id, user_id, stated_division, platform, timezone, country_code, location, message, preferred_club)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (league_id, user_id, stated_division, platform, platform_gamertag,
+             xbox_gamertag, psn_online_id, systems_played, primary_identity,
+             timezone, country_code, location, message, preferred_club)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          RETURNING id, created_at`,
         [
           leagueId, appUserId,
           stated_division ?? null,
-          platform ?? null,
-          timezone ?? null,
+          identity.platform,
+          identity.gamertag,
+          eligibility.profile.xbox_gamertag,
+          eligibility.profile.psn_online_id,
+          eligibility.profile.systems_played,
+          eligibility.profile.primary_identity,
+          eligibility.profile.timezone,
           country_code ?? null,
           location ?? null,
           message ?? null,
@@ -159,8 +210,9 @@ router.post(
         id: rows[0]!.id,
         league_id: leagueId,
         user_id: appUserId,
-        platform: platform ?? null,
-        timezone: timezone ?? null,
+        platform: identity.platform,
+        platform_gamertag: identity.gamertag,
+        timezone: eligibility.profile.timezone,
         country_code: country_code ?? null,
         location: location ?? null,
         stated_division: stated_division ?? null,
@@ -190,13 +242,8 @@ router.post(
 
     const { id: leagueId } = req.params;
 
-    // Resolve app_user id from replit_id
-    const userRow = await pool.query<{ id: string }>(
-      `SELECT id FROM app_user WHERE replit_id = $1`,
-      [user.id]
-    );
-    if (!userRow.rows[0]) { unauthorized(res, "User not found"); return; }
-    const appUserId = userRow.rows[0].id;
+    if (!user.appUserId) { unauthorized(res, "User not found"); return; }
+    const appUserId = user.appUserId;
 
     // Verify league exists and accepts waitlist
     const listingRow = await pool.query<{ accepting_waitlist: boolean }>(
@@ -206,6 +253,15 @@ router.post(
     if (!listingRow.rows[0]) { notFound(res, "League not found or not recruiting"); return; }
     if (!listingRow.rows[0].accepting_waitlist) {
       conflict(res, "This league is not accepting waitlist entries");
+      return;
+    }
+
+    const eligibility = await getEligibility(appUserId, String(leagueId));
+    const identity = eligibility
+      ? savedIdentityForLeague(eligibility.leaguePlatform, eligibility.profile)
+      : null;
+    if (!eligibility || !identity) {
+      badRequest(res, "Your saved profile does not have an eligible console identity for this league");
       return;
     }
 
@@ -258,10 +314,18 @@ router.post(
       const nextPos = parseInt(posRow.rows[0]!.next_pos, 10);
 
       const { rows } = await client.query<{ id: string; position: number; joined_at: Date }>(
-        `INSERT INTO waitlist_entry (league_id, user_id, signup_id, status, position)
-         VALUES ($1, $2, $3, 'waiting', $4)
+        `INSERT INTO waitlist_entry
+           (league_id, user_id, signup_id, status, position, platform,
+            platform_gamertag, xbox_gamertag, psn_online_id,
+            systems_played, primary_identity)
+         VALUES ($1, $2, $3, 'waiting', $4, $5, $6, $7, $8, $9, $10)
          RETURNING id, position, joined_at`,
-        [leagueId, appUserId, signupId, nextPos]
+        [
+          leagueId, appUserId, signupId, nextPos, identity.platform,
+          identity.gamertag, eligibility.profile.xbox_gamertag,
+          eligibility.profile.psn_online_id, eligibility.profile.systems_played,
+          eligibility.profile.primary_identity,
+        ]
       );
 
       await client.query("COMMIT");
@@ -341,6 +405,11 @@ router.get(
           COALESCE(su.location, u.location)             AS location,
           COALESCE(su.timezone, u.timezone)             AS timezone,
           su.platform,
+           su.platform_gamertag,
+           su.xbox_gamertag,
+           su.psn_online_id,
+           su.systems_played,
+           su.primary_identity,
           su.message,
           su.preferred_club,
           su.created_at,
@@ -389,13 +458,16 @@ router.get(
            v.country_code,
            v.location,
            v.timezone,
-           v.platform,
+            COALESCE(su.platform::text, w.platform)      AS platform,
+            COALESCE(su.platform_gamertag, w.platform_gamertag)
+                                                            AS platform_gamertag,
            v.joined_at,
            v.invited_at,
            v.invite_expires_at
         FROM v_waitlist v
         JOIN waitlist_entry w
           ON w.league_id = v.league_id AND w.user_id = v.user_id
+         LEFT JOIN league_signup su ON su.id = w.signup_id
         WHERE v.league_id = $1
         ORDER BY v.position ASC`,
       [leagueId]

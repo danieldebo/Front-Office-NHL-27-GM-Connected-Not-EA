@@ -20,6 +20,7 @@ import {
 import { idempotencyMiddleware } from "../middlewares/idempotency";
 import { rateLimiter } from "../middlewares/rateLimiter";
 import { ReportResultBody, ConfirmResultBody } from "@workspace/api-zod";
+import { canonicalGmIdentity } from "../server/core/playerIdentity";
 
 const router: IRouter = Router();
 
@@ -45,6 +46,12 @@ router.get(
          f.id               AS franchise_id,
          f.name             AS franchise_name,
          nc.abbrev          AS club_abbrev,
+         u.display_name     AS gm_display_name,
+         u.primary_identity AS gm_primary_identity,
+         u.xbox_gamertag    AS gm_xbox_gamertag,
+         u.psn_online_id    AS gm_psn_online_id,
+         u.platform::text   AS gm_legacy_platform,
+         u.platform_gamertag AS gm_legacy_gamertag,
          COALESCE(vs.gp, 0)   AS "GP",
          COALESCE(vs.w, 0)    AS "W",
          COALESCE(vs.l, 0)    AS "L",
@@ -58,6 +65,8 @@ router.get(
        JOIN franchise f ON f.id = ts.franchise_id
        LEFT JOIN nhl_club nc ON nc.id = ts.nhl_club_id
        LEFT JOIN v_standings vs ON vs.team_season_id = ts.id
+        LEFT JOIN gm_assignment ga ON ga.team_season_id = ts.id AND ga.ended_at IS NULL
+        LEFT JOIN app_user u ON u.id = ga.user_id
       WHERE ts.season_id = $1
       ORDER BY "PTS" DESC, "ROW" DESC, "GF" DESC`,
       [seasonId]
@@ -119,7 +128,7 @@ router.get(
         franchise_id: r.franchise_id as string,
         franchise_name: r.franchise_name as string | null,
         club_abbrev: r.club_abbrev as string | null,
-        gm_display_name: null,
+        ...canonicalGmIdentity(r),
         GP: r.GP as number,
         W: r.W as number,
         L: r.L as number,
@@ -172,9 +181,15 @@ router.get(
          g.home_team_season_id,
          hf.id  AS home_franchise_id, hf.name AS home_franchise_name,
          hn.abbrev AS home_club_abbrev,
+         hu.display_name AS home_gm_display_name, hu.primary_identity AS home_gm_primary_identity,
+         hu.xbox_gamertag AS home_gm_xbox_gamertag, hu.psn_online_id AS home_gm_psn_online_id,
+         hu.platform::text AS home_gm_legacy_platform, hu.platform_gamertag AS home_gm_legacy_gamertag,
          g.away_team_season_id,
          af.id  AS away_franchise_id, af.name AS away_franchise_name,
          an.abbrev AS away_club_abbrev,
+         au.display_name AS away_gm_display_name, au.primary_identity AS away_gm_primary_identity,
+         au.xbox_gamertag AS away_gm_xbox_gamertag, au.psn_online_id AS away_gm_psn_online_id,
+         au.platform::text AS away_gm_legacy_platform, au.platform_gamertag AS away_gm_legacy_gamertag,
          gr.id   AS result_id,
          gr.home_goals, gr.away_goals, gr.decision,
          gr.version, gr.data_source, gr.counts_toward_standings,
@@ -184,9 +199,13 @@ router.get(
        JOIN team_season hts ON hts.id = g.home_team_season_id
        JOIN franchise hf ON hf.id = hts.franchise_id
        LEFT JOIN nhl_club hn ON hn.id = hts.nhl_club_id
+        LEFT JOIN gm_assignment hga ON hga.team_season_id = hts.id AND hga.ended_at IS NULL
+        LEFT JOIN app_user hu ON hu.id = hga.user_id
        JOIN team_season ats ON ats.id = g.away_team_season_id
        JOIN franchise af ON af.id = ats.franchise_id
        LEFT JOIN nhl_club an ON an.id = ats.nhl_club_id
+        LEFT JOIN gm_assignment aga ON aga.team_season_id = ats.id AND aga.ended_at IS NULL
+        LEFT JOIN app_user au ON au.id = aga.user_id
        LEFT JOIN game_result gr ON gr.game_id = g.id AND gr.superseded_by IS NULL
       WHERE g.season_id = $1 ${whereClause}
       ORDER BY g.id ASC
@@ -209,7 +228,11 @@ router.get(
         franchise_name: r.home_franchise_name,
         club_abbrev: r.home_club_abbrev ?? null,
         goals: r.home_goals ?? null,
-        gm_display_name: null,
+        ...canonicalGmIdentity({
+          gm_display_name: r.home_gm_display_name, gm_primary_identity: r.home_gm_primary_identity,
+          gm_xbox_gamertag: r.home_gm_xbox_gamertag, gm_psn_online_id: r.home_gm_psn_online_id,
+          gm_legacy_platform: r.home_gm_legacy_platform, gm_legacy_gamertag: r.home_gm_legacy_gamertag,
+        }),
       },
       away: {
         team_season_id: r.away_team_season_id,
@@ -217,7 +240,11 @@ router.get(
         franchise_name: r.away_franchise_name,
         club_abbrev: r.away_club_abbrev ?? null,
         goals: r.away_goals ?? null,
-        gm_display_name: null,
+        ...canonicalGmIdentity({
+          gm_display_name: r.away_gm_display_name, gm_primary_identity: r.away_gm_primary_identity,
+          gm_xbox_gamertag: r.away_gm_xbox_gamertag, gm_psn_online_id: r.away_gm_psn_online_id,
+          gm_legacy_platform: r.away_gm_legacy_platform, gm_legacy_gamertag: r.away_gm_legacy_gamertag,
+        }),
       },
       result: r.result_id
         ? {
@@ -262,9 +289,15 @@ router.get(
          g.home_team_season_id,
          hf.id  AS home_franchise_id, hf.name AS home_franchise_name,
          hn.abbrev AS home_club_abbrev,
+         hu.display_name AS home_gm_display_name, hu.primary_identity AS home_gm_primary_identity,
+         hu.xbox_gamertag AS home_gm_xbox_gamertag, hu.psn_online_id AS home_gm_psn_online_id,
+         hu.platform::text AS home_gm_legacy_platform, hu.platform_gamertag AS home_gm_legacy_gamertag,
          g.away_team_season_id,
          af.id  AS away_franchise_id, af.name AS away_franchise_name,
          an.abbrev AS away_club_abbrev,
+         au.display_name AS away_gm_display_name, au.primary_identity AS away_gm_primary_identity,
+         au.xbox_gamertag AS away_gm_xbox_gamertag, au.psn_online_id AS away_gm_psn_online_id,
+         au.platform::text AS away_gm_legacy_platform, au.platform_gamertag AS away_gm_legacy_gamertag,
          gr.id   AS result_id,
          gr.home_goals, gr.away_goals, gr.decision,
          gr.version, gr.data_source, gr.counts_toward_standings,
@@ -274,9 +307,13 @@ router.get(
        JOIN team_season hts ON hts.id = g.home_team_season_id
        JOIN franchise hf ON hf.id = hts.franchise_id
        LEFT JOIN nhl_club hn ON hn.id = hts.nhl_club_id
+        LEFT JOIN gm_assignment hga ON hga.team_season_id = hts.id AND hga.ended_at IS NULL
+        LEFT JOIN app_user hu ON hu.id = hga.user_id
        JOIN team_season ats ON ats.id = g.away_team_season_id
        JOIN franchise af ON af.id = ats.franchise_id
        LEFT JOIN nhl_club an ON an.id = ats.nhl_club_id
+        LEFT JOIN gm_assignment aga ON aga.team_season_id = ats.id AND aga.ended_at IS NULL
+        LEFT JOIN app_user au ON au.id = aga.user_id
        LEFT JOIN game_result gr ON gr.game_id = g.id AND gr.superseded_by IS NULL
       WHERE g.id = $1`,
       [gameId]
@@ -299,6 +336,11 @@ router.get(
         franchise_name: r.home_franchise_name,
         club_abbrev: r.home_club_abbrev ?? null,
         goals: r.home_goals ?? null,
+        ...canonicalGmIdentity({
+          gm_display_name: r.home_gm_display_name, gm_primary_identity: r.home_gm_primary_identity,
+          gm_xbox_gamertag: r.home_gm_xbox_gamertag, gm_psn_online_id: r.home_gm_psn_online_id,
+          gm_legacy_platform: r.home_gm_legacy_platform, gm_legacy_gamertag: r.home_gm_legacy_gamertag,
+        }),
       },
       away: {
         team_season_id: r.away_team_season_id,
@@ -306,6 +348,11 @@ router.get(
         franchise_name: r.away_franchise_name,
         club_abbrev: r.away_club_abbrev ?? null,
         goals: r.away_goals ?? null,
+        ...canonicalGmIdentity({
+          gm_display_name: r.away_gm_display_name, gm_primary_identity: r.away_gm_primary_identity,
+          gm_xbox_gamertag: r.away_gm_xbox_gamertag, gm_psn_online_id: r.away_gm_psn_online_id,
+          gm_legacy_platform: r.away_gm_legacy_platform, gm_legacy_gamertag: r.away_gm_legacy_gamertag,
+        }),
       },
       result: r.result_id ? {
         id: r.result_id,

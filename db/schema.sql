@@ -77,11 +77,48 @@ CREATE TABLE app_user (
     timezone        TEXT NOT NULL DEFAULT 'UTC',       -- IANA tz identifier
     platform        TEXT,                              -- 'psn' | 'xbox'
     platform_gamertag TEXT,
+    xbox_gamertag   TEXT,
+    psn_online_id   TEXT,
+    systems_played  TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    primary_identity TEXT CHECK (primary_identity IS NULL OR primary_identity IN ('xbox', 'playstation')),
     country_code    CHAR(2),                           -- ISO 3166-1 alpha-2
     external_ids    JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at      TIMESTAMPTZ
+    deleted_at      TIMESTAMPTZ,
+    CHECK (systems_played <@ ARRAY['xbox', 'playstation']::TEXT[]),
+    CHECK (
+        primary_identity IS NULL
+        OR (primary_identity = 'xbox' AND NULLIF(btrim(xbox_gamertag), '') IS NOT NULL
+            AND 'xbox' = ANY(systems_played))
+        OR (primary_identity = 'playstation' AND NULLIF(btrim(psn_online_id), '') IS NOT NULL
+            AND 'playstation' = ANY(systems_played))
+    )
 );
+
+CREATE TABLE app_user_profile_history (
+    id                  BIGSERIAL PRIMARY KEY,
+    user_id             UUID NOT NULL REFERENCES app_user(id),
+    display_name        TEXT NOT NULL,
+    timezone            TEXT NOT NULL,
+    xbox_gamertag       TEXT,
+    psn_online_id       TEXT,
+    systems_played      TEXT[] NOT NULL,
+    primary_identity    TEXT,
+    changed_by          UUID REFERENCES app_user(id),
+    recorded_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX app_user_profile_history_user_recorded
+    ON app_user_profile_history (user_id, recorded_at DESC);
+
+CREATE FUNCTION reject_app_user_profile_history_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'app_user_profile_history is append-only';
+END;
+$$;
+CREATE TRIGGER app_user_profile_history_append_only
+BEFORE UPDATE OR DELETE ON app_user_profile_history
+FOR EACH ROW EXECUTE FUNCTION reject_app_user_profile_history_mutation();
 
 -- ---------------------------------------------------------------------------
 -- League structure

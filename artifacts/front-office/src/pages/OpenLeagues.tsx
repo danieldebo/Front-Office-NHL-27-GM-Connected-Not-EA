@@ -197,8 +197,6 @@ export default function OpenLeagues() {
   const handleOpenSignup = (league: OpenLeague) => {
     if (!isSignedIn) {
       const emptyForm: SignupFormValues = {
-        platform: league.platform ?? '',
-        timezone: '',
         countryCode: '',
         location: '',
         division: '',
@@ -228,7 +226,7 @@ export default function OpenLeagues() {
         leagueId: league.league_id,
         mode: 'waitlist',
         league,
-        formState: { platform: '', timezone: '', countryCode: '', location: '', division: '', message: '', preferredClub: '' },
+        formState: { countryCode: '', location: '', division: '', message: '', preferredClub: '' },
         savedAt: Date.now(),
       }));
       sessionStorage.setItem('fo_return_path', '/leagues/open');

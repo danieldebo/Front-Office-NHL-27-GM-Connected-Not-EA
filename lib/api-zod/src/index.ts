@@ -76,6 +76,7 @@ export type { ListRulebookRevisions200 } from "./generated/types/listRulebookRev
 export type { ListSeasons200 } from "./generated/types/listSeasons200";
 export type { ListSeats200 } from "./generated/types/listSeats200";
 // OpenLeague intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { PlayerSystem } from "./generated/types/playerSystem";
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
 export type { ProblemError } from "./generated/types/problemError";
@@ -104,6 +105,8 @@ export type { UpdateLeagueInputVisibility } from "./generated/types/updateLeague
 export type { UpdateLeagueListingInput } from "./generated/types/updateLeagueListingInput";
 export type { UpdateLeagueListingInputCompetitiveness } from "./generated/types/updateLeagueListingInputCompetitiveness";
 export type { UpdateLeagueListingInputPlatform } from "./generated/types/updateLeagueListingInputPlatform";
+export type { UserProfile } from "./generated/types/userProfile";
+export type { UserProfileUpdate } from "./generated/types/userProfileUpdate";
 export type { WaitlistApplicant } from "./generated/types/waitlistApplicant";
 export type { WaitlistApplicantStatus } from "./generated/types/waitlistApplicantStatus";
 // WaitlistEntry intentionally excluded — collides with Zod const of the same name in generated/api.ts

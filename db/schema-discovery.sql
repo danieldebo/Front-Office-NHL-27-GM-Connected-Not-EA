@@ -116,6 +116,11 @@ CREATE TABLE league_signup (
     -- What the applicant tells the league about themselves.
     stated_division    ranked_division,
     platform           TEXT,
+    platform_gamertag  TEXT,                          -- immutable identity snapshot
+    xbox_gamertag      TEXT,
+    psn_online_id      TEXT,
+    systems_played     TEXT[],
+    primary_identity   TEXT,
     timezone           TEXT,                          -- IANA
     message            TEXT,                          -- optional note to the commissioner
     -- Preferred club if the league lets applicants ask.
@@ -141,6 +146,12 @@ CREATE TABLE waitlist_entry (
     invite_expires_at TIMESTAMPTZ,
     resolved_at    TIMESTAMPTZ,
     decline_note   TEXT,
+    platform       TEXT,                              -- immutable identity snapshot
+    platform_gamertag TEXT,
+    xbox_gamertag  TEXT,
+    psn_online_id  TEXT,
+    systems_played TEXT[],
+    primary_identity TEXT,
     UNIQUE (league_id, user_id),                      -- one spot per person per league
     UNIQUE (league_id, position) DEFERRABLE INITIALLY DEFERRED
 );

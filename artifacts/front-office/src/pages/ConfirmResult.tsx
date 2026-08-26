@@ -8,12 +8,17 @@ import { useParams, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { useConfirmResult } from '@workspace/api-client-react';
 import Header from '@/components/Header';
+import { gmIdentityLabel } from '@/components/gmIdentity';
 
 // ─── types (mirrors GET /api/games/:gameId response) ─────────────────────
 
 interface GameTeam {
   franchise_name: string | null;
   club_abbrev: string | null;
+  gm_display_name?: string | null;
+  gm_primary_identity?: string | null;
+  gm_platform?: string | null;
+  gm_gamertag?: string | null;
 }
 
 interface GameResult {
@@ -143,6 +148,8 @@ export default function ConfirmResult() {
   const result = game?.result;
   const homeLabel = game?.home.club_abbrev ?? game?.home.franchise_name ?? 'Home';
   const awayLabel = game?.away.club_abbrev ?? game?.away.franchise_name ?? 'Away';
+  const homeIdentity = game?.home ? gmIdentityLabel(game.home) : null;
+  const awayIdentity = game?.away ? gmIdentityLabel(game.away) : null;
   const dLabel = result ? decisionLabel(result.decision) : '';
   const scoreStr = result
     ? `${result.away_goals} – ${result.home_goals}${dLabel ? ` (${dLabel})` : ''}`
@@ -182,6 +189,13 @@ export default function ConfirmResult() {
           <h1 style={{ fontFamily: 'var(--display)', fontSize: 'clamp(24px,5vw,40px)', lineHeight: '.95', textTransform: 'uppercase', letterSpacing: '.01em', margin: '6px 0 4px', color: '#E8EEF3' }}>
             {awayLabel ?? '…'} @ {homeLabel ?? '…'}
           </h1>
+            {(awayIdentity || homeIdentity) && (
+              <p className="game-gm-identities" data-testid="text-game-gm-identities">
+                {game?.away.gm_display_name ?? 'Away GM'}{awayIdentity ? ` · ${awayIdentity}` : ''}
+                <span aria-hidden="true"> — </span>
+                {game?.home.gm_display_name ?? 'Home GM'}{homeIdentity ? ` · ${homeIdentity}` : ''}
+              </p>
+            )}
         </div>
       </div>
 

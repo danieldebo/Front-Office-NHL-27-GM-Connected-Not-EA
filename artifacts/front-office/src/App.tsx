@@ -24,6 +24,7 @@ import DqFindings from '@/pages/DqFindings';
 import JoinInvite from '@/pages/JoinInvite';
 import JoinByCode from '@/pages/JoinByCode';
 import OpenLeagues from '@/pages/OpenLeagues';
+import Profile from '@/pages/Profile';
 import Footer from '@/components/Footer';
 
 const queryClient = new QueryClient();
@@ -146,6 +147,11 @@ function Router() {
       <Route path="/leagues/:id/dq">
         <AuthGate>
           <DqFindings />
+        </AuthGate>
+      </Route>
+      <Route path="/profile">
+        <AuthGate>
+          <Profile />
         </AuthGate>
       </Route>
       {/* Public routes — no AuthGate */}

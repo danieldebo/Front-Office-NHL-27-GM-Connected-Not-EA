@@ -5,12 +5,21 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { PlayerSystem } from './playerSystem';
 
 export interface AssignedGm {
   assignment_id: string;
   user_id: string;
   /** @nullable */
   display_name?: string | null;
+  gm_platform?: PlayerSystem | null;
+  gm_primary_identity?: PlayerSystem | null;
+  /** @nullable */
+  gm_gamertag?: string | null;
+  /** @nullable */
+  gm_xbox_gamertag?: string | null;
+  /** @nullable */
+  gm_psn_online_id?: string | null;
   started_at?: Date;
   role?: string;
 }

@@ -12,11 +12,14 @@ import {
   useGetLeague,
   useListSeasons,
   useListWeeks,
+  useListGames,
   useGenerateSchedule,
+  type Game,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
+import { gmIdentityLabel } from '@/components/gmIdentity';
 
 // ─────────────────────────────────────── status chip colour map
 const STATUS_CHIP: Record<string, string> = {
@@ -29,6 +32,53 @@ const STATUS_CHIP: Record<string, string> = {
   postponed: 'man',
   voided:    'man',
 };
+
+type ExtendedGameSide = Game['home'] & {
+  gm_primary_identity?: string | null;
+  gm_platform?: string | null;
+  gm_gamertag?: string | null;
+};
+
+function GameSideLabel({ side, fallback }: { side: ExtendedGameSide; fallback: string }) {
+  const club = side.club_abbrev ?? side.franchise_name ?? fallback;
+  const identity = gmIdentityLabel(side);
+  return (
+    <span className="schedule-game-side">
+      <strong>{club}</strong>
+      {(side.gm_display_name || identity) && (
+        <small>
+          {side.gm_display_name ?? 'GM'}{identity ? ` · ${identity}` : ''}
+        </small>
+      )}
+    </span>
+  );
+}
+
+export function SeasonGamesList({ games, isLoading }: { games: Game[]; isLoading: boolean }) {
+  if (isLoading) {
+    return <div className="schedule-games-status" role="status">Loading games…</div>;
+  }
+  if (games.length === 0) return null;
+
+  return (
+    <section className="panel schedule-games" aria-labelledby="season-games-heading">
+      <div className="panel-head">
+        <h2 id="season-games-heading">Season Games</h2>
+        <span className="note">{games.length} matchup{games.length === 1 ? '' : 's'}</span>
+      </div>
+      <div className="schedule-games-list">
+        {games.map((game) => (
+          <div key={game.id} className="schedule-game" data-testid={`schedule-game-${game.id}`}>
+            <GameSideLabel side={game.away as ExtendedGameSide} fallback="Away" />
+            <span className="schedule-game-at" aria-label="at">@</span>
+            <GameSideLabel side={game.home as ExtendedGameSide} fallback="Home" />
+            <span className={`chip ${STATUS_CHIP[game.status] ?? 'man'}`}>{game.status.replace('_', ' ')}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 // ─────────────────────────────────────── Week row
 function WeekRow({ week, isCommissioner, leagueId }: {
@@ -210,6 +260,12 @@ function ScheduleContent({
     { query: { enabled: !!activeSeason?.id } as any }
   );
   const weeks = (weeksData as any)?.data ?? [];
+  const { data: gamesData, isLoading: gamesLoading } = useListGames(
+    activeSeason?.id ?? '',
+    { limit: 200 },
+    { query: { enabled: !!activeSeason?.id } as any },
+  );
+  const games = gamesData?.data ?? [];
 
   if (seasonsLoading) {
     return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>Loading seasons…</div>;
@@ -255,7 +311,10 @@ function ScheduleContent({
         <GenerateScheduleForm
           seasonId={activeSeason.id}
           leagueId={leagueId}
-          onSuccess={() => qc.invalidateQueries({ queryKey: ['/api/seasons', activeSeason.id, 'weeks'] as any })}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ['/api/seasons', activeSeason.id, 'weeks'] as any });
+            qc.invalidateQueries({ queryKey: [`/api/seasons/${activeSeason.id}/games`] });
+          }}
         />
       )}
 
@@ -282,6 +341,8 @@ function ScheduleContent({
           ))}
         </div>
       )}
+
+      <SeasonGamesList games={games} isLoading={gamesLoading} />
 
       {weeksLoading && (
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>

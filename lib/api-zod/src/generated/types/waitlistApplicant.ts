@@ -27,6 +27,8 @@ export interface WaitlistApplicant {
   timezone?: string | null;
   /** @nullable */
   platform?: string | null;
+  /** @nullable */
+  platform_gamertag?: string | null;
   joined_at: Date;
   /** @nullable */
   invited_at?: Date | null;

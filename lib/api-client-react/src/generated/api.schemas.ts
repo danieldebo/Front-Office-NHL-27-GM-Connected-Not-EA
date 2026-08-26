@@ -167,6 +167,14 @@ export const GameStatus = {
   voided: 'voided',
 } as const;
 
+export type PlayerSystem = typeof PlayerSystem[keyof typeof PlayerSystem];
+
+
+export const PlayerSystem = {
+  xbox: 'xbox',
+  playstation: 'playstation',
+} as const;
+
 export interface GameSide {
   team_season_id: string;
   franchise_id: string;
@@ -181,6 +189,14 @@ export interface GameSide {
   goals?: number | null;
   /** @nullable */
   gm_display_name?: string | null;
+  gm_platform?: PlayerSystem | null;
+  gm_primary_identity?: PlayerSystem | null;
+  /** @nullable */
+  gm_gamertag?: string | null;
+  /** @nullable */
+  gm_xbox_gamertag?: string | null;
+  /** @nullable */
+  gm_psn_online_id?: string | null;
 }
 
 export type GameResultDecision = typeof GameResultDecision[keyof typeof GameResultDecision];
@@ -327,6 +343,14 @@ export interface StandingsRow {
   club_abbrev?: string | null;
   /** @nullable */
   gm_display_name?: string | null;
+  gm_platform?: PlayerSystem | null;
+  gm_primary_identity?: PlayerSystem | null;
+  /** @nullable */
+  gm_gamertag?: string | null;
+  /** @nullable */
+  gm_xbox_gamertag?: string | null;
+  /** @nullable */
+  gm_psn_online_id?: string | null;
   GP: number;
   W: number;
   L: number;
@@ -451,6 +475,14 @@ export interface AssignedGm {
   user_id: string;
   /** @nullable */
   display_name?: string | null;
+  gm_platform?: PlayerSystem | null;
+  gm_primary_identity?: PlayerSystem | null;
+  /** @nullable */
+  gm_gamertag?: string | null;
+  /** @nullable */
+  gm_xbox_gamertag?: string | null;
+  /** @nullable */
+  gm_psn_online_id?: string | null;
   started_at?: string;
   role?: string;
 }
@@ -782,8 +814,6 @@ export const LeagueSignupInputStatedDivision = {
 } as const;
 
 export interface LeagueSignupInput {
-  platform?: string;
-  timezone?: string;
   /**
      * @minLength 2
      * @maxLength 2
@@ -806,6 +836,8 @@ export interface LeagueSignup {
   /** @nullable */
   platform?: string | null;
   /** @nullable */
+  platform_gamertag?: string | null;
+  /** @nullable */
   timezone?: string | null;
   /** @nullable */
   country_code?: string | null;
@@ -818,6 +850,45 @@ export interface LeagueSignup {
   /** @nullable */
   preferred_club?: string | null;
   created_at: string;
+}
+
+export interface UserProfile {
+  id: string;
+  display_name: string;
+  timezone: string;
+  /** @nullable */
+  xbox_gamertag: string | null;
+  /** @nullable */
+  psn_online_id: string | null;
+  systems_played: PlayerSystem[];
+  primary_identity: PlayerSystem | null;
+}
+
+export interface UserProfileUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  display_name?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  timezone?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     * @nullable
+     */
+  xbox_gamertag?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     * @nullable
+     */
+  psn_online_id?: string | null;
+  systems_played?: PlayerSystem[];
+  primary_identity?: PlayerSystem | null;
 }
 
 export interface WaitlistPositionInput {
@@ -962,6 +1033,14 @@ export interface LeagueApplicant {
   /** @nullable */
   platform?: string | null;
   /** @nullable */
+  platform_gamertag?: string | null;
+  /** @nullable */
+  xbox_gamertag?: string | null;
+  /** @nullable */
+  psn_online_id?: string | null;
+  systems_played?: PlayerSystem[];
+  primary_identity?: PlayerSystem | null;
+  /** @nullable */
   message?: string | null;
   /** @nullable */
   preferred_club?: string | null;
@@ -1004,6 +1083,8 @@ export interface WaitlistApplicant {
   timezone?: string | null;
   /** @nullable */
   platform?: string | null;
+  /** @nullable */
+  platform_gamertag?: string | null;
   joined_at: string;
   /** @nullable */
   invited_at?: string | null;

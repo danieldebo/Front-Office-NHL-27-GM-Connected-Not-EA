@@ -5,6 +5,7 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { PlayerSystem } from './playerSystem';
 
 export interface LeagueApplicant {
   signup_id: string;
@@ -22,6 +23,14 @@ export interface LeagueApplicant {
   timezone?: string | null;
   /** @nullable */
   platform?: string | null;
+  /** @nullable */
+  platform_gamertag?: string | null;
+  /** @nullable */
+  xbox_gamertag?: string | null;
+  /** @nullable */
+  psn_online_id?: string | null;
+  systems_played?: PlayerSystem[];
+  primary_identity?: PlayerSystem | null;
   /** @nullable */
   message?: string | null;
   /** @nullable */

@@ -74,7 +74,17 @@ export default function Header({ league }: { league?: League }) {
             </Link>
           )}
           {isLoaded && isSignedIn ? (
-            <button className="nav-link" onClick={() => signOut({ redirectUrl: '/' })}>Sign out</button>
+            <>
+              <Link
+                href="/profile"
+                className="nav-link"
+                aria-current={location === '/profile' ? 'page' : undefined}
+                data-testid="link-profile"
+              >
+                Profile
+              </Link>
+              <button className="nav-link" onClick={() => signOut({ redirectUrl: '/' })} data-testid="button-sign-out">Sign out</button>
+            </>
           ) : (
             <Link
               href={`/sign-in?redirect_url=${encodeURIComponent(location)}`}
