@@ -303,7 +303,7 @@ export default function OpenLeagues() {
             </button>
           ))}
           <span style={{ marginLeft: 'auto', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>
-            Sorted by: seats open · health
+            Sorted by: seats open · games confirmed
           </span>
         </div>
 
@@ -352,7 +352,13 @@ export default function OpenLeagues() {
                       {league.seats_open > 0 ? '✓' : '—'}
                     </div>
                     <div className="l" style={{ fontFamily: 'var(--data)', fontSize: '8.5px', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--steel)' }}>
-                      {league.seats_open > 0 ? 'Recruiting' : 'Full'}
+                      {league.seats_open === 0
+                        ? 'Full'
+                        : !league.active_gms
+                          ? 'New'
+                          : !league.games_confirmed
+                            ? 'Just opened'
+                            : 'Recruiting'}
                     </div>
                   </div>
                 </div>

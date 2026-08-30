@@ -367,7 +367,7 @@ function RulebookTab({ leagueId }: { leagueId: string }) {
                 background: '#FAFCFD',
                 resize: 'vertical'
               }}
-              placeholder="# League Rules\n\n1. Be cool."
+              placeholder={"# League Rules\n\n1. No tanking — every team plays to win, every game.\n2. Report results within 24 hours of the final horn.\n3. Be cool."}
               required
             />
             <input
@@ -1412,7 +1412,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
                 {generate.isPending ? 'Generating…' : 'Generate Schedule'}
               </button>
               <Link href={`/leagues/${leagueId}/schedule`} className="btn ghost">
-                Advanced Options
+                Open Schedule Page
               </Link>
             </div>
           </div>

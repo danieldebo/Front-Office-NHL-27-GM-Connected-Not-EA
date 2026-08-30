@@ -25,7 +25,7 @@ function LeagueDashboard({ league }: { league: League }) {
               </section>
             )}
           </main>
-          <Sidebar />
+          <Sidebar leagueId={league.id} />
         </div>
       </div>
     </>
