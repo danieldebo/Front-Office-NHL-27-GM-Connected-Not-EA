@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.3.0
  */
 import type { LeagueSettingsTemplateFieldsPlayoffFormat } from './leagueSettingsTemplateFieldsPlayoffFormat';
+import type { LeagueSettingsTemplateFieldsPointsRegLoss } from './leagueSettingsTemplateFieldsPointsRegLoss';
 import type { LeagueSettingsTemplateFieldsRosterSource } from './leagueSettingsTemplateFieldsRosterSource';
 import type { LeagueSettingsTemplateFieldsScheduleFormat } from './leagueSettingsTemplateFieldsScheduleFormat';
 import type { LeagueSettingsTemplateFieldsScheduleSettings } from './leagueSettingsTemplateFieldsScheduleSettings';
@@ -33,4 +34,10 @@ export interface LeagueSettingsTemplateFields {
   rules_notes?: string | null;
   slider_presets: LeagueSettingsTemplateFieldsSliderPresets;
   require_verified_identities?: boolean;
+  /** @minimum 0 */
+  points_win?: number;
+  /** @minimum 0 */
+  points_ot_loss?: number;
+  points_reg_loss?: LeagueSettingsTemplateFieldsPointsRegLoss;
+  tiebreakers?: string[];
 }

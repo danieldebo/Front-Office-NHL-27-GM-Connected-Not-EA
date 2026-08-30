@@ -373,6 +373,12 @@ export const UpdateLeagueResponse = zod.object({
 /**
  * @summary Starting points for the settings editor and Create League's settings step
  */
+export const listLeagueSettingsTemplatesResponseDataItemFieldsPointsWinMin = 0;
+
+export const listLeagueSettingsTemplatesResponseDataItemFieldsPointsOtLossMin = 0;
+
+
+
 export const ListLeagueSettingsTemplatesResponse = zod.object({
   "data": zod.array(zod.object({
   "id": zod.string(),
@@ -390,7 +396,11 @@ export const ListLeagueSettingsTemplatesResponse = zod.object({
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
-  "require_verified_identities": zod.boolean().optional()
+  "require_verified_identities": zod.boolean().optional(),
+  "points_win": zod.number().min(listLeagueSettingsTemplatesResponseDataItemFieldsPointsWinMin).optional(),
+  "points_ot_loss": zod.number().min(listLeagueSettingsTemplatesResponseDataItemFieldsPointsOtLossMin).optional(),
+  "points_reg_loss": zod.literal(0).optional(),
+  "tiebreakers": zod.array(zod.string()).optional()
 }).describe('Everything a settings version needs except platform, team_count, and\nchange_summary — those are chosen independently (platform\/team_count\nare league-identity facts, change_summary is per-save).\n')
 }))
 })
@@ -413,6 +423,14 @@ export const getLeagueSettingsResponseOneOneSalaryCapCentsMin = 0;
 
 
 export const getLeagueSettingsResponseOneOneRequireVerifiedIdentitiesDefault = false;
+export const getLeagueSettingsResponseOneOnePointsWinDefault = 2;
+export const getLeagueSettingsResponseOneOnePointsWinMin = 0;
+
+export const getLeagueSettingsResponseOneOnePointsOtLossDefault = 1;
+export const getLeagueSettingsResponseOneOnePointsOtLossMin = 0;
+
+export const getLeagueSettingsResponseOneOnePointsRegLossDefault = 0;
+export const getLeagueSettingsResponseOneOneTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
 export const getLeagueSettingsResponseOneOneChangeSummaryMax = 500;
 
 
@@ -433,6 +451,10 @@ export const GetLeagueSettingsResponse = zod.union([zod.object({
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
   "require_verified_identities": zod.boolean().default(getLeagueSettingsResponseOneOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
+  "points_win": zod.number().min(getLeagueSettingsResponseOneOnePointsWinMin).default(getLeagueSettingsResponseOneOnePointsWinDefault).describe('League default for a season\'s points-for-a-win. Seasons may override at creation.'),
+  "points_ot_loss": zod.number().min(getLeagueSettingsResponseOneOnePointsOtLossMin).default(getLeagueSettingsResponseOneOnePointsOtLossDefault).describe('League default for a season\'s points-for-an-overtime-loss.'),
+  "points_reg_loss": zod.literal(0).default(getLeagueSettingsResponseOneOnePointsRegLossDefault).describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).default(getLeagueSettingsResponseOneOneTiebreakersDefault).describe('League default standings tiebreaker order. Seasons may override at creation.'),
   "change_summary": zod.string().min(1).max(getLeagueSettingsResponseOneOneChangeSummaryMax)
 }).and(zod.object({
   "id": zod.string(),
@@ -463,38 +485,52 @@ export const CreateLeagueSettingsVersionHeader = zod.object({
   "Idempotency-Key": zod.string().max(createLeagueSettingsVersionHeaderIdempotencyKeyMax).optional()
 })
 
-export const createLeagueSettingsVersionBodyEaLeagueIdMax = 100;
+export const createLeagueSettingsVersionBodyOneEaLeagueIdMax = 100;
 
-export const createLeagueSettingsVersionBodyTeamCountMin = 3;
-export const createLeagueSettingsVersionBodyTeamCountMax = 32;
+export const createLeagueSettingsVersionBodyOneTeamCountMin = 3;
+export const createLeagueSettingsVersionBodyOneTeamCountMax = 32;
 
-export const createLeagueSettingsVersionBodySalaryCapCentsMin = 0;
-
-
-
-export const createLeagueSettingsVersionBodyRequireVerifiedIdentitiesDefault = false;
-export const createLeagueSettingsVersionBodyChangeSummaryMax = 500;
+export const createLeagueSettingsVersionBodyOneSalaryCapCentsMin = 0;
 
 
+
+export const createLeagueSettingsVersionBodyOneRequireVerifiedIdentitiesDefault = false;
+export const createLeagueSettingsVersionBodyOnePointsWinDefault = 2;
+export const createLeagueSettingsVersionBodyOnePointsWinMin = 0;
+
+export const createLeagueSettingsVersionBodyOnePointsOtLossDefault = 1;
+export const createLeagueSettingsVersionBodyOnePointsOtLossMin = 0;
+
+export const createLeagueSettingsVersionBodyOnePointsRegLossDefault = 0;
+export const createLeagueSettingsVersionBodyOneTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
+export const createLeagueSettingsVersionBodyOneChangeSummaryMax = 500;
+
+export const createLeagueSettingsVersionBodyTwoApplyToActiveSeasonDefault = false;
 
 export const CreateLeagueSettingsVersionBody = zod.object({
-  "ea_league_id": zod.string().max(createLeagueSettingsVersionBodyEaLeagueIdMax).nullish(),
+  "ea_league_id": zod.string().max(createLeagueSettingsVersionBodyOneEaLeagueIdMax).nullish(),
   "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
-  "team_count": zod.number().min(createLeagueSettingsVersionBodyTeamCountMin).max(createLeagueSettingsVersionBodyTeamCountMax),
+  "team_count": zod.number().min(createLeagueSettingsVersionBodyOneTeamCountMin).max(createLeagueSettingsVersionBodyOneTeamCountMax),
   "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
   "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
   "schedule_settings": zod.record(zod.string(), zod.unknown()),
   "playoff_format": zod.record(zod.string(), zod.unknown()),
-  "salary_cap_cents": zod.number().min(createLeagueSettingsVersionBodySalaryCapCentsMin).nullish(),
+  "salary_cap_cents": zod.number().min(createLeagueSettingsVersionBodyOneSalaryCapCentsMin).nullish(),
   "roster_min": zod.number().min(1).nullish(),
   "roster_max": zod.number().min(1).nullish(),
   "divisions": zod.array(zod.string()),
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
-  "require_verified_identities": zod.boolean().default(createLeagueSettingsVersionBodyRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
-  "change_summary": zod.string().min(1).max(createLeagueSettingsVersionBodyChangeSummaryMax)
-})
+  "require_verified_identities": zod.boolean().default(createLeagueSettingsVersionBodyOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
+  "points_win": zod.number().min(createLeagueSettingsVersionBodyOnePointsWinMin).default(createLeagueSettingsVersionBodyOnePointsWinDefault).describe('League default for a season\'s points-for-a-win. Seasons may override at creation.'),
+  "points_ot_loss": zod.number().min(createLeagueSettingsVersionBodyOnePointsOtLossMin).default(createLeagueSettingsVersionBodyOnePointsOtLossDefault).describe('League default for a season\'s points-for-an-overtime-loss.'),
+  "points_reg_loss": zod.literal(0).default(createLeagueSettingsVersionBodyOnePointsRegLossDefault).describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).default(createLeagueSettingsVersionBodyOneTiebreakersDefault).describe('League default standings tiebreaker order. Seasons may override at creation.'),
+  "change_summary": zod.string().min(1).max(createLeagueSettingsVersionBodyOneChangeSummaryMax)
+}).and(zod.object({
+  "apply_to_active_season": zod.boolean().default(createLeagueSettingsVersionBodyTwoApplyToActiveSeasonDefault).describe('When true and the league has an active season, also update that\nseason\'s own points\/tiebreaker snapshot to match this version\n(the season\'s salary cap, roster limits, and games-per-matchup\nstay as originally set — only points and tiebreakers, which a\ncommissioner might reasonably want to correct mid-season, are\nretroactively applied).\n')
+}))
 
 export const createLeagueSettingsVersionResponseOneEaLeagueIdMax = 100;
 
@@ -506,6 +542,14 @@ export const createLeagueSettingsVersionResponseOneSalaryCapCentsMin = 0;
 
 
 export const createLeagueSettingsVersionResponseOneRequireVerifiedIdentitiesDefault = false;
+export const createLeagueSettingsVersionResponseOnePointsWinDefault = 2;
+export const createLeagueSettingsVersionResponseOnePointsWinMin = 0;
+
+export const createLeagueSettingsVersionResponseOnePointsOtLossDefault = 1;
+export const createLeagueSettingsVersionResponseOnePointsOtLossMin = 0;
+
+export const createLeagueSettingsVersionResponseOnePointsRegLossDefault = 0;
+export const createLeagueSettingsVersionResponseOneTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
 export const createLeagueSettingsVersionResponseOneChangeSummaryMax = 500;
 
 
@@ -526,6 +570,10 @@ export const CreateLeagueSettingsVersionResponse = zod.object({
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
   "require_verified_identities": zod.boolean().default(createLeagueSettingsVersionResponseOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
+  "points_win": zod.number().min(createLeagueSettingsVersionResponseOnePointsWinMin).default(createLeagueSettingsVersionResponseOnePointsWinDefault).describe('League default for a season\'s points-for-a-win. Seasons may override at creation.'),
+  "points_ot_loss": zod.number().min(createLeagueSettingsVersionResponseOnePointsOtLossMin).default(createLeagueSettingsVersionResponseOnePointsOtLossDefault).describe('League default for a season\'s points-for-an-overtime-loss.'),
+  "points_reg_loss": zod.literal(0).default(createLeagueSettingsVersionResponseOnePointsRegLossDefault).describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).default(createLeagueSettingsVersionResponseOneTiebreakersDefault).describe('League default standings tiebreaker order. Seasons may override at creation.'),
   "change_summary": zod.string().min(1).max(createLeagueSettingsVersionResponseOneChangeSummaryMax)
 }).and(zod.object({
   "id": zod.string(),
@@ -555,6 +603,14 @@ export const listLeagueSettingsHistoryResponseDataItemOneSalaryCapCentsMin = 0;
 
 
 export const listLeagueSettingsHistoryResponseDataItemOneRequireVerifiedIdentitiesDefault = false;
+export const listLeagueSettingsHistoryResponseDataItemOnePointsWinDefault = 2;
+export const listLeagueSettingsHistoryResponseDataItemOnePointsWinMin = 0;
+
+export const listLeagueSettingsHistoryResponseDataItemOnePointsOtLossDefault = 1;
+export const listLeagueSettingsHistoryResponseDataItemOnePointsOtLossMin = 0;
+
+export const listLeagueSettingsHistoryResponseDataItemOnePointsRegLossDefault = 0;
+export const listLeagueSettingsHistoryResponseDataItemOneTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
 export const listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax = 500;
 
 
@@ -576,6 +632,10 @@ export const ListLeagueSettingsHistoryResponse = zod.object({
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
   "require_verified_identities": zod.boolean().default(listLeagueSettingsHistoryResponseDataItemOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
+  "points_win": zod.number().min(listLeagueSettingsHistoryResponseDataItemOnePointsWinMin).default(listLeagueSettingsHistoryResponseDataItemOnePointsWinDefault).describe('League default for a season\'s points-for-a-win. Seasons may override at creation.'),
+  "points_ot_loss": zod.number().min(listLeagueSettingsHistoryResponseDataItemOnePointsOtLossMin).default(listLeagueSettingsHistoryResponseDataItemOnePointsOtLossDefault).describe('League default for a season\'s points-for-an-overtime-loss.'),
+  "points_reg_loss": zod.literal(0).default(listLeagueSettingsHistoryResponseDataItemOnePointsRegLossDefault).describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).default(listLeagueSettingsHistoryResponseDataItemOneTiebreakersDefault).describe('League default standings tiebreaker order. Seasons may override at creation.'),
   "change_summary": zod.string().min(1).max(listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax)
 }).and(zod.object({
   "id": zod.string(),
@@ -900,18 +960,12 @@ export const createSeasonBodySalaryCapCentsMin = 0;
 
 
 
-export const createSeasonBodyGamesPerMatchupDefault = 1;
 
-export const createSeasonBodyPointsWinDefault = 2;
 export const createSeasonBodyPointsWinMin = 0;
 
-export const createSeasonBodyPointsOtLossDefault = 1;
 export const createSeasonBodyPointsOtLossMin = 0;
 
-export const createSeasonBodyPointsRegLossDefault = 0;
-export const createSeasonBodyPointsRegLossMin = 0;
 
-export const createSeasonBodyTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
 
 export const CreateSeasonBody = zod.object({
   "label": zod.string().min(1).max(createSeasonBodyLabelMax),
@@ -921,11 +975,11 @@ export const CreateSeasonBody = zod.object({
   "salary_cap_cents": zod.number().min(createSeasonBodySalaryCapCentsMin).nullish(),
   "roster_min": zod.number().min(1).nullish(),
   "roster_max": zod.number().min(1).nullish(),
-  "games_per_matchup": zod.number().min(1).default(createSeasonBodyGamesPerMatchupDefault),
-  "points_win": zod.number().min(createSeasonBodyPointsWinMin).default(createSeasonBodyPointsWinDefault),
-  "points_ot_loss": zod.number().min(createSeasonBodyPointsOtLossMin).default(createSeasonBodyPointsOtLossDefault),
-  "points_reg_loss": zod.number().min(createSeasonBodyPointsRegLossMin).default(createSeasonBodyPointsRegLossDefault),
-  "tiebreakers": zod.array(zod.string()).default(createSeasonBodyTiebreakersDefault)
+  "games_per_matchup": zod.number().min(1).optional().describe('Overrides the league\'s configured schedule format for this season only. Defaults to the league\'s active settings.'),
+  "points_win": zod.number().min(createSeasonBodyPointsWinMin).optional().describe('Overrides the league\'s default points-for-a-win for this season only. Defaults to the league\'s active settings.'),
+  "points_ot_loss": zod.number().min(createSeasonBodyPointsOtLossMin).optional().describe('Overrides the league\'s default points-for-an-OT-loss for this season only. Defaults to the league\'s active settings.'),
+  "points_reg_loss": zod.literal(0).optional().describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).optional().describe('Overrides the league\'s default tiebreaker order for this season only. Defaults to the league\'s active settings.')
 })
 
 

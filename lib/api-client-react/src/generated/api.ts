@@ -30,6 +30,7 @@ import type {
   ConfirmInput,
   CreateInviteInput,
   CreateLeagueInput,
+  CreateLeagueSettingsVersionInput,
   CreateSeasonInput,
   DeclineApplicantInput,
   DqFinding,
@@ -50,7 +51,6 @@ import type {
   LeagueHub,
   LeagueListing,
   LeagueSettingsHistory,
-  LeagueSettingsInput,
   LeagueSettingsVersion,
   LeagueSignup,
   LeagueSignupInput,
@@ -1409,14 +1409,14 @@ export const getCreateLeagueSettingsVersionUrl = (leagueId: string,) => {
  * @summary Append and activate a new settings version (commissioner only)
  */
 export const createLeagueSettingsVersion = async (leagueId: string,
-    leagueSettingsInput: LeagueSettingsInput, options?: RequestInit): Promise<LeagueSettingsVersion> => {
+    createLeagueSettingsVersionInput: CreateLeagueSettingsVersionInput, options?: RequestInit): Promise<LeagueSettingsVersion> => {
 
   return customFetch<LeagueSettingsVersion>(getCreateLeagueSettingsVersionUrl(leagueId),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(leagueSettingsInput)
+    body: JSON.stringify(createLeagueSettingsVersionInput)
   }
 );}
 
@@ -1425,8 +1425,8 @@ export const createLeagueSettingsVersion = async (leagueId: string,
 
 
 export const getCreateLeagueSettingsVersionMutationOptions = <TError = ErrorType<Problem>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<LeagueSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<LeagueSettingsInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>}, TContext> => {
 
 const mutationKey = ['createLeagueSettingsVersion'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -1438,7 +1438,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, {leagueId: string;data: BodyType<LeagueSettingsInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, {leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>}> = (props) => {
           const {leagueId,data} = props ?? {};
 
           return  createLeagueSettingsVersion(leagueId,data,requestOptions)
@@ -1452,18 +1452,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type CreateLeagueSettingsVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createLeagueSettingsVersion>>>
-    export type CreateLeagueSettingsVersionMutationBody = BodyType<LeagueSettingsInput>
+    export type CreateLeagueSettingsVersionMutationBody = BodyType<CreateLeagueSettingsVersionInput>
     export type CreateLeagueSettingsVersionMutationError = ErrorType<Problem>
 
     /**
  * @summary Append and activate a new settings version (commissioner only)
  */
 export const useCreateLeagueSettingsVersion = <TError = ErrorType<Problem>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<LeagueSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createLeagueSettingsVersion>>,
         TError,
-        {leagueId: string;data: BodyType<LeagueSettingsInput>},
+        {leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>},
         TContext
       > => {
       return useMutation(getCreateLeagueSettingsVersionMutationOptions(options));

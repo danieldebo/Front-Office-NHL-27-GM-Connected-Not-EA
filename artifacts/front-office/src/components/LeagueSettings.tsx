@@ -5,6 +5,7 @@ import {
   useGetLeagueSettings,
   useListLeagueSettingsHistory,
   useListLeagueSettingsTemplates,
+  useListSeasons,
   type LeagueSettingsInput,
   type LeagueSettingsTemplate,
   type LeagueSettingsVersion,
@@ -48,6 +49,7 @@ const list = (value: string) => value.split(',').map(item => item.trim()).filter
 type PlayoffFields = { teams: number; series_length: 1 | 3 | 5 | 7; reseed_each_round: boolean };
 type SliderFields = { gameplay_preset: 'simulation' | 'competitive' | 'arcade'; contact: 'reduced' | 'standard' | 'heavy'; fighting: 'off' | 'standard' | 'heavy' };
 
+const DEFAULT_TIEBREAKERS = ['points', 'row', 'wins', 'goal_diff', 'goals_for'];
 const DEFAULT_PLAYOFF: PlayoffFields = { teams: 16, series_length: 7, reseed_each_round: false };
 const DEFAULT_SLIDERS: SliderFields = { gameplay_preset: 'competitive', contact: 'standard', fighting: 'standard' };
 
@@ -66,6 +68,10 @@ const emptySettings: LeagueSettingsInput = {
   rules_notes: null,
   slider_presets: DEFAULT_SLIDERS,
   require_verified_identities: false,
+  points_win: 2,
+  points_ot_loss: 1,
+  points_reg_loss: 0,
+  tiebreakers: DEFAULT_TIEBREAKERS,
   change_summary: '',
 };
 
@@ -154,6 +160,8 @@ export function LeagueSettingsSummary({ settings }: { settings: LeagueSettingsVe
       <div><strong>Playoffs</strong><br />{playoff.teams} teams · best-of-{playoff.series_length}{playoff.reseed_each_round ? ' · reseeds each round' : ''}</div>
       <div><strong>Gameplay</strong><br />{sliders.gameplay_preset} · contact {sliders.contact} · fighting {sliders.fighting}</div>
       <div><strong>Verified identities</strong><br />{settings.require_verified_identities ? 'Required to claim a seat' : 'Not required'}</div>
+      <div><strong>Points</strong><br />{settings.points_win ?? 2}-{settings.points_ot_loss ?? 1}-{settings.points_reg_loss ?? 0} (win-OT loss-reg. loss)</div>
+      <div><strong>Tiebreakers</strong><br />{(settings.tiebreakers ?? DEFAULT_TIEBREAKERS).map(t => t.toUpperCase()).join(' › ')}</div>
       <div style={{ gridColumn: '1 / -1' }}><strong>Rules notes</strong><br />{settings.rules_notes || 'None'}</div>
     </div>
   );
@@ -201,6 +209,8 @@ export default function LeagueSettings({
   const templates: LeagueSettingsTemplate[] = templatesData?.data ?? [];
   const { data: historyData } = useListLeagueSettingsHistory(leagueId);
   const history = historyData?.data ?? [];
+  const { data: seasonsData } = useListSeasons(leagueId, { query: { enabled: canManage } as any });
+  const activeSeason = (seasonsData?.data ?? []).find(s => s.is_active);
   const queryClient = useQueryClient();
   const [form, setForm] = useState<LeagueSettingsInput>(emptySettings);
   const [scheduleJson, setScheduleJson] = useState('{}');
@@ -215,6 +225,7 @@ export default function LeagueSettings({
   const [salaryEnabled, setSalaryEnabled] = useState(true);
   const [salaryDollars, setSalaryDollars] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [applyToActiveSeason, setApplyToActiveSeason] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const createVersion = useCreateLeagueSettingsVersion({
@@ -232,6 +243,10 @@ export default function LeagueSettings({
       roster_max: f.roster_max ?? null,
       rules_notes: f.rules_notes ?? null,
       require_verified_identities: f.require_verified_identities ?? false,
+      points_win: f.points_win ?? 2,
+      points_ot_loss: f.points_ot_loss ?? 1,
+      points_reg_loss: 0,
+      tiebreakers: f.tiebreakers ?? DEFAULT_TIEBREAKERS,
     }));
     setGamesPerMatchup(settingNumber({ schedule_settings: f.schedule_settings }, 'games_per_matchup', 2));
     setWeekDurationDays(settingNumber({ schedule_settings: f.schedule_settings }, 'week_duration_days', 7));
@@ -274,6 +289,10 @@ export default function LeagueSettings({
       rules_notes: current.rules_notes ?? null,
       slider_presets: current.slider_presets,
       require_verified_identities: current.require_verified_identities ?? false,
+      points_win: current.points_win ?? 2,
+      points_ot_loss: current.points_ot_loss ?? 1,
+      points_reg_loss: 0,
+      tiebreakers: current.tiebreakers ?? DEFAULT_TIEBREAKERS,
       change_summary: '',
     });
     setScheduleJson('{}');
@@ -331,9 +350,13 @@ export default function LeagueSettings({
         change_summary: form.change_summary.trim(),
       };
       if (data.salary_cap_cents != null && (!Number.isFinite(data.salary_cap_cents) || data.salary_cap_cents < 0)) throw new Error('Salary cap must be a positive amount.');
-      createVersion.mutate({ leagueId, data }, {
-        onSuccess: async () => {
-          setMessage(current ? 'New immutable settings version saved.' : 'League settings created.');
+      createVersion.mutate({ leagueId, data: { ...data, apply_to_active_season: applyToActiveSeason } }, {
+        onSuccess: async (saved) => {
+          const appliedSeasonId = (saved as { applied_to_active_season_id?: string | null }).applied_to_active_season_id;
+          const appliedNote = appliedSeasonId
+            ? ` Also applied to ${activeSeason?.label ?? 'the active season'}.`
+            : '';
+          setMessage((current ? 'New immutable settings version saved.' : 'League settings created.') + appliedNote);
           setIdempotencyKey(crypto.randomUUID());
           const affected = ['settings', 'history', 'seats', 'seasons', 'schedule', 'weeks', 'games'];
           await queryClient.invalidateQueries({
@@ -496,11 +519,68 @@ export default function LeagueSettings({
                 />
               </Field>
 
+              <div style={gridStyle}>
+                <Field label="Points for a win" hint="League default. New seasons inherit this unless overridden.">
+                  <input style={inputStyle} type="number" min={0} value={form.points_win ?? 2} onChange={e => update('points_win', Number(e.target.value))} />
+                </Field>
+                <Field label="Points for an OT/SO loss">
+                  <input style={inputStyle} type="number" min={0} value={form.points_ot_loss ?? 1} onChange={e => update('points_ot_loss', Number(e.target.value))} />
+                </Field>
+                <Field label="Points for a regulation loss" hint="Always 0 — hockey does not award points for a regulation loss.">
+                  <input style={inputStyle} type="number" value={0} disabled />
+                </Field>
+              </div>
+
+              <Field label="Tiebreaker order" hint="Drag to reorder. League default for new seasons.">
+                <div style={{ border: '1px solid var(--rule)', borderRadius: '3px', background: '#fff' }}>
+                  {(form.tiebreakers ?? DEFAULT_TIEBREAKERS).map((tb, idx) => (
+                    <div
+                      key={tb}
+                      draggable
+                      onDragStart={e => e.dataTransfer.setData('index', idx.toString())}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => {
+                        const dragIndex = parseInt(e.dataTransfer.getData('index'), 10);
+                        const next = [...(form.tiebreakers ?? DEFAULT_TIEBREAKERS)];
+                        const [dragged] = next.splice(dragIndex, 1);
+                        next.splice(idx, 0, dragged!);
+                        update('tiebreakers', next);
+                      }}
+                      style={{
+                        padding: '7px 10px',
+                        borderBottom: idx < (form.tiebreakers ?? []).length - 1 ? '1px solid var(--rule)' : 'none',
+                        fontFamily: 'var(--data)',
+                        fontSize: '11.5px',
+                        cursor: 'grab',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      <span style={{ color: 'var(--steel)' }}>⋮</span>
+                      <span style={{ fontWeight: 600 }}>{idx + 1}.</span>
+                      {tb.toUpperCase()}
+                    </div>
+                  ))}
+                </div>
+              </Field>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--rule)', paddingTop: '14px' }}>
                 <AdvancedJsonField label="schedule settings" value={scheduleJson} onChange={setScheduleJson} />
                 <AdvancedJsonField label="playoff format" value={playoffJson} onChange={setPlayoffJson} />
                 <AdvancedJsonField label="gameplay sliders" value={slidersJson} onChange={setSlidersJson} />
               </div>
+
+              {current && activeSeason && (
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontFamily: 'var(--body)', fontSize: '13px', border: '1px solid var(--rule)', borderRadius: '3px', padding: '10px' }}>
+                  <input type="checkbox" checked={applyToActiveSeason} onChange={e => setApplyToActiveSeason(e.target.checked)} style={{ marginTop: '2px' }} />
+                  <span>
+                    Applies to new seasons. Also apply the points system and tiebreaker order to <strong>{activeSeason.label}</strong> (currently in progress)?
+                    <br />
+                    <small style={{ color: 'var(--steel)' }}>Salary cap, roster limits, and games per matchup for that season stay as originally set.</small>
+                  </span>
+                </label>
+              )}
 
               <Field label="Required change summary">
                 <input style={inputStyle} required minLength={1} maxLength={500} value={form.change_summary} onChange={e => update('change_summary', e.target.value)} placeholder="Explain what changed and why" />

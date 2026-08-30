@@ -175,6 +175,16 @@ export type LeagueSettingsInputPlayoffFormat = { [key: string]: unknown };
 
 export type LeagueSettingsInputSliderPresets = { [key: string]: unknown };
 
+/**
+ * Always 0 — hockey does not award points for a regulation loss.
+ */
+export type LeagueSettingsInputPointsRegLoss = typeof LeagueSettingsInputPointsRegLoss[keyof typeof LeagueSettingsInputPointsRegLoss];
+
+
+export const LeagueSettingsInputPointsRegLoss = {
+  NUMBER_0: 0,
+} as const;
+
 export interface LeagueSettingsInput {
   /**
      * @maxLength 100
@@ -214,11 +224,37 @@ export interface LeagueSettingsInput {
   /** Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat. */
   require_verified_identities?: boolean;
   /**
+     * League default for a season's points-for-a-win. Seasons may override at creation.
+     * @minimum 0
+     */
+  points_win?: number;
+  /**
+     * League default for a season's points-for-an-overtime-loss.
+     * @minimum 0
+     */
+  points_ot_loss?: number;
+  /** Always 0 — hockey does not award points for a regulation loss. */
+  points_reg_loss?: LeagueSettingsInputPointsRegLoss;
+  /** League default standings tiebreaker order. Seasons may override at creation. */
+  tiebreakers?: string[];
+  /**
      * @minLength 1
      * @maxLength 500
      */
   change_summary: string;
 }
+
+export type CreateLeagueSettingsVersionInput = LeagueSettingsInput & {
+  /**
+     * When true and the league has an active season, also update that
+     * season's own points/tiebreaker snapshot to match this version
+     * (the season's salary cap, roster limits, and games-per-matchup
+     * stay as originally set — only points and tiebreakers, which a
+     * commissioner might reasonably want to correct mid-season, are
+     * retroactively applied).
+     */
+  apply_to_active_season?: boolean;
+};
 
 export type LeagueSettingsVersion = LeagueSettingsInput & {
   id: string;
@@ -258,6 +294,13 @@ export type LeagueSettingsTemplateFieldsPlayoffFormat = { [key: string]: unknown
 
 export type LeagueSettingsTemplateFieldsSliderPresets = { [key: string]: unknown };
 
+export type LeagueSettingsTemplateFieldsPointsRegLoss = typeof LeagueSettingsTemplateFieldsPointsRegLoss[keyof typeof LeagueSettingsTemplateFieldsPointsRegLoss];
+
+
+export const LeagueSettingsTemplateFieldsPointsRegLoss = {
+  NUMBER_0: 0,
+} as const;
+
 /**
  * Everything a settings version needs except platform, team_count, and
  * change_summary — those are chosen independently (platform/team_count
@@ -280,6 +323,12 @@ export interface LeagueSettingsTemplateFields {
   rules_notes?: string | null;
   slider_presets: LeagueSettingsTemplateFieldsSliderPresets;
   require_verified_identities?: boolean;
+  /** @minimum 0 */
+  points_win?: number;
+  /** @minimum 0 */
+  points_ot_loss?: number;
+  points_reg_loss?: LeagueSettingsTemplateFieldsPointsRegLoss;
+  tiebreakers?: string[];
 }
 
 export interface LeagueSettingsTemplate {
@@ -292,6 +341,16 @@ export interface LeagueSettingsTemplate {
 export interface LeagueSettingsHistory {
   data: LeagueSettingsVersion[];
 }
+
+/**
+ * Always 0 — hockey does not award points for a regulation loss.
+ */
+export type CreateSeasonInputPointsRegLoss = typeof CreateSeasonInputPointsRegLoss[keyof typeof CreateSeasonInputPointsRegLoss];
+
+
+export const CreateSeasonInputPointsRegLoss = {
+  NUMBER_0: 0,
+} as const;
 
 export interface CreateSeasonInput {
   /**
@@ -323,14 +382,24 @@ export interface CreateSeasonInput {
      * @nullable
      */
   roster_max?: number | null;
-  /** @minimum 1 */
+  /**
+     * Overrides the league's configured schedule format for this season only. Defaults to the league's active settings.
+     * @minimum 1
+     */
   games_per_matchup?: number;
-  /** @minimum 0 */
+  /**
+     * Overrides the league's default points-for-a-win for this season only. Defaults to the league's active settings.
+     * @minimum 0
+     */
   points_win?: number;
-  /** @minimum 0 */
+  /**
+     * Overrides the league's default points-for-an-OT-loss for this season only. Defaults to the league's active settings.
+     * @minimum 0
+     */
   points_ot_loss?: number;
-  /** @minimum 0 */
-  points_reg_loss?: number;
+  /** Always 0 — hockey does not award points for a regulation loss. */
+  points_reg_loss?: CreateSeasonInputPointsRegLoss;
+  /** Overrides the league's default tiebreaker order for this season only. Defaults to the league's active settings. */
   tiebreakers?: string[];
 }
 

@@ -7,6 +7,7 @@
  */
 import type { LeaguePlatform } from './leaguePlatform';
 import type { LeagueSettingsInputPlayoffFormat } from './leagueSettingsInputPlayoffFormat';
+import type { LeagueSettingsInputPointsRegLoss } from './leagueSettingsInputPointsRegLoss';
 import type { LeagueSettingsInputRosterSource } from './leagueSettingsInputRosterSource';
 import type { LeagueSettingsInputScheduleFormat } from './leagueSettingsInputScheduleFormat';
 import type { LeagueSettingsInputScheduleSettings } from './leagueSettingsInputScheduleSettings';
@@ -50,6 +51,20 @@ export interface LeagueSettingsInput {
   slider_presets: LeagueSettingsInputSliderPresets;
   /** Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat. */
   require_verified_identities?: boolean;
+  /**
+     * League default for a season's points-for-a-win. Seasons may override at creation.
+     * @minimum 0
+     */
+  points_win?: number;
+  /**
+     * League default for a season's points-for-an-overtime-loss.
+     * @minimum 0
+     */
+  points_ot_loss?: number;
+  /** Always 0 — hockey does not award points for a regulation loss. */
+  points_reg_loss?: LeagueSettingsInputPointsRegLoss;
+  /** League default standings tiebreaker order. Seasons may override at creation. */
+  tiebreakers?: string[];
   /**
      * @minLength 1
      * @maxLength 500

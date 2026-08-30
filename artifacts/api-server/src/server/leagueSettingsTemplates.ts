@@ -22,6 +22,10 @@ export type LeagueSettingsTemplateFields = {
     fighting: "off" | "standard" | "heavy";
   };
   require_verified_identities: boolean;
+  points_win: number;
+  points_ot_loss: number;
+  points_reg_loss: 0;
+  tiebreakers: string[];
 };
 
 export type LeagueSettingsTemplate = {
@@ -52,6 +56,10 @@ export const LEAGUE_SETTINGS_TEMPLATES: LeagueSettingsTemplate[] = [
       rules_notes: null,
       slider_presets: { gameplay_preset: "competitive", contact: "standard", fighting: "standard" },
       require_verified_identities: false,
+      points_win: 2,
+      points_ot_loss: 1,
+      points_reg_loss: 0,
+      tiebreakers: ["points", "row", "wins", "goal_diff", "goals_for"],
     },
   },
   {
@@ -71,6 +79,10 @@ export const LEAGUE_SETTINGS_TEMPLATES: LeagueSettingsTemplate[] = [
       rules_notes: null,
       slider_presets: { gameplay_preset: "simulation", contact: "heavy", fighting: "heavy" },
       require_verified_identities: true,
+      points_win: 2,
+      points_ot_loss: 1,
+      points_reg_loss: 0,
+      tiebreakers: ["points", "row", "wins", "goal_diff", "goals_for"],
     },
   },
   {
@@ -90,6 +102,10 @@ export const LEAGUE_SETTINGS_TEMPLATES: LeagueSettingsTemplate[] = [
       rules_notes: null,
       slider_presets: { gameplay_preset: "arcade", contact: "reduced", fighting: "off" },
       require_verified_identities: false,
+      points_win: 2,
+      points_ot_loss: 1,
+      points_reg_loss: 0,
+      tiebreakers: ["points", "row", "wins", "goal_diff", "goals_for"],
     },
   },
 ];

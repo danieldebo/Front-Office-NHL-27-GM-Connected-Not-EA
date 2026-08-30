@@ -589,14 +589,21 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LeagueSettingsInput'
+              $ref: '#/components/schemas/CreateLeagueSettingsVersionInput'
       responses:
         '201':
           description: New immutable settings version created and activated.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LeagueSettingsVersion'
+                allOf:
+                  - $ref: '#/components/schemas/LeagueSettingsVersion'
+                  - type: object
+                    required: [applied_to_active_season_id]
+                    properties:
+                      applied_to_active_season_id:
+                        type: ["string", "null"]
+                        description: Set when apply_to_active_season was true and the league had an active season.
         '400':
           description: Invalid settings.
           content:
@@ -2377,10 +2384,47 @@ components:
           type: boolean
           default: false
           description: Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.
+        points_win:
+          type: integer
+          minimum: 0
+          default: 2
+          description: League default for a season's points-for-a-win. Seasons may override at creation.
+        points_ot_loss:
+          type: integer
+          minimum: 0
+          default: 1
+          description: League default for a season's points-for-an-overtime-loss.
+        points_reg_loss:
+          type: integer
+          enum: [0]
+          default: 0
+          description: Always 0 — hockey does not award points for a regulation loss.
+        tiebreakers:
+          type: array
+          items:
+            type: string
+          default: ["points", "row", "wins", "goal_diff", "goals_for"]
+          description: League default standings tiebreaker order. Seasons may override at creation.
         change_summary:
           type: string
           minLength: 1
           maxLength: 500
+
+    CreateLeagueSettingsVersionInput:
+      allOf:
+        - $ref: '#/components/schemas/LeagueSettingsInput'
+        - type: object
+          properties:
+            apply_to_active_season:
+              type: boolean
+              default: false
+              description: |
+                When true and the league has an active season, also update that
+                season's own points/tiebreaker snapshot to match this version
+                (the season's salary cap, roster limits, and games-per-matchup
+                stay as originally set — only points and tiebreakers, which a
+                commissioner might reasonably want to correct mid-season, are
+                retroactively applied).
 
     LeagueSettingsVersion:
       allOf:
@@ -2455,6 +2499,19 @@ components:
           additionalProperties: true
         require_verified_identities:
           type: boolean
+        points_win:
+          type: integer
+          minimum: 0
+        points_ot_loss:
+          type: integer
+          minimum: 0
+        points_reg_loss:
+          type: integer
+          enum: [0]
+        tiebreakers:
+          type: array
+          items:
+            type: string
 
     LeagueSettingsTemplate:
       type: object
@@ -2508,24 +2565,24 @@ components:
         games_per_matchup:
           type: integer
           minimum: 1
-          default: 1
+          description: Overrides the league's configured schedule format for this season only. Defaults to the league's active settings.
         points_win:
           type: integer
           minimum: 0
-          default: 2
+          description: Overrides the league's default points-for-a-win for this season only. Defaults to the league's active settings.
         points_ot_loss:
           type: integer
           minimum: 0
-          default: 1
+          description: Overrides the league's default points-for-an-OT-loss for this season only. Defaults to the league's active settings.
         points_reg_loss:
           type: integer
-          minimum: 0
-          default: 0
+          enum: [0]
+          description: Always 0 — hockey does not award points for a regulation loss.
         tiebreakers:
           type: array
           items:
             type: string
-          default: ["points", "row", "wins", "goal_diff", "goals_for"]
+          description: Overrides the league's default tiebreaker order for this season only. Defaults to the league's active settings.
 
     LeagueHub:
       type: object
