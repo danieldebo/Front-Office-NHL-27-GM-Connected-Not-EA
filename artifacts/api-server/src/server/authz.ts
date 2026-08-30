@@ -21,7 +21,9 @@ export type Action =
   | "result:dispute"
   | "seat:manage"            // assign / revoke GM, approve join requests
   | "invite:manage"          // create / revoke invite links
-  | "rulebook:write";        // publish a new revision
+  | "rulebook:write"         // publish a new revision
+  | "transaction:act"        // GM acting on their own team's side of a transaction, or commissioner acting for any team
+  | "transaction:approve";   // commissioner-only: approve/reject a trade, resolve a waiver
 
 export interface LeagueResource {
   kind: "league";
@@ -43,7 +45,18 @@ export interface ResultResource {
   gameAwayGmUserId: string | null;
 }
 
-export type Resource = LeagueResource | GameResource | ResultResource;
+export interface TransactionResource {
+  kind: "transaction";
+  ownerId: string;
+  commissionerIds?: string[];
+  // The GM(s) whose team(s) this action touches — a GM may act for their own
+  // team without being a commissioner (propose/accept a trade, sign or
+  // release their own player, submit a waiver claim). Irrelevant for
+  // transaction:approve, which is commissioner-only.
+  gmUserIds?: (string | null)[];
+}
+
+export type Resource = LeagueResource | GameResource | ResultResource | TransactionResource;
 
 /**
  * Returns true when `user` is permitted to perform `action` on `resource`.
@@ -85,6 +98,19 @@ export function can(
         resource.homeGmUserId === domainUserId ||
         resource.awayGmUserId === domainUserId
       );
+    }
+
+    case "transaction:act": {
+      if (resource.kind !== "transaction") return false;
+      const isCommissioner = resource.ownerId === domainUserId ||
+        (resource.commissionerIds?.includes(domainUserId) ?? false);
+      return isCommissioner || (resource.gmUserIds?.includes(domainUserId) ?? false);
+    }
+
+    case "transaction:approve": {
+      if (resource.kind !== "transaction") return false;
+      return resource.ownerId === domainUserId ||
+        (resource.commissionerIds?.includes(domainUserId) ?? false);
     }
 
     case "result:confirm":

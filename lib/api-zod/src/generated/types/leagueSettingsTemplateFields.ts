@@ -5,6 +5,7 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { LeagueSettingsTemplateFieldsCapEnforcement } from './leagueSettingsTemplateFieldsCapEnforcement';
 import type { LeagueSettingsTemplateFieldsPlayoffFormat } from './leagueSettingsTemplateFieldsPlayoffFormat';
 import type { LeagueSettingsTemplateFieldsPointsRegLoss } from './leagueSettingsTemplateFieldsPointsRegLoss';
 import type { LeagueSettingsTemplateFieldsRosterSource } from './leagueSettingsTemplateFieldsRosterSource';
@@ -40,4 +41,11 @@ export interface LeagueSettingsTemplateFields {
   points_ot_loss?: number;
   points_reg_loss?: LeagueSettingsTemplateFieldsPointsRegLoss;
   tiebreakers?: string[];
+  auto_approve_trades?: boolean;
+  cap_enforcement?: LeagueSettingsTemplateFieldsCapEnforcement;
+  /**
+     * @minimum 1
+     * @maximum 168
+     */
+  waiver_window_hours?: number;
 }

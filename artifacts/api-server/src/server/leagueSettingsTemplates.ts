@@ -26,6 +26,9 @@ export type LeagueSettingsTemplateFields = {
   points_ot_loss: number;
   points_reg_loss: 0;
   tiebreakers: string[];
+  auto_approve_trades: boolean;
+  cap_enforcement: "block" | "warn" | "off";
+  waiver_window_hours: number;
 };
 
 export type LeagueSettingsTemplate = {
@@ -45,7 +48,14 @@ export const LEAGUE_SETTINGS_TEMPLATES: LeagueSettingsTemplate[] = [
     description: "The default for most leagues — capped, standard physicality, a full 16-team playoff bracket.",
     fields: {
       roster_source: "ea",
-      schedule_format: "round_robin",
+      // double_round_robin, not round_robin: games_per_matchup=2 below is a
+      // home-and-away pair, and validateSettings() (league-settings.ts)
+      // requires round_robin to carry games_per_matchup=1 — this template
+      // previously combined 'round_robin' with games_per_matchup=2, which
+      // is internally inconsistent and made every league seeded from it
+      // unable to ever save a settings edit (discovered via prompt C's
+      // transactions test exercising a real settings-version save).
+      schedule_format: "double_round_robin",
       schedule_settings: { games_per_matchup: 2, week_duration_days: 7 },
       playoff_format: { teams: 16, series_length: 7, reseed_each_round: false },
       salary_cap_cents: CURRENT_SALARY_CAP_CENTS,
@@ -60,6 +70,9 @@ export const LEAGUE_SETTINGS_TEMPLATES: LeagueSettingsTemplate[] = [
       points_ot_loss: 1,
       points_reg_loss: 0,
       tiebreakers: ["points", "row", "wins", "goal_diff", "goals_for"],
+      auto_approve_trades: false,
+      cap_enforcement: "warn",
+      waiver_window_hours: 24,
     },
   },
   {
@@ -83,6 +96,9 @@ export const LEAGUE_SETTINGS_TEMPLATES: LeagueSettingsTemplate[] = [
       points_ot_loss: 1,
       points_reg_loss: 0,
       tiebreakers: ["points", "row", "wins", "goal_diff", "goals_for"],
+      auto_approve_trades: false,
+      cap_enforcement: "warn",
+      waiver_window_hours: 24,
     },
   },
   {
@@ -106,6 +122,9 @@ export const LEAGUE_SETTINGS_TEMPLATES: LeagueSettingsTemplate[] = [
       points_ot_loss: 1,
       points_reg_loss: 0,
       tiebreakers: ["points", "row", "wins", "goal_diff", "goals_for"],
+      auto_approve_trades: false,
+      cap_enforcement: "warn",
+      waiver_window_hours: 24,
     },
   },
 ];

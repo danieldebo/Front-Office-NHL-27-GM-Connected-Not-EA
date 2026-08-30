@@ -17,6 +17,7 @@ import ManageLeague from '@/pages/ManageLeague';
 import CreateSeason from '@/pages/CreateSeason';
 import Schedule from '@/pages/Schedule';
 import Availability from '@/pages/Availability';
+import Transactions from '@/pages/Transactions';
 import ReportResult from '@/pages/ReportResult';
 import ConfirmResult from '@/pages/ConfirmResult';
 import LeaguePublic from '@/pages/LeaguePublic';
@@ -132,6 +133,11 @@ function Router() {
       <Route path="/leagues/:id/availability">
         <AuthGate>
           <Availability />
+        </AuthGate>
+      </Route>
+      <Route path="/leagues/:id/transactions">
+        <AuthGate>
+          <Transactions />
         </AuthGate>
       </Route>
       <Route path="/games/:gameId/report">

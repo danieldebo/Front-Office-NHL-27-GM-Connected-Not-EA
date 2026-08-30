@@ -49,6 +49,7 @@ function settingsSelect(where: string): string {
                  v.roster_min, v.roster_max, v.divisions, v.conferences,
                  v.rules_notes, v.slider_presets, v.require_verified_identities,
                  v.points_win, v.points_ot_loss, v.points_reg_loss, v.tiebreakers,
+                 v.auto_approve_trades, v.cap_enforcement, v.waiver_window_hours,
                  v.changed_by, v.changed_at,
                  v.change_summary, (a.settings_version_id = v.id) AS is_active
             FROM league_settings_version v
@@ -231,8 +232,9 @@ router.post(
            schedule_format, schedule_settings, playoff_format, salary_cap_cents,
            roster_min, roster_max, divisions, conferences, rules_notes,
            slider_presets, require_verified_identities, points_win, points_ot_loss,
-           points_reg_loss, tiebreakers, changed_by, change_summary
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+           points_reg_loss, tiebreakers, auto_approve_trades, cap_enforcement,
+           waiver_window_hours, changed_by, change_summary
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
          RETURNING *`,
         [leagueId, nextVersion, d.ea_league_id ?? null, d.platform, d.team_count,
          d.roster_source, d.schedule_format, d.schedule_settings, d.playoff_format,
@@ -241,6 +243,7 @@ router.post(
          d.slider_presets, d.require_verified_identities ?? false,
          d.points_win ?? 2, d.points_ot_loss ?? 1, d.points_reg_loss ?? 0,
          JSON.stringify(d.tiebreakers ?? ["points", "row", "wins", "goal_diff", "goals_for"]),
+         d.auto_approve_trades ?? false, d.cap_enforcement ?? "warn", d.waiver_window_hours ?? 24,
          access.appUserId, d.change_summary],
       );
       const version = inserted.rows[0]!;

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.3.0
  */
 import type { LeaguePlatform } from './leaguePlatform';
+import type { LeagueSettingsInputCapEnforcement } from './leagueSettingsInputCapEnforcement';
 import type { LeagueSettingsInputPlayoffFormat } from './leagueSettingsInputPlayoffFormat';
 import type { LeagueSettingsInputPointsRegLoss } from './leagueSettingsInputPointsRegLoss';
 import type { LeagueSettingsInputRosterSource } from './leagueSettingsInputRosterSource';
@@ -65,6 +66,16 @@ export interface LeagueSettingsInput {
   points_reg_loss?: LeagueSettingsInputPointsRegLoss;
   /** League default standings tiebreaker order. Seasons may override at creation. */
   tiebreakers?: string[];
+  /** When true, a trade executes as soon as the counterparty GM accepts — no separate commissioner approval step. */
+  auto_approve_trades?: boolean;
+  /** How a trade or signing that would put a team over the salary cap is handled. */
+  cap_enforcement?: LeagueSettingsInputCapEnforcement;
+  /**
+     * How long a released player is claimable before clearing to free agency outright.
+     * @minimum 1
+     * @maximum 168
+     */
+  waiver_window_hours?: number;
   /**
      * @minLength 1
      * @maxLength 500

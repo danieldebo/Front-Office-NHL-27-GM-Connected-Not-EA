@@ -105,15 +105,17 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
          schedule_settings, playoff_format, salary_cap_cents, roster_min, roster_max,
          divisions, conferences, rules_notes, slider_presets, require_verified_identities,
          points_win, points_ot_loss, points_reg_loss, tiebreakers,
+         auto_approve_trades, cap_enforcement, waiver_window_hours,
          changed_by, change_summary
-       ) VALUES ($1,1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+       ) VALUES ($1,1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
        RETURNING id`,
       [
         league.id, platform, team_count, f.roster_source, f.schedule_format,
         f.schedule_settings, f.playoff_format, f.salary_cap_cents, f.roster_min, f.roster_max,
         JSON.stringify(f.divisions), JSON.stringify(f.conferences), f.rules_notes, f.slider_presets,
         f.require_verified_identities, f.points_win, f.points_ot_loss, f.points_reg_loss,
-        JSON.stringify(f.tiebreakers), appUserId, `Initial league settings — ${template.name} template`,
+        JSON.stringify(f.tiebreakers), f.auto_approve_trades, f.cap_enforcement, f.waiver_window_hours,
+        appUserId, `Initial league settings — ${template.name} template`,
       ],
     );
     await client.query(

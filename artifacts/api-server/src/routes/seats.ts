@@ -93,6 +93,13 @@ function formatSeat(r: Record<string, unknown>) {
     conference: r.conference ?? null,
     division: r.division ?? null,
     seat_status: r.seat_status,
+    // Only meaningful for an open seat: was it ever filled before, and if
+    // so, when did the last GM leave. "hist" is only joined by the seats
+    // list query below, not loadSeat() (used right after an assign/revoke),
+    // so these are undefined there — fine, since that response always has a
+    // fresh `gm` right after the mutation that produced it.
+    vacated_at: !r.assignment_id && r.ever_assigned ? (r.last_vacated_at ?? null) : null,
+    never_filled: !r.assignment_id && r.ever_assigned !== undefined ? !r.ever_assigned : undefined,
     gm: r.assignment_id
       ? {
           assignment_id: r.assignment_id,
@@ -578,12 +585,18 @@ router.get(
          au.platform::text AS gm_legacy_platform,
          au.platform_gamertag AS gm_legacy_gamertag,
          ga.started_at AS gm_started_at,
-         ga.role AS gm_role
+         ga.role AS gm_role,
+         hist.ever_assigned,
+         hist.last_vacated_at
        FROM team_season ts
        JOIN franchise fr ON fr.id = ts.franchise_id
        LEFT JOIN nhl_club nc ON nc.id = ts.nhl_club_id
        LEFT JOIN gm_assignment ga ON ga.team_season_id = ts.id AND ga.ended_at IS NULL
        LEFT JOIN app_user au ON au.id = ga.user_id
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) > 0 AS ever_assigned, MAX(g.ended_at) AS last_vacated_at
+           FROM gm_assignment g WHERE g.team_season_id = ts.id
+       ) hist ON TRUE
       WHERE ts.season_id = $1
       ORDER BY ts.conference, ts.division, nc.abbrev`,
       [seasonRow.rows[0].id]
