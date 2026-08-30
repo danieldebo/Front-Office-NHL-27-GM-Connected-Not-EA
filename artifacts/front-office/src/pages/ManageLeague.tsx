@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useLocation, useParams, Link } from 'wouter';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useParams, useSearch, Link } from 'wouter';
 import { 
   useGetLeague, 
   useListSeats,
@@ -46,6 +46,7 @@ import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
 import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
+import SetupChecklist from '@/components/SetupChecklist';
 
 // Helper components
 export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) {
@@ -1469,10 +1470,23 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   );
 }
 
+type ManageTab = 'seats'|'requests'|'rulebook'|'schedule'|'settings'|'links'|'discovery'|'applicants';
+const MANAGE_TABS: ManageTab[] = ['seats', 'requests', 'rulebook', 'schedule', 'settings', 'links', 'discovery', 'applicants'];
+
 export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'settings'|'links'|'discovery'|'applicants'>('seats');
-  
+  const search = useSearch();
+  const [activeTab, setActiveTab] = useState<ManageTab>('seats');
+
+  // Lets a "why isn't this done yet" link (e.g. the setup checklist) land on
+  // the right tab instead of always the default.
+  useEffect(() => {
+    const requested = new URLSearchParams(search).get('tab');
+    if (requested && (MANAGE_TABS as string[]).includes(requested)) {
+      setActiveTab(requested as ManageTab);
+    }
+  }, [search]);
+
   const { isLoaded, isSignedIn } = useAuth();
   const { data: league, isLoading: isLoadingLeague } = useGetLeague(id || '');
   const { data: seasonsData } = useListSeasons(id || '');
@@ -1511,6 +1525,7 @@ export default function ManageLeague() {
         </div>
       </div>
       <div className="wrap" style={{ paddingTop: '20px', paddingBottom: '60px' }}>
+        <SetupChecklist leagueId={league.id} />
         <div className="manage-tabs" style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--rule)', paddingBottom: '12px' }}>
           <button 
             onClick={() => setActiveTab('seats')}

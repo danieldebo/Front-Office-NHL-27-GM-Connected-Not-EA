@@ -5,13 +5,15 @@ import LeagueSlab from '@/components/LeagueSlab';
 import MyWeek from '@/components/MyWeek';
 import Standings from '@/components/Standings';
 import Sidebar from '@/components/Sidebar';
+import { useSetupChecklist } from '@/hooks/useSetupChecklist';
 
 function LeagueDashboard({ league }: { league: League }) {
   const { data: hub, isLoading } = useGetLeagueHub(league.id);
+  const setup = useSetupChecklist(league.id);
 
   return (
     <>
-      <LeagueSlab hub={hub} isLoading={isLoading} />
+      <LeagueSlab hub={hub} isLoading={isLoading} setup={setup.isLoading ? undefined : setup} />
       <div className="wrap">
         <div className="cols">
           <main>
