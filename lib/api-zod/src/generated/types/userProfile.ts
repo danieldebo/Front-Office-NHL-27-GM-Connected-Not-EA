@@ -17,4 +17,6 @@ export interface UserProfile {
   psn_online_id: string | null;
   systems_played: PlayerSystem[];
   primary_identity: PlayerSystem | null;
+  /** True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported. */
+  xbox_verified?: boolean;
 }

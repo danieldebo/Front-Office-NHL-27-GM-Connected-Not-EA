@@ -129,3 +129,4 @@ export * from './waitlistPositionInput';
 export * from './weekListEnvelope';
 export * from './weekStatus';
 export * from './weekWindow';
+export * from './xboxLinkStatus';

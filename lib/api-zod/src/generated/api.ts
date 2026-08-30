@@ -27,7 +27,8 @@ export const GetMyProfileResponse = zod.object({
   "xbox_gamertag": zod.string().nullable(),
   "psn_online_id": zod.string().nullable(),
   "systems_played": zod.array(zod.enum(['xbox', 'playstation'])),
-  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()])
+  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]),
+  "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.')
 })
 
 
@@ -60,8 +61,27 @@ export const UpdateMyProfileResponse = zod.object({
   "xbox_gamertag": zod.string().nullable(),
   "psn_online_id": zod.string().nullable(),
   "systems_played": zod.array(zod.enum(['xbox', 'playstation'])),
-  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()])
+  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]),
+  "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.')
 })
+
+
+/**
+ * @summary Current Xbox Live verification status for the authenticated player
+ */
+export const GetXboxLinkResponse = zod.object({
+  "linked": zod.boolean(),
+  "gamertag": zod.string().optional(),
+  "xuid": zod.string().optional(),
+  "linked_at": zod.coerce.date().optional(),
+  "last_verified_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Remove the authenticated player's verified Xbox Live link
+ */
+export const UnlinkXboxResponse = zod.void()
 
 
 /**

@@ -95,8 +95,11 @@ router.get("/users/me", async (req: Request, res: Response): Promise<void> => {
     unauthorized(res, "Authentication required");
     return;
   }
-  const result = await pool.query<Profile>(
-    `SELECT ${profileSelect()} FROM app_user WHERE id = $1 AND deleted_at IS NULL`,
+  const result = await pool.query<Profile & { xbox_verified: boolean }>(
+    `SELECT ${profileSelect()}, EXISTS(
+       SELECT 1 FROM xbox_link xl WHERE xl.user_id = au.id
+     ) AS xbox_verified
+     FROM app_user au WHERE id = $1 AND deleted_at IS NULL`,
     [user.appUserId],
   );
   if (!result.rows[0]) {

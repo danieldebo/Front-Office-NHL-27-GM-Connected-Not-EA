@@ -88,7 +88,8 @@ import type {
   UserProfileUpdate,
   WaitlistEntry,
   WaitlistPositionInput,
-  WeekListEnvelope
+  WeekListEnvelope,
+  XboxLinkStatus
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -342,6 +343,154 @@ export const useUpdateMyProfile = <TError = ErrorType<Problem>,
         TContext
       > => {
       return useMutation(getUpdateMyProfileMutationOptions(options));
+    }
+
+export const getGetXboxLinkUrl = () => {
+
+
+
+
+  return `/api/xbox/link`
+}
+
+/**
+ * @summary Current Xbox Live verification status for the authenticated player
+ */
+export const getXboxLink = async ( options?: RequestInit): Promise<XboxLinkStatus> => {
+
+  return customFetch<XboxLinkStatus>(getGetXboxLinkUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetXboxLinkQueryKey = () => {
+    return [
+    `/api/xbox/link`
+    ] as const;
+    }
+
+
+export const getGetXboxLinkQueryOptions = <TData = Awaited<ReturnType<typeof getXboxLink>>, TError = ErrorType<Problem>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getXboxLink>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetXboxLinkQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getXboxLink>>> = ({ signal }) => getXboxLink({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getXboxLink>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetXboxLinkQueryResult = NonNullable<Awaited<ReturnType<typeof getXboxLink>>>
+export type GetXboxLinkQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary Current Xbox Live verification status for the authenticated player
+ */
+
+export function useGetXboxLink<TData = Awaited<ReturnType<typeof getXboxLink>>, TError = ErrorType<Problem>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getXboxLink>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetXboxLinkQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUnlinkXboxUrl = () => {
+
+
+
+
+  return `/api/xbox/link`
+}
+
+/**
+ * @summary Remove the authenticated player's verified Xbox Live link
+ */
+export const unlinkXbox = async ( options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getUnlinkXboxUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnlinkXboxMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkXbox>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unlinkXbox>>, TError,void, TContext> => {
+
+const mutationKey = ['unlinkXbox'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unlinkXbox>>, void> = () => {
+
+
+          return  unlinkXbox(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnlinkXboxMutationResult = NonNullable<Awaited<ReturnType<typeof unlinkXbox>>>
+
+    export type UnlinkXboxMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Remove the authenticated player's verified Xbox Live link
+ */
+export const useUnlinkXbox = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unlinkXbox>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unlinkXbox>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUnlinkXboxMutationOptions(options));
     }
 
 export const getListOpenLeaguesUrl = (params?: ListOpenLeaguesParams,) => {

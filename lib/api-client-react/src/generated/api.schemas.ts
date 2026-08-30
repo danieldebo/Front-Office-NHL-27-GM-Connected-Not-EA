@@ -977,6 +977,16 @@ export interface UserProfile {
   psn_online_id: string | null;
   systems_played: PlayerSystem[];
   primary_identity: PlayerSystem | null;
+  /** True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported. */
+  xbox_verified?: boolean;
+}
+
+export interface XboxLinkStatus {
+  linked: boolean;
+  gamertag?: string;
+  xuid?: string;
+  linked_at?: string;
+  last_verified_at?: string;
 }
 
 export interface UserProfileUpdate {

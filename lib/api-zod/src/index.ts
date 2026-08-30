@@ -127,3 +127,4 @@ export type { WaitlistPositionInput } from "./generated/types/waitlistPositionIn
 // WeekListEnvelope intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // WeekStatus intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // WeekWindow intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { XboxLinkStatus } from "./generated/types/xboxLinkStatus";

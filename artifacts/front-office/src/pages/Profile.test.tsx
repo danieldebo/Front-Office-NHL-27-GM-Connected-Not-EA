@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Profile from './Profile';
@@ -16,6 +17,43 @@ const profile = {
   primary_identity: 'xbox',
 };
 
+/**
+ * Profile now renders the Xbox verification panel alongside the profile
+ * form, which fires its own /api/xbox/link fetch via react-query on mount.
+ * Route every call by URL/method instead of a positional queue so the two
+ * concurrent fetchers don't fight over a shared call-order assumption.
+ */
+function stubFetch(overrides: { onPatch?: (body: unknown) => unknown } = {}) {
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/api/xbox/link') {
+      return { ok: true, json: async () => ({ linked: false }) };
+    }
+    if (url === '/api/users/me' && init?.method === 'PATCH') {
+      const body = JSON.parse(String(init.body));
+      return { ok: true, json: async () => (overrides.onPatch ? overrides.onPatch(body) : { ...profile, ...body }) };
+    }
+    if (url === '/api/users/me') {
+      return { ok: true, json: async () => profile };
+    }
+    return { ok: false, json: async () => ({}) };
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+function callsTo(fetchMock: ReturnType<typeof stubFetch>, url: string) {
+  return fetchMock.mock.calls.filter(([calledUrl]) => calledUrl === url);
+}
+
+function renderProfile() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <Profile />
+    </QueryClientProvider>,
+  );
+}
+
 describe('Profile', () => {
   afterEach(() => {
     cleanup();
@@ -23,18 +61,9 @@ describe('Profile', () => {
   });
 
   it('loads the authenticated profile and saves edited fields', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => profile,
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ ...profile, display_name: 'Coach Updated' }),
-      });
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = stubFetch();
 
-    render(<Profile />);
+    renderProfile();
 
     const displayName = await screen.findByTestId('input-display-name') as HTMLInputElement;
     expect(displayName.value).toBe('Coach One');
@@ -44,16 +73,16 @@ describe('Profile', () => {
     fireEvent.change(displayName, { target: { value: 'Coach Updated' } });
     fireEvent.click(screen.getByTestId('button-save-profile'));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      '/api/users/me',
+    await waitFor(() => expect(callsTo(fetchMock, '/api/users/me')).toHaveLength(2));
+    const [, patchInit] = callsTo(fetchMock, '/api/users/me')[1]!;
+    expect(patchInit).toEqual(
       expect.objectContaining({
         method: 'PATCH',
         credentials: 'include',
         body: expect.any(String),
       }),
     );
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+    expect(JSON.parse(String(patchInit!.body))).toEqual({
       display_name: 'Coach Updated',
       timezone: 'America/New_York',
       xbox_gamertag: 'CoachXbox',
@@ -65,18 +94,14 @@ describe('Profile', () => {
   });
 
   it('requires a valid IANA time zone before sending a patch', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => profile,
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    render(<Profile />);
+    const fetchMock = stubFetch();
+    renderProfile();
 
     const timezone = await screen.findByTestId('input-timezone');
     fireEvent.change(timezone, { target: { value: 'Eastern Time' } });
     fireEvent.click(screen.getByTestId('button-save-profile'));
 
     expect(await screen.findByText(/valid IANA time zone/i)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(callsTo(fetchMock, '/api/users/me')).toHaveLength(1);
   });
 });
