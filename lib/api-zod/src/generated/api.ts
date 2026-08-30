@@ -27,7 +27,8 @@ export const GetMyProfileResponse = zod.object({
   "xbox_gamertag": zod.string().nullable(),
   "psn_online_id": zod.string().nullable(),
   "systems_played": zod.array(zod.enum(['xbox', 'playstation'])),
-  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()])
+  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]),
+  "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.')
 })
 
 
@@ -60,8 +61,27 @@ export const UpdateMyProfileResponse = zod.object({
   "xbox_gamertag": zod.string().nullable(),
   "psn_online_id": zod.string().nullable(),
   "systems_played": zod.array(zod.enum(['xbox', 'playstation'])),
-  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()])
+  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]),
+  "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.')
 })
+
+
+/**
+ * @summary Current Xbox Live verification status for the authenticated player
+ */
+export const GetXboxLinkResponse = zod.object({
+  "linked": zod.boolean(),
+  "gamertag": zod.string().optional(),
+  "xuid": zod.string().optional(),
+  "linked_at": zod.coerce.date().optional(),
+  "last_verified_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Remove the authenticated player's verified Xbox Live link
+ */
+export const UnlinkXboxResponse = zod.void()
 
 
 /**
@@ -1082,6 +1102,31 @@ export const ListSeatsResponse = zod.object({
   "started_at": zod.coerce.date().optional(),
   "role": zod.string().optional()
 }),zod.null()]).optional()
+}))
+})
+
+
+/**
+ * Feeds the "Assign GM" picker so the commissioner chooses a member
+ * from a list instead of pasting a user id.
+ * @summary List league members with no active franchise seat (commissioner only)
+ */
+export const ListUnassignedMembersParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListUnassignedMembersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "user_id": zod.string(),
+  "display_name": zod.string().nullish(),
+  "identity": zod.object({
+  "gm_display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish()
+}).optional()
 }))
 })
 

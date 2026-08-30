@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { useQueryClient } from '@tanstack/react-query';
+import { useGetXboxLink, useUnlinkXbox } from '@workspace/api-client-react';
 import Header from '@/components/Header';
 import { Form } from '@/components/ui/form';
 
@@ -68,6 +70,94 @@ function errorDetail(value: unknown, fallback: string): string {
     return value.detail;
   }
   return fallback;
+}
+
+const XBOX_ERROR_MESSAGES: Record<string, string> = {
+  missing_code: 'Microsoft did not return an authorization code. Please try again.',
+  expired_or_invalid_state: 'That link expired. Please start the verification again.',
+  token_exchange_failed: "Microsoft couldn't verify your sign-in. Please try again.",
+  xbox_live_failed: "Xbox Live couldn't verify this account. Please try again.",
+  no_xbox_account: "That Microsoft account doesn't have an Xbox Live profile.",
+  region_unavailable: 'Xbox Live verification is not available in this account’s region.',
+  adult_verification_required: 'This Microsoft account needs adult age verification on xbox.com before it can be linked.',
+  child_account: 'Child Microsoft accounts cannot be linked here — an adult account is required.',
+  no_gamertag: "Xbox Live didn't return a gamertag for this account.",
+  xbox_account_already_linked: 'That Xbox account is already linked to a different Front Office profile.',
+};
+
+function XboxVerificationPanel() {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const queryClient = useQueryClient();
+  const { data: link, isLoading } = useGetXboxLink();
+  const unlinkXbox = useUnlinkXbox();
+  const [banner, setBanner] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const xbox = params.get('xbox');
+    if (!xbox) return;
+    if (xbox === 'linked') {
+      setBanner({ kind: 'success', text: 'Xbox account verified.' });
+      queryClient.invalidateQueries({ queryKey: ['/api/xbox/link'] as any });
+      queryClient.invalidateQueries({ queryKey: ['/api/users/me'] as any });
+    } else if (xbox === 'error') {
+      const reason = params.get('reason') ?? '';
+      setBanner({ kind: 'error', text: XBOX_ERROR_MESSAGES[reason] ?? 'Could not verify your Xbox account. Please try again.' });
+    }
+    params.delete('xbox');
+    params.delete('reason');
+    const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+    window.history.replaceState(null, '', next);
+  }, [queryClient]);
+
+  const handleUnlink = () => {
+    if (!confirm('Unlink your verified Xbox account? Your saved gamertag stays, but it goes back to self-reported.')) return;
+    unlinkXbox.mutate(undefined, {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/xbox/link'] as any }),
+    });
+  };
+
+  return (
+    <section className="panel profile-panel xbox-panel" aria-labelledby="xbox-heading">
+      <div className="panel-head">
+        <h2 id="xbox-heading">Xbox verification</h2>
+        <span className="note">Real, not typed</span>
+      </div>
+      <div className="xbox-panel-body">
+        {banner && (
+          <div className={`xbox-banner xbox-banner-${banner.kind}`} role={banner.kind === 'error' ? 'alert' : 'status'}>
+            {banner.text}
+          </div>
+        )}
+        <p className="field-help" style={{ margin: '0 0 14px' }}>
+          Sign in with the Microsoft account tied to your Xbox to prove you actually
+          control that gamertag, instead of just typing one in above. There is no
+          equivalent for PlayStation — Sony doesn't offer this to third-party apps.
+        </p>
+        {isLoading ? (
+          <div className="profile-status">Checking status…</div>
+        ) : link?.linked ? (
+          <div className="xbox-linked-row">
+            <span className="chip conf chip-pulse" data-testid="chip-xbox-verified">✓ Verified</span>
+            <span className="xbox-gamertag" data-testid="text-verified-gamertag">{link.gamertag}</span>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={handleUnlink}
+              disabled={unlinkXbox.isPending}
+              data-testid="button-unlink-xbox"
+            >
+              {unlinkXbox.isPending ? 'Unlinking…' : 'Unlink'}
+            </button>
+          </div>
+        ) : (
+          <a className="btn btn-xbox" href={`${base}/api/xbox/link/start`} data-testid="link-verify-xbox">
+            Verify with Xbox
+          </a>
+        )}
+      </div>
+    </section>
+  );
 }
 
 export default function Profile() {
@@ -273,6 +363,7 @@ export default function Profile() {
             </Form>
           )}
         </section>
+        <XboxVerificationPanel />
       </main>
     </>
   );

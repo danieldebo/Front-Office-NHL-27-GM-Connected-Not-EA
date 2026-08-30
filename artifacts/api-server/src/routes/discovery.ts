@@ -55,6 +55,46 @@ async function getEligibility(
   return row ? { profile: row, leaguePlatform: row.league_platform } : null;
 }
 
+// A user can hold at most one live intake state per league: commissioners never
+// apply to their own league, existing members never re-apply, and a sign-up and
+// a waitlist join are mutually exclusive so the commissioner never sees the same
+// person as two disconnected queue entries.
+async function intakeConflict(
+  leagueId: string,
+  appUserId: string,
+  ownerUserId: string,
+  otherQueue: "signup" | "waitlist",
+): Promise<string | null> {
+  if (ownerUserId === appUserId) {
+    return "You're the commissioner of this league — commissioners can't submit a sign-up or waitlist request to their own league.";
+  }
+  const membership = await pool.query(
+    `SELECT 1 FROM league_membership WHERE league_id = $1 AND user_id = $2 AND left_at IS NULL`,
+    [leagueId, appUserId],
+  );
+  if (membership.rows[0]) {
+    return "You're already a member of this league.";
+  }
+  if (otherQueue === "waitlist") {
+    const existing = await pool.query<{ position: number }>(
+      `SELECT position FROM waitlist_entry WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
+      [leagueId, appUserId],
+    );
+    if (existing.rows[0]) {
+      return `You're already on the waitlist for this league (position ${existing.rows[0].position}). Leave the waitlist first if you want to submit a new sign-up instead.`;
+    }
+  } else {
+    const existing = await pool.query<{ id: string }>(
+      `SELECT id FROM league_signup WHERE league_id = $1 AND user_id = $2`,
+      [leagueId, appUserId],
+    );
+    if (existing.rows[0]) {
+      return "You've already applied to this league. Wait for the commissioner to review your sign-up instead of joining the waitlist separately.";
+    }
+  }
+  return null;
+}
+
 // ──────────────────────────────────────────────── GET /leagues/open
 
 router.get(
@@ -140,8 +180,11 @@ router.post(
       league_id: string;
       accepting_signups: boolean;
       accepting_waitlist: boolean;
+      owner_user_id: string;
     }>(
-      `SELECT league_id, accepting_signups, accepting_waitlist FROM league_listing WHERE league_id = $1 AND is_listed = TRUE`,
+      `SELECT ll.league_id, ll.accepting_signups, ll.accepting_waitlist, l.owner_user_id
+         FROM league_listing ll JOIN league l ON l.id = ll.league_id
+        WHERE ll.league_id = $1 AND ll.is_listed = TRUE`,
       [leagueId]
     );
     if (!listingRow.rows[0]) { notFound(res, "League not found or not recruiting"); return; }
@@ -151,6 +194,9 @@ router.post(
       conflict(res, "This league is not accepting new sign-ups at this time");
       return;
     }
+
+    const conflictReason = await intakeConflict(leagueId, appUserId, listingRow.rows[0].owner_user_id, "waitlist");
+    if (conflictReason) { conflict(res, conflictReason); return; }
 
     const eligibility = await getEligibility(appUserId, leagueId);
     const identity = eligibility
@@ -246,8 +292,10 @@ router.post(
     const appUserId = user.appUserId;
 
     // Verify league exists and accepts waitlist
-    const listingRow = await pool.query<{ accepting_waitlist: boolean }>(
-      `SELECT accepting_waitlist FROM league_listing WHERE league_id = $1 AND is_listed = TRUE`,
+    const listingRow = await pool.query<{ accepting_waitlist: boolean; owner_user_id: string }>(
+      `SELECT ll.accepting_waitlist, l.owner_user_id
+         FROM league_listing ll JOIN league l ON l.id = ll.league_id
+        WHERE ll.league_id = $1 AND ll.is_listed = TRUE`,
       [leagueId]
     );
     if (!listingRow.rows[0]) { notFound(res, "League not found or not recruiting"); return; }
@@ -255,6 +303,9 @@ router.post(
       conflict(res, "This league is not accepting waitlist entries");
       return;
     }
+
+    const conflictReason = await intakeConflict(String(leagueId), appUserId, listingRow.rows[0].owner_user_id, "signup");
+    if (conflictReason) { conflict(res, conflictReason); return; }
 
     const eligibility = await getEligibility(appUserId, String(leagueId));
     const identity = eligibility
@@ -265,12 +316,9 @@ router.post(
       return;
     }
 
-    // Find existing signup for this user/league (optional — can join waitlist without prior signup)
-    const signupRow = await pool.query<{ id: string }>(
-      `SELECT id FROM league_signup WHERE league_id = $1 AND user_id = $2`,
-      [leagueId, appUserId]
-    );
-    const signupId = signupRow.rows[0]?.id ?? null;
+    // A live sign-up would already have been rejected above by intakeConflict, so
+    // any waitlist entry created here is never linked to one.
+    const signupId: string | null = null;
 
     // Check if user is already on the waitlist before attempting insert.
     // Doing this pre-check avoids conflating a user-uniqueness violation with a
