@@ -23,11 +23,30 @@ import {
   conflict,
 } from "../server/errors";
 import { rateLimiter } from "../middlewares/rateLimiter";
-import crypto from "crypto";
+import { generateInviteToken } from "../server/inviteWords";
 
 const router: IRouter = Router();
 
 // ────────────────────────────────────────────── helpers
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23505";
+}
+
+/** Retries token generation on the rare collision — the word pair + suffix
+ * space is large but finite, unlike the crypto.randomUUID() this replaced. */
+async function insertInviteWithRetry<T>(
+  insert: (token: string) => Promise<T>,
+): Promise<T> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      return await insert(generateInviteToken());
+    } catch (err) {
+      if (!isUniqueViolation(err) || attempt === 4) throw err;
+    }
+  }
+  throw new Error("unreachable");
+}
 
 async function getLeagueOwner(leagueId: string) {
   const row = await pool.query<{ id: string; owner_user_id: string; slug: string; name: string; public_code: string | null }>(
@@ -112,14 +131,15 @@ router.post(
     const creatorId = await getAppUserId(user.id);
     if (!creatorId) { badRequest(res, "User profile not found"); return; }
 
-    const token = crypto.randomUUID();
     const { max_uses, expires_at } = req.body ?? {};
 
-    const row = await pool.query(
-      `INSERT INTO commissioner_invite (league_id, token, created_by, max_uses, expires_at)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, league_id, token, created_by, max_uses, uses, expires_at, is_active, revoked_at, created_at`,
-      [leagueId, token, creatorId, max_uses ?? null, expires_at ?? null]
+    const row = await insertInviteWithRetry((token) =>
+      pool.query(
+        `INSERT INTO commissioner_invite (league_id, token, created_by, max_uses, expires_at)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, league_id, token, created_by, max_uses, uses, expires_at, is_active, revoked_at, created_at`,
+        [leagueId, token, creatorId, max_uses ?? null, expires_at ?? null]
+      )
     );
 
     res.status(201).json(row.rows[0]);
@@ -145,7 +165,6 @@ router.post(
     const creatorId = await getAppUserId(user.id);
     if (!creatorId) { badRequest(res, "User profile not found"); return; }
 
-    const newToken = crypto.randomUUID();
     const { max_uses, expires_at } = req.body ?? {};
 
     const client = await pool.connect();
@@ -160,16 +179,28 @@ router.post(
         [leagueId]
       );
 
-      // Insert the new invite
-      const row = await client.query(
-        `INSERT INTO commissioner_invite (league_id, token, created_by, max_uses, expires_at)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, league_id, token, created_by, max_uses, uses, expires_at, is_active, revoked_at, created_at`,
-        [leagueId, newToken, creatorId, max_uses ?? null, expires_at ?? null]
-      );
+      // Insert the new invite. A SAVEPOINT lets a rare token collision retry
+      // without losing the revoke above (a plain query error would abort the
+      // whole transaction).
+      let row: { rows: Array<Record<string, unknown>> } | undefined;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await client.query("SAVEPOINT insert_invite");
+        try {
+          row = await client.query<Record<string, unknown>>(
+            `INSERT INTO commissioner_invite (league_id, token, created_by, max_uses, expires_at)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id, league_id, token, created_by, max_uses, uses, expires_at, is_active, revoked_at, created_at`,
+            [leagueId, generateInviteToken(), creatorId, max_uses ?? null, expires_at ?? null]
+          );
+          break;
+        } catch (insertErr) {
+          if (!isUniqueViolation(insertErr) || attempt === 4) throw insertErr;
+          await client.query("ROLLBACK TO SAVEPOINT insert_invite");
+        }
+      }
 
       await client.query("COMMIT");
-      res.json(row.rows[0]);
+      res.json(row!.rows[0]);
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
