@@ -33,6 +33,18 @@ export interface ErrorEnvelope {
   error: string;
 }
 
+/**
+ * Which consoles the league accepts. Crossplay means both, not "either unspecified".
+ */
+export type LeaguePlatform = typeof LeaguePlatform[keyof typeof LeaguePlatform];
+
+
+export const LeaguePlatform = {
+  xbox: 'xbox',
+  playstation: 'playstation',
+  crossplay: 'crossplay',
+} as const;
+
 export type LeagueVisibility = typeof LeagueVisibility[keyof typeof LeagueVisibility];
 
 
@@ -47,6 +59,7 @@ export interface League {
   slug: string;
   name: string;
   visibility: LeagueVisibility;
+  platform?: LeaguePlatform;
   /** @nullable */
   logo_url?: string | null;
   /** @nullable */
@@ -79,6 +92,14 @@ export interface CreateLeagueInput {
      */
   slug: string;
   visibility?: CreateLeagueInputVisibility;
+  platform?: LeaguePlatform;
+  /**
+     * @minimum 3
+     * @maximum 32
+     */
+  team_count?: number;
+  /** Which league-settings template to seed version 1 from. Defaults to balanced_standard. */
+  settings_template_id?: string;
   /** @nullable */
   primary_color?: string | null;
   /** @nullable */
@@ -111,15 +132,6 @@ export interface UpdateLeagueInput {
   logo_url?: string | null;
 }
 
-export type LeagueSettingsInputPlatform = typeof LeagueSettingsInputPlatform[keyof typeof LeagueSettingsInputPlatform];
-
-
-export const LeagueSettingsInputPlatform = {
-  psn: 'psn',
-  xbox: 'xbox',
-  both: 'both',
-} as const;
-
 export type LeagueSettingsInputRosterSource = typeof LeagueSettingsInputRosterSource[keyof typeof LeagueSettingsInputRosterSource];
 
 
@@ -150,7 +162,7 @@ export interface LeagueSettingsInput {
      * @nullable
      */
   ea_league_id?: string | null;
-  platform: LeagueSettingsInputPlatform;
+  platform: LeaguePlatform;
   /**
      * @minimum 3
      * @maximum 32
@@ -180,6 +192,8 @@ export interface LeagueSettingsInput {
   /** @nullable */
   rules_notes?: string | null;
   slider_presets: LeagueSettingsInputSliderPresets;
+  /** Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat. */
+  require_verified_identities?: boolean;
   /**
      * @minLength 1
      * @maxLength 500
@@ -196,6 +210,65 @@ export type LeagueSettingsVersion = LeagueSettingsInput & {
   is_active: boolean;
   can_manage: boolean;
 };
+
+export interface NoLeagueSettingsYet {
+  can_manage: boolean;
+}
+
+export type LeagueSettingsTemplateFieldsRosterSource = typeof LeagueSettingsTemplateFieldsRosterSource[keyof typeof LeagueSettingsTemplateFieldsRosterSource];
+
+
+export const LeagueSettingsTemplateFieldsRosterSource = {
+  manual: 'manual',
+  ea: 'ea',
+  csv_import: 'csv_import',
+} as const;
+
+export type LeagueSettingsTemplateFieldsScheduleFormat = typeof LeagueSettingsTemplateFieldsScheduleFormat[keyof typeof LeagueSettingsTemplateFieldsScheduleFormat];
+
+
+export const LeagueSettingsTemplateFieldsScheduleFormat = {
+  round_robin: 'round_robin',
+  double_round_robin: 'double_round_robin',
+  custom: 'custom',
+} as const;
+
+export type LeagueSettingsTemplateFieldsScheduleSettings = { [key: string]: unknown };
+
+export type LeagueSettingsTemplateFieldsPlayoffFormat = { [key: string]: unknown };
+
+export type LeagueSettingsTemplateFieldsSliderPresets = { [key: string]: unknown };
+
+/**
+ * Everything a settings version needs except platform, team_count, and
+ * change_summary — those are chosen independently (platform/team_count
+ * are league-identity facts, change_summary is per-save).
+ */
+export interface LeagueSettingsTemplateFields {
+  roster_source: LeagueSettingsTemplateFieldsRosterSource;
+  schedule_format: LeagueSettingsTemplateFieldsScheduleFormat;
+  schedule_settings: LeagueSettingsTemplateFieldsScheduleSettings;
+  playoff_format: LeagueSettingsTemplateFieldsPlayoffFormat;
+  /** @nullable */
+  salary_cap_cents?: number | null;
+  /** @nullable */
+  roster_min?: number | null;
+  /** @nullable */
+  roster_max?: number | null;
+  divisions: string[];
+  conferences: string[];
+  /** @nullable */
+  rules_notes?: string | null;
+  slider_presets: LeagueSettingsTemplateFieldsSliderPresets;
+  require_verified_identities?: boolean;
+}
+
+export interface LeagueSettingsTemplate {
+  id: string;
+  name: string;
+  description: string;
+  fields: LeagueSettingsTemplateFields;
+}
 
 export interface LeagueSettingsHistory {
   data: LeagueSettingsVersion[];
@@ -1336,6 +1409,10 @@ export type ReorderWaitlistEntry200 = {
 
 export type GetMyLeagues200 = {
   data: League[];
+};
+
+export type ListLeagueSettingsTemplates200 = {
+  data: LeagueSettingsTemplate[];
 };
 
 export type ListLeagueSignups200 = {

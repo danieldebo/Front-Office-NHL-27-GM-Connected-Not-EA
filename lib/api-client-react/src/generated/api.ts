@@ -59,6 +59,7 @@ import type {
   ListInvites200,
   ListJoinRequests200,
   ListJoinRequestsParams,
+  ListLeagueSettingsTemplates200,
   ListLeagueSignups200,
   ListLeagueWaitlist200,
   ListOpenLeagues200,
@@ -67,6 +68,7 @@ import type {
   ListSeasons200,
   ListSeats200,
   ListUnassignedMembers200,
+  NoLeagueSettingsYet,
   PostponeGameBody,
   Problem,
   PublicCodeLookup,
@@ -1239,6 +1241,83 @@ export const useUpdateLeague = <TError = ErrorType<Problem>,
       return useMutation(getUpdateLeagueMutationOptions(options));
     }
 
+export const getListLeagueSettingsTemplatesUrl = () => {
+
+
+
+
+  return `/api/league-settings/templates`
+}
+
+/**
+ * @summary Starting points for the settings editor and Create League's settings step
+ */
+export const listLeagueSettingsTemplates = async ( options?: RequestInit): Promise<ListLeagueSettingsTemplates200> => {
+
+  return customFetch<ListLeagueSettingsTemplates200>(getListLeagueSettingsTemplatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeagueSettingsTemplatesQueryKey = () => {
+    return [
+    `/api/league-settings/templates`
+    ] as const;
+    }
+
+
+export const getListLeagueSettingsTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeagueSettingsTemplatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>> = ({ signal }) => listLeagueSettingsTemplates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeagueSettingsTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>>
+export type ListLeagueSettingsTemplatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Starting points for the settings editor and Create League's settings step
+ */
+
+export function useListLeagueSettingsTemplates<TData = Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeagueSettingsTemplatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetLeagueSettingsUrl = (leagueId: string,) => {
 
 
@@ -1250,9 +1329,9 @@ export const getGetLeagueSettingsUrl = (leagueId: string,) => {
 /**
  * @summary Get the active immutable settings version (league members)
  */
-export const getLeagueSettings = async (leagueId: string, options?: RequestInit): Promise<LeagueSettingsVersion> => {
+export const getLeagueSettings = async (leagueId: string, options?: RequestInit): Promise<LeagueSettingsVersion | NoLeagueSettingsYet> => {
 
-  return customFetch<LeagueSettingsVersion>(getGetLeagueSettingsUrl(leagueId),
+  return customFetch<LeagueSettingsVersion | NoLeagueSettingsYet>(getGetLeagueSettingsUrl(leagueId),
   {
     ...options,
     method: 'GET'

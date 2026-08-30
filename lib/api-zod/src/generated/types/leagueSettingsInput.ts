@@ -5,7 +5,7 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
-import type { LeagueSettingsInputPlatform } from './leagueSettingsInputPlatform';
+import type { LeaguePlatform } from './leaguePlatform';
 import type { LeagueSettingsInputPlayoffFormat } from './leagueSettingsInputPlayoffFormat';
 import type { LeagueSettingsInputRosterSource } from './leagueSettingsInputRosterSource';
 import type { LeagueSettingsInputScheduleFormat } from './leagueSettingsInputScheduleFormat';
@@ -18,7 +18,7 @@ export interface LeagueSettingsInput {
      * @nullable
      */
   ea_league_id?: string | null;
-  platform: LeagueSettingsInputPlatform;
+  platform: LeaguePlatform;
   /**
      * @minimum 3
      * @maximum 32
@@ -48,6 +48,8 @@ export interface LeagueSettingsInput {
   /** @nullable */
   rules_notes?: string | null;
   slider_presets: LeagueSettingsInputSliderPresets;
+  /** Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat. */
+  require_verified_identities?: boolean;
   /**
      * @minLength 1
      * @maxLength 500

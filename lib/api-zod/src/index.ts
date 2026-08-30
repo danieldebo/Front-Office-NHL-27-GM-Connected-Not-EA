@@ -53,14 +53,21 @@ export type { LeagueHub } from "./generated/types/leagueHub";
 export type { LeagueListing } from "./generated/types/leagueListing";
 export type { LeagueListingCompetitiveness } from "./generated/types/leagueListingCompetitiveness";
 export type { LeagueListingPlatform } from "./generated/types/leagueListingPlatform";
+export type { LeaguePlatform } from "./generated/types/leaguePlatform";
 export type { LeagueSettingsHistory } from "./generated/types/leagueSettingsHistory";
 export type { LeagueSettingsInput } from "./generated/types/leagueSettingsInput";
-export type { LeagueSettingsInputPlatform } from "./generated/types/leagueSettingsInputPlatform";
 export type { LeagueSettingsInputPlayoffFormat } from "./generated/types/leagueSettingsInputPlayoffFormat";
 export type { LeagueSettingsInputRosterSource } from "./generated/types/leagueSettingsInputRosterSource";
 export type { LeagueSettingsInputScheduleFormat } from "./generated/types/leagueSettingsInputScheduleFormat";
 export type { LeagueSettingsInputScheduleSettings } from "./generated/types/leagueSettingsInputScheduleSettings";
 export type { LeagueSettingsInputSliderPresets } from "./generated/types/leagueSettingsInputSliderPresets";
+export type { LeagueSettingsTemplate } from "./generated/types/leagueSettingsTemplate";
+export type { LeagueSettingsTemplateFields } from "./generated/types/leagueSettingsTemplateFields";
+export type { LeagueSettingsTemplateFieldsPlayoffFormat } from "./generated/types/leagueSettingsTemplateFieldsPlayoffFormat";
+export type { LeagueSettingsTemplateFieldsRosterSource } from "./generated/types/leagueSettingsTemplateFieldsRosterSource";
+export type { LeagueSettingsTemplateFieldsScheduleFormat } from "./generated/types/leagueSettingsTemplateFieldsScheduleFormat";
+export type { LeagueSettingsTemplateFieldsScheduleSettings } from "./generated/types/leagueSettingsTemplateFieldsScheduleSettings";
+export type { LeagueSettingsTemplateFieldsSliderPresets } from "./generated/types/leagueSettingsTemplateFieldsSliderPresets";
 export type { LeagueSettingsVersion } from "./generated/types/leagueSettingsVersion";
 // LeagueSignup intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // LeagueSignupInput intentionally excluded — collides with Zod const of the same name in generated/api.ts
@@ -74,6 +81,7 @@ export type { ListInvites200 } from "./generated/types/listInvites200";
 export type { ListJoinRequests200 } from "./generated/types/listJoinRequests200";
 export type { ListJoinRequestsParams } from "./generated/types/listJoinRequestsParams";
 export type { ListJoinRequestsStatus } from "./generated/types/listJoinRequestsStatus";
+export type { ListLeagueSettingsTemplates200 } from "./generated/types/listLeagueSettingsTemplates200";
 export type { ListLeagueSignups200 } from "./generated/types/listLeagueSignups200";
 export type { ListLeagueWaitlist200 } from "./generated/types/listLeagueWaitlist200";
 export type { ListOpenLeagues200 } from "./generated/types/listOpenLeagues200";
@@ -85,6 +93,7 @@ export type { ListRulebookRevisions200 } from "./generated/types/listRulebookRev
 export type { ListSeasons200 } from "./generated/types/listSeasons200";
 export type { ListSeats200 } from "./generated/types/listSeats200";
 export type { ListUnassignedMembers200 } from "./generated/types/listUnassignedMembers200";
+export type { NoLeagueSettingsYet } from "./generated/types/noLeagueSettingsYet";
 // OpenLeague intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { PlayerSystem } from "./generated/types/playerSystem";
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts

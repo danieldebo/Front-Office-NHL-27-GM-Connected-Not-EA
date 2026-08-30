@@ -22,6 +22,7 @@ import {
   CreateSeasonBody,
 } from "@workspace/api-zod";
 import { ensureClubCatalog, provisionSeasonSeats } from "../server/seasonProvisioning";
+import { getTemplate } from "../server/leagueSettingsTemplates";
 
 const router: IRouter = Router();
 
@@ -40,8 +41,11 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const { name, slug, visibility = "public", primary_color, secondary_color, logo_url } =
-    parsed.data;
+  const {
+    name, slug, visibility = "public", primary_color, secondary_color, logo_url,
+    platform = "crossplay", team_count = 32, settings_template_id,
+  } = parsed.data;
+  const template = getTemplate(settings_template_id);
 
   // Ensure app_user exists for this Replit user
   const userRow = await pool.query<{ id: string }>(
@@ -72,16 +76,17 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
       slug: string;
       name: string;
       visibility: string;
+      platform: string;
       logo_url: string | null;
       primary_color: string | null;
       secondary_color: string | null;
       owner_user_id: string;
       created_at: Date;
     }>(
-      `INSERT INTO league (name, slug, visibility, primary_color, secondary_color, logo_url, owner_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, slug, name, visibility, logo_url, primary_color, secondary_color, owner_user_id, created_at`,
-      [name, slug, visibility, primary_color ?? null, secondary_color ?? null, logo_url ?? null, appUserId]
+      `INSERT INTO league (name, slug, visibility, platform, primary_color, secondary_color, logo_url, owner_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, slug, name, visibility, platform, logo_url, primary_color, secondary_color, owner_user_id, created_at`,
+      [name, slug, visibility, platform, primary_color ?? null, secondary_color ?? null, logo_url ?? null, appUserId]
     );
 
     const league = insertRow.rows[0]!;
@@ -93,12 +98,21 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
       [league.id, appUserId]
     );
 
+    const f = template.fields;
     const initial = await client.query<{ id: string }>(
-      `INSERT INTO league_settings_version
-         (league_id, version, changed_by, change_summary)
-       VALUES ($1, 1, $2, 'Initial league settings')
+      `INSERT INTO league_settings_version (
+         league_id, version, platform, team_count, roster_source, schedule_format,
+         schedule_settings, playoff_format, salary_cap_cents, roster_min, roster_max,
+         divisions, conferences, rules_notes, slider_presets, require_verified_identities,
+         changed_by, change_summary
+       ) VALUES ($1,1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING id`,
-      [league.id, appUserId],
+      [
+        league.id, platform, team_count, f.roster_source, f.schedule_format,
+        f.schedule_settings, f.playoff_format, f.salary_cap_cents, f.roster_min, f.roster_max,
+        JSON.stringify(f.divisions), JSON.stringify(f.conferences), f.rules_notes, f.slider_presets,
+        f.require_verified_identities, appUserId, `Initial league settings — ${template.name} template`,
+      ],
     );
     await client.query(
       `INSERT INTO league_settings_active (league_id, settings_version_id)

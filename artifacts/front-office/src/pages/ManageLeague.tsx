@@ -45,7 +45,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
-import LeagueSettings from '@/components/LeagueSettings';
+import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
 
 // Helper components
 export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) {
@@ -1318,7 +1318,8 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   const { data: seasonsData, isLoading: seasonsLoading } = useListSeasons(leagueId);
   const seasons = seasonsData?.data ?? [];
   const qc = useQueryClient();
-  const { data: settings } = useGetLeagueSettings(leagueId);
+  const { data: settingsResponse } = useGetLeagueSettings(leagueId);
+  const settings = hasSettings(settingsResponse) ? settingsResponse : undefined;
   const { data: settingsHistory } = useListLeagueSettingsHistory(leagueId);
 
   // Pick first season by default

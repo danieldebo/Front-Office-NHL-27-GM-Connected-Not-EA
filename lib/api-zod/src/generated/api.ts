@@ -264,11 +264,20 @@ export const createLeagueBodySlugMax = 40;
 
 export const createLeagueBodySlugRegExp = new RegExp('^[a-z0-9][a-z0-9-]*[a-z0-9]$');
 export const createLeagueBodyVisibilityDefault = `public`;
+export const createLeagueBodyPlatformDefault = `crossplay`;
+export const createLeagueBodyTeamCountDefault = 32;
+export const createLeagueBodyTeamCountMin = 3;
+export const createLeagueBodyTeamCountMax = 32;
+
+
 
 export const CreateLeagueBody = zod.object({
   "name": zod.string().min(1).max(createLeagueBodyNameMax),
   "slug": zod.string().min(createLeagueBodySlugMin).max(createLeagueBodySlugMax).regex(createLeagueBodySlugRegExp),
   "visibility": zod.enum(['public', 'unlisted', 'private']).default(createLeagueBodyVisibilityDefault),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".').default(createLeagueBodyPlatformDefault),
+  "team_count": zod.number().min(createLeagueBodyTeamCountMin).max(createLeagueBodyTeamCountMax).default(createLeagueBodyTeamCountDefault),
+  "settings_template_id": zod.string().optional().describe('Which league-settings template to seed version 1 from. Defaults to balanced_standard.'),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
   "logo_url": zod.string().nullish()
@@ -279,6 +288,7 @@ export const CreateLeagueResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
   "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).optional().describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "logo_url": zod.string().nullish(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
@@ -296,6 +306,7 @@ export const GetMyLeaguesResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
   "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).optional().describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "logo_url": zod.string().nullish(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
@@ -317,6 +328,7 @@ export const GetLeagueResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
   "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).optional().describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "logo_url": zod.string().nullish(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
@@ -349,11 +361,38 @@ export const UpdateLeagueResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
   "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).optional().describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "logo_url": zod.string().nullish(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
   "owner_user_id": zod.string().optional(),
   "created_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Starting points for the settings editor and Create League's settings step
+ */
+export const ListLeagueSettingsTemplatesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "fields": zod.object({
+  "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
+  "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
+  "schedule_settings": zod.record(zod.string(), zod.unknown()),
+  "playoff_format": zod.record(zod.string(), zod.unknown()),
+  "salary_cap_cents": zod.number().nullish(),
+  "roster_min": zod.number().nullish(),
+  "roster_max": zod.number().nullish(),
+  "divisions": zod.array(zod.string()),
+  "conferences": zod.array(zod.string()),
+  "rules_notes": zod.string().nullish(),
+  "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "require_verified_identities": zod.boolean().optional()
+}).describe('Everything a settings version needs except platform, team_count, and\nchange_summary — those are chosen independently (platform\/team_count\nare league-identity facts, change_summary is per-save).\n')
+}))
 })
 
 
@@ -364,35 +403,37 @@ export const GetLeagueSettingsParams = zod.object({
   "leagueId": zod.coerce.string()
 })
 
-export const getLeagueSettingsResponseOneEaLeagueIdMax = 100;
+export const getLeagueSettingsResponseOneOneEaLeagueIdMax = 100;
 
-export const getLeagueSettingsResponseOneTeamCountMin = 3;
-export const getLeagueSettingsResponseOneTeamCountMax = 32;
+export const getLeagueSettingsResponseOneOneTeamCountMin = 3;
+export const getLeagueSettingsResponseOneOneTeamCountMax = 32;
 
-export const getLeagueSettingsResponseOneSalaryCapCentsMin = 0;
-
-
-
-export const getLeagueSettingsResponseOneChangeSummaryMax = 500;
+export const getLeagueSettingsResponseOneOneSalaryCapCentsMin = 0;
 
 
 
-export const GetLeagueSettingsResponse = zod.object({
-  "ea_league_id": zod.string().max(getLeagueSettingsResponseOneEaLeagueIdMax).nullish(),
-  "platform": zod.enum(['psn', 'xbox', 'both']),
-  "team_count": zod.number().min(getLeagueSettingsResponseOneTeamCountMin).max(getLeagueSettingsResponseOneTeamCountMax),
+export const getLeagueSettingsResponseOneOneRequireVerifiedIdentitiesDefault = false;
+export const getLeagueSettingsResponseOneOneChangeSummaryMax = 500;
+
+
+
+export const GetLeagueSettingsResponse = zod.union([zod.object({
+  "ea_league_id": zod.string().max(getLeagueSettingsResponseOneOneEaLeagueIdMax).nullish(),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
+  "team_count": zod.number().min(getLeagueSettingsResponseOneOneTeamCountMin).max(getLeagueSettingsResponseOneOneTeamCountMax),
   "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
   "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
   "schedule_settings": zod.record(zod.string(), zod.unknown()),
   "playoff_format": zod.record(zod.string(), zod.unknown()),
-  "salary_cap_cents": zod.number().min(getLeagueSettingsResponseOneSalaryCapCentsMin).nullish(),
+  "salary_cap_cents": zod.number().min(getLeagueSettingsResponseOneOneSalaryCapCentsMin).nullish(),
   "roster_min": zod.number().min(1).nullish(),
   "roster_max": zod.number().min(1).nullish(),
   "divisions": zod.array(zod.string()),
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
-  "change_summary": zod.string().min(1).max(getLeagueSettingsResponseOneChangeSummaryMax)
+  "require_verified_identities": zod.boolean().default(getLeagueSettingsResponseOneOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
+  "change_summary": zod.string().min(1).max(getLeagueSettingsResponseOneOneChangeSummaryMax)
 }).and(zod.object({
   "id": zod.string(),
   "league_id": zod.string(),
@@ -401,7 +442,9 @@ export const GetLeagueSettingsResponse = zod.object({
   "changed_at": zod.coerce.date(),
   "is_active": zod.boolean(),
   "can_manage": zod.boolean()
-}))
+})),zod.object({
+  "can_manage": zod.boolean()
+})])
 
 
 /**
@@ -429,13 +472,14 @@ export const createLeagueSettingsVersionBodySalaryCapCentsMin = 0;
 
 
 
+export const createLeagueSettingsVersionBodyRequireVerifiedIdentitiesDefault = false;
 export const createLeagueSettingsVersionBodyChangeSummaryMax = 500;
 
 
 
 export const CreateLeagueSettingsVersionBody = zod.object({
   "ea_league_id": zod.string().max(createLeagueSettingsVersionBodyEaLeagueIdMax).nullish(),
-  "platform": zod.enum(['psn', 'xbox', 'both']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "team_count": zod.number().min(createLeagueSettingsVersionBodyTeamCountMin).max(createLeagueSettingsVersionBodyTeamCountMax),
   "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
   "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
@@ -448,6 +492,7 @@ export const CreateLeagueSettingsVersionBody = zod.object({
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "require_verified_identities": zod.boolean().default(createLeagueSettingsVersionBodyRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
   "change_summary": zod.string().min(1).max(createLeagueSettingsVersionBodyChangeSummaryMax)
 })
 
@@ -460,13 +505,14 @@ export const createLeagueSettingsVersionResponseOneSalaryCapCentsMin = 0;
 
 
 
+export const createLeagueSettingsVersionResponseOneRequireVerifiedIdentitiesDefault = false;
 export const createLeagueSettingsVersionResponseOneChangeSummaryMax = 500;
 
 
 
 export const CreateLeagueSettingsVersionResponse = zod.object({
   "ea_league_id": zod.string().max(createLeagueSettingsVersionResponseOneEaLeagueIdMax).nullish(),
-  "platform": zod.enum(['psn', 'xbox', 'both']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "team_count": zod.number().min(createLeagueSettingsVersionResponseOneTeamCountMin).max(createLeagueSettingsVersionResponseOneTeamCountMax),
   "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
   "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
@@ -479,6 +525,7 @@ export const CreateLeagueSettingsVersionResponse = zod.object({
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "require_verified_identities": zod.boolean().default(createLeagueSettingsVersionResponseOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
   "change_summary": zod.string().min(1).max(createLeagueSettingsVersionResponseOneChangeSummaryMax)
 }).and(zod.object({
   "id": zod.string(),
@@ -507,6 +554,7 @@ export const listLeagueSettingsHistoryResponseDataItemOneSalaryCapCentsMin = 0;
 
 
 
+export const listLeagueSettingsHistoryResponseDataItemOneRequireVerifiedIdentitiesDefault = false;
 export const listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax = 500;
 
 
@@ -514,7 +562,7 @@ export const listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax = 500;
 export const ListLeagueSettingsHistoryResponse = zod.object({
   "data": zod.array(zod.object({
   "ea_league_id": zod.string().max(listLeagueSettingsHistoryResponseDataItemOneEaLeagueIdMax).nullish(),
-  "platform": zod.enum(['psn', 'xbox', 'both']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "team_count": zod.number().min(listLeagueSettingsHistoryResponseDataItemOneTeamCountMin).max(listLeagueSettingsHistoryResponseDataItemOneTeamCountMax),
   "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
   "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
@@ -527,6 +575,7 @@ export const ListLeagueSettingsHistoryResponse = zod.object({
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "require_verified_identities": zod.boolean().default(listLeagueSettingsHistoryResponseDataItemOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
   "change_summary": zod.string().min(1).max(listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax)
 }).and(zod.object({
   "id": zod.string(),

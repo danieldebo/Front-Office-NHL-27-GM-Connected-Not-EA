@@ -22,7 +22,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
-import LeagueSettings from '@/components/LeagueSettings';
+import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
 
 // ─────────────────────────────────────── status chip colour map
 const STATUS_CHIP: Record<string, string> = {
@@ -234,7 +234,8 @@ function ScheduleContent({
   isCommissioner,
 }: { leagueId: string; isCommissioner: boolean }) {
   const { data: seasonsData, isLoading: seasonsLoading } = useListSeasons(leagueId);
-  const { data: settings } = useGetLeagueSettings(leagueId);
+  const { data: settingsResponse } = useGetLeagueSettings(leagueId);
+  const settings = hasSettings(settingsResponse) ? settingsResponse : undefined;
   const { data: settingsHistory } = useListLeagueSettingsHistory(leagueId);
   const seasons = seasonsData?.data ?? [];
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
@@ -359,7 +360,8 @@ function ScheduleContent({
 export default function Schedule() {
   const { id: leagueId } = useParams<{ id: string }>();
   const { data: league, isLoading } = useGetLeague(leagueId ?? '');
-  const { data: settings } = useGetLeagueSettings(leagueId ?? '');
+  const { data: settingsResponse } = useGetLeagueSettings(leagueId ?? '');
+  const settings = hasSettings(settingsResponse) ? settingsResponse : undefined;
 
   if (isLoading) return <div className="loading-screen">Loading…</div>;
   if (!league)   return <div className="loading-screen">League not found.</div>;

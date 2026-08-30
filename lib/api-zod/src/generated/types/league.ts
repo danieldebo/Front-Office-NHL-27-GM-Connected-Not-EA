@@ -5,6 +5,7 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { LeaguePlatform } from './leaguePlatform';
 import type { LeagueVisibility } from './leagueVisibility';
 
 export interface League {
@@ -12,6 +13,7 @@ export interface League {
   slug: string;
   name: string;
   visibility: LeagueVisibility;
+  platform?: LeaguePlatform;
   /** @nullable */
   logo_url?: string | null;
   /** @nullable */

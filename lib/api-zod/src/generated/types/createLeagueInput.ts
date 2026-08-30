@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.3.0
  */
 import type { CreateLeagueInputVisibility } from './createLeagueInputVisibility';
+import type { LeaguePlatform } from './leaguePlatform';
 
 export interface CreateLeagueInput {
   /**
@@ -20,6 +21,14 @@ export interface CreateLeagueInput {
      */
   slug: string;
   visibility?: CreateLeagueInputVisibility;
+  platform?: LeaguePlatform;
+  /**
+     * @minimum 3
+     * @maximum 32
+     */
+  team_count?: number;
+  /** Which league-settings template to seed version 1 from. Defaults to balanced_standard. */
+  settings_template_id?: string;
   /** @nullable */
   primary_color?: string | null;
   /** @nullable */

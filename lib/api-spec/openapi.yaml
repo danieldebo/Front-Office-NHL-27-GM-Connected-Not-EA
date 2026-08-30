@@ -511,6 +511,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /league-settings/templates:
+    get:
+      tags: [Leagues]
+      operationId: listLeagueSettingsTemplates
+      summary: Starting points for the settings editor and Create League's settings step
+      responses:
+        '200':
+          description: Available templates.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LeagueSettingsTemplate'
+
   /leagues/{leagueId}/settings:
     parameters:
       - $ref: '#/components/parameters/LeagueId'
@@ -522,11 +541,19 @@ paths:
         - sessionCookie: []
       responses:
         '200':
-          description: Active settings version.
+          description: |
+            Active settings version, or — for a league with no settings version
+            yet (should not happen for leagues created through this API, which
+            always seed version 1, but is possible for leagues created another
+            way) — an object with only `can_manage`, no `id`. The client must
+            not spin forever waiting for a version that will never arrive;
+            treat the no-`id` shape as "render the editor in create mode."
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LeagueSettingsVersion'
+                oneOf:
+                  - $ref: '#/components/schemas/LeagueSettingsVersion'
+                  - $ref: '#/components/schemas/NoLeagueSettingsYet'
         '401':
           description: Not authenticated.
           content:
@@ -540,7 +567,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '404':
-          description: League or settings not found.
+          description: League not found.
           content:
             application/json:
               schema:
@@ -2160,6 +2187,11 @@ components:
 
     # ------------------------------------------------------------------ Domain
 
+    LeaguePlatform:
+      type: string
+      enum: [xbox, playstation, crossplay]
+      description: Which consoles the league accepts. Crossplay means both, not "either unspecified".
+
     League:
       type: object
       required: [id, slug, name, visibility]
@@ -2173,6 +2205,8 @@ components:
         visibility:
           type: string
           enum: [public, unlisted, private]
+        platform:
+          $ref: '#/components/schemas/LeaguePlatform'
         logo_url:
           type: ["string", "null"]
         primary_color:
@@ -2202,6 +2236,18 @@ components:
           type: string
           enum: [public, unlisted, private]
           default: public
+        platform:
+          allOf:
+            - $ref: '#/components/schemas/LeaguePlatform'
+          default: crossplay
+        team_count:
+          type: integer
+          minimum: 3
+          maximum: 32
+          default: 32
+        settings_template_id:
+          type: string
+          description: Which league-settings template to seed version 1 from. Defaults to balanced_standard.
         primary_color:
           type: ["string", "null"]
         secondary_color:
@@ -2245,8 +2291,7 @@ components:
           type: ["string", "null"]
           maxLength: 100
         platform:
-          type: string
-          enum: [psn, xbox, both]
+          $ref: '#/components/schemas/LeaguePlatform'
         team_count:
           type: integer
           minimum: 3
@@ -2285,6 +2330,10 @@ components:
         slider_presets:
           type: object
           additionalProperties: true
+        require_verified_identities:
+          type: boolean
+          default: false
+          description: Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.
         change_summary:
           type: string
           minLength: 1
@@ -2311,6 +2360,71 @@ components:
               type: boolean
             can_manage:
               type: boolean
+
+    NoLeagueSettingsYet:
+      type: object
+      required: [can_manage]
+      additionalProperties: false
+      properties:
+        can_manage:
+          type: boolean
+
+    LeagueSettingsTemplateFields:
+      type: object
+      description: |
+        Everything a settings version needs except platform, team_count, and
+        change_summary — those are chosen independently (platform/team_count
+        are league-identity facts, change_summary is per-save).
+      required:
+        [roster_source, schedule_format, schedule_settings, playoff_format,
+         divisions, conferences, slider_presets]
+      properties:
+        roster_source:
+          type: string
+          enum: [manual, ea, csv_import]
+        schedule_format:
+          type: string
+          enum: [round_robin, double_round_robin, custom]
+        schedule_settings:
+          type: object
+          additionalProperties: true
+        playoff_format:
+          type: object
+          additionalProperties: true
+        salary_cap_cents:
+          type: ["integer", "null"]
+        roster_min:
+          type: ["integer", "null"]
+        roster_max:
+          type: ["integer", "null"]
+        divisions:
+          type: array
+          items:
+            type: string
+        conferences:
+          type: array
+          items:
+            type: string
+        rules_notes:
+          type: ["string", "null"]
+        slider_presets:
+          type: object
+          additionalProperties: true
+        require_verified_identities:
+          type: boolean
+
+    LeagueSettingsTemplate:
+      type: object
+      required: [id, name, description, fields]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        fields:
+          $ref: '#/components/schemas/LeagueSettingsTemplateFields'
 
     LeagueSettingsHistory:
       type: object
