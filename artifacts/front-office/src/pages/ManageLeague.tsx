@@ -3,6 +3,7 @@ import { useLocation, useParams, Link } from 'wouter';
 import { 
   useGetLeague, 
   useListSeats,
+  useListUnassignedMembers,
   useAssignGm,
   useRevokeGm,
   useListJoinRequests,
@@ -38,6 +39,7 @@ import {
   WaitlistApplicant,
    RulebookRevision,
    AssignedGm,
+   UnassignedMember,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
@@ -56,12 +58,78 @@ export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) 
   );
 }
 
+function AssignGmPicker({
+  seat,
+  members,
+  onCancel,
+  onAssign,
+  isPending,
+}: {
+  seat: Seat;
+  members: UnassignedMember[];
+  onCancel: () => void;
+  onAssign: (userId: string) => void;
+  isPending: boolean;
+}) {
+  const [selected, setSelected] = useState('');
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+      {members.length === 0 ? (
+        <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>
+          No unassigned members. Accept an applicant from the Applicants tab first.
+        </div>
+      ) : (
+        <select
+          value={selected}
+          onChange={e => setSelected(e.target.value)}
+          autoFocus
+          style={{ width: '100%', padding: '8px', fontFamily: 'var(--body)', fontSize: '13px', border: '1px solid var(--rule)', borderRadius: '4px' }}
+        >
+          <option value="">Select a member…</option>
+          {members.map(m => {
+            const identity = m.identity ? gmIdentityLabel(m.identity) : null;
+            return (
+              <option key={m.user_id} value={m.user_id}>
+                {m.display_name ?? m.user_id}{identity ? ` — ${identity}` : ''}
+              </option>
+            );
+          })}
+        </select>
+      )}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          type="button"
+          className="btn"
+          disabled={!selected || isPending}
+          onClick={() => onAssign(selected)}
+          style={{ background: 'var(--crease)', borderColor: 'var(--crease)', padding: '6px 12px', fontSize: '12px' }}
+        >
+          {isPending ? 'Assigning…' : `Assign to ${seat.franchise_name}`}
+        </button>
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={isPending}
+          onClick={onCancel}
+          style={{ padding: '6px 12px', fontSize: '12px' }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SeatsTab({ leagueId }: { leagueId: string }) {
   const { data: seatsResponse, isLoading } = useListSeats(leagueId);
   const seats = seatsResponse?.data || [];
+  const { data: membersResponse } = useListUnassignedMembers(leagueId);
+  const members = membersResponse?.data || [];
   const assignGm = useAssignGm();
   const revokeGm = useRevokeGm();
   const queryClient = useQueryClient();
+  const [assigningSeatId, setAssigningSeatId] = useState<string | null>(null);
 
   if (isLoading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading seats...</div>;
 
@@ -79,25 +147,29 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
     );
   }
 
+  const invalidateSeatData = () => {
+    queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'seats'] as any });
+    queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'members', 'unassigned'] as any });
+  };
+
   const handleRevoke = (seat: Seat) => {
     if (!confirm(`Revoke GM assignment for ${seat.franchise_name}?`)) return;
     revokeGm.mutate({ teamSeasonId: seat.team_season_id }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'seats'] as any });
-      }
+      onSuccess: invalidateSeatData,
     });
   };
 
-  const handleAssign = (seat: Seat) => {
-    const userId = prompt(`Enter User ID to assign to ${seat.franchise_name}:`);
+  const handleAssign = (seat: Seat, userId: string) => {
     if (!userId) return;
     assignGm.mutate({
       teamSeasonId: seat.team_season_id,
       data: { user_id: userId, role: 'gm' }
     }, {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'seats'] as any });
-      }
+        setAssigningSeatId(null);
+        invalidateSeatData();
+      },
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to assign GM'),
     });
   };
 
@@ -119,18 +191,26 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
               {seat.seat_status}
             </div>
           </div>
-          <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
             {seat.gm ? (
               <>
                 <SeatGmLabel gm={seat.gm} seatId={seat.team_season_id} />
                 <button onClick={() => handleRevoke(seat)} className="btn ghost" style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}>Revoke</button>
               </>
+            ) : assigningSeatId === seat.team_season_id ? (
+              <AssignGmPicker
+                seat={seat}
+                members={members}
+                isPending={assignGm.isPending}
+                onCancel={() => setAssigningSeatId(null)}
+                onAssign={userId => handleAssign(seat, userId)}
+              />
             ) : (
               <>
                 <div style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)' }}>
                   No GM assigned
                 </div>
-                <button onClick={() => handleAssign(seat)} className="btn" style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}>Assign GM</button>
+                <button onClick={() => setAssigningSeatId(seat.team_season_id)} className="btn" style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}>Assign GM</button>
               </>
             )}
           </div>
@@ -616,6 +696,81 @@ function DivisionBadge({ division }: { division?: string | null }) {
   );
 }
 
+type MergedApplicant = {
+  userId: string;
+  reviewId: string;
+  displayName: string | null;
+  skillDivision: string | null;
+  countryCode: string | null;
+  location: string | null;
+  timezone: string | null;
+  platform: string | null;
+  preferredClub: string | null;
+  message: string | null;
+  requestedAt: string;
+  isSignup: boolean;
+  isWaitlist: boolean;
+  waitlistStatus: WaitlistApplicant['status'] | null;
+  waitlistPosition: number | null;
+};
+
+function mergeApplicants(signups: LeagueApplicant[], waitlist: WaitlistApplicant[]): MergedApplicant[] {
+  const byUser = new Map<string, MergedApplicant>();
+
+  for (const s of signups) {
+    byUser.set(s.user_id, {
+      userId: s.user_id,
+      reviewId: s.signup_id,
+      displayName: s.display_name ?? null,
+      skillDivision: s.skill_division ?? null,
+      countryCode: s.country_code ?? null,
+      location: s.location ?? null,
+      timezone: s.timezone ?? null,
+      platform: s.platform ?? null,
+      preferredClub: s.preferred_club ?? null,
+      message: s.message ?? null,
+      requestedAt: s.created_at,
+      isSignup: true,
+      isWaitlist: Boolean(s.waitlist_status),
+      waitlistStatus: (s.waitlist_status as WaitlistApplicant['status'] | null) ?? null,
+      waitlistPosition: s.waitlist_position ?? null,
+    });
+  }
+
+  // A waitlist entry that already matches a signup (linked by user id) only adds
+  // its queue position — it must never render as a second, disconnected row.
+  for (const w of waitlist) {
+    const existing = byUser.get(w.user_id);
+    if (existing) {
+      existing.isWaitlist = true;
+      existing.waitlistStatus = w.status;
+      existing.waitlistPosition = w.position;
+      continue;
+    }
+    byUser.set(w.user_id, {
+      userId: w.user_id,
+      reviewId: w.signup_id ?? w.waitlist_entry_id,
+      displayName: w.display_name ?? null,
+      skillDivision: w.skill_division ?? null,
+      countryCode: w.country_code ?? null,
+      location: w.location ?? null,
+      timezone: w.timezone ?? null,
+      platform: w.platform ?? null,
+      preferredClub: null,
+      message: null,
+      requestedAt: w.joined_at,
+      isSignup: false,
+      isWaitlist: true,
+      waitlistStatus: w.status,
+      waitlistPosition: w.position,
+    });
+  }
+
+  return Array.from(byUser.values()).sort(
+    (a, b) => new Date(a.requestedAt).getTime() - new Date(b.requestedAt).getTime()
+  );
+}
+
 function ApplicantsTab({ leagueId }: { leagueId: string }) {
   const queryClient = useQueryClient();
   const { data: signupsData, isLoading: signupsLoading } = useListLeagueSignups(leagueId);
@@ -623,78 +778,49 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
   const acceptApplicant = useAcceptApplicant();
   const declineApplicant = useDeclineApplicant();
   const reorderWaitlist = useReorderWaitlistEntry();
-  const [decliningSignupId, setDecliningSignupId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
   const [declineNote, setDeclineNote] = useState('');
 
   const signups = signupsData?.data ?? [];
   const waitlist = waitlistData?.data ?? [];
+  const applicants = mergeApplicants(signups, waitlist);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/signups`] as any });
     queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/waitlist`] as any });
   };
 
-  const handleMove = (entry: WaitlistApplicant, direction: 'up' | 'down') => {
-    // Position must be in the waiting-only sub-queue — same domain the backend uses.
-    const waitingOnly = waitlist.filter(e => e.status === 'waiting');
-    const waitingIdx = waitingOnly.findIndex(e => e.user_id === entry.user_id);
-    if (waitingIdx === -1) return; // entry is invited or already resolved — no-op
-    // 1-indexed target within waiting sub-queue
+  // Position among 'waiting' entries only — same domain the backend reorders in.
+  const waitingOnly = waitlist.filter(e => e.status === 'waiting');
+
+  const handleMove = (applicant: MergedApplicant, direction: 'up' | 'down') => {
+    const waitingIdx = waitingOnly.findIndex(e => e.user_id === applicant.userId);
+    if (waitingIdx === -1) return; // invited or already resolved — no-op
     const targetPos = direction === 'up' ? waitingIdx : waitingIdx + 2;
     const clamped = Math.max(1, Math.min(targetPos, waitingOnly.length));
     reorderWaitlist.mutate(
-      { leagueId, userId: entry.user_id, data: { position: clamped } },
+      { leagueId, userId: applicant.userId, data: { position: clamped } },
       { onSuccess: () => invalidate(), onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to reorder') }
     );
   };
 
-  const handleAccept = (signup: LeagueApplicant) => {
-    if (!confirm(`Accept ${signup.display_name ?? 'this applicant'}?\n\nThey will be added as a league member. You can assign them to a franchise seat from the Seats tab.`)) return;
-    acceptApplicant.mutate({ leagueId, signupId: signup.signup_id }, {
+  const handleAccept = (applicant: MergedApplicant) => {
+    if (!confirm(`Accept ${applicant.displayName ?? 'this applicant'}?\n\nThey will be added as a league member. You can assign them to a franchise seat from the Seats tab.`)) return;
+    acceptApplicant.mutate({ leagueId, signupId: applicant.reviewId }, {
       onSuccess: () => invalidate(),
       onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to accept applicant'),
     });
   };
 
-  const handleDecline = (event: React.FormEvent, signup: LeagueApplicant) => {
+  const handleDecline = (event: React.FormEvent, applicant: MergedApplicant) => {
     event.preventDefault();
     declineApplicant.mutate({
       leagueId,
-      signupId: signup.signup_id,
+      signupId: applicant.reviewId,
       data: declineNote.trim() ? { note: declineNote.trim() } : undefined,
     }, {
       onSuccess: () => {
-        setDecliningSignupId(null);
-        setDeclineNote('');
-        invalidate();
-      },
-      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to decline applicant'),
-    });
-  };
-
-  const getWaitlistReviewId = (entry: WaitlistApplicant) =>
-    entry.signup_id ?? entry.waitlist_entry_id;
-
-  const handleWaitlistAccept = (entry: WaitlistApplicant) => {
-    if (!confirm(`Accept ${entry.display_name ?? 'this applicant'}?\n\nThey will be added as a league member. You can assign them to a franchise seat from the Seats tab.`)) return;
-    acceptApplicant.mutate(
-      { leagueId, signupId: getWaitlistReviewId(entry) },
-      {
-        onSuccess: () => invalidate(),
-        onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to accept applicant'),
-      },
-    );
-  };
-
-  const handleWaitlistDecline = (event: React.FormEvent, entry: WaitlistApplicant) => {
-    event.preventDefault();
-    declineApplicant.mutate({
-      leagueId,
-      signupId: getWaitlistReviewId(entry),
-      data: declineNote.trim() ? { note: declineNote.trim() } : undefined,
-    }, {
-      onSuccess: () => {
-        setDecliningSignupId(null);
+        setDecliningId(null);
         setDeclineNote('');
         invalidate();
       },
@@ -717,55 +843,63 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '26px', alignItems: 'start' }}>
+    <div>
+      <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>
+        Applicants
+        {applicants.length > 0 && (
+          <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', fontWeight: 400, marginLeft: '10px', textTransform: 'none' }}>
+            {applicants.length} pending
+          </span>
+        )}
+      </h3>
 
-      {/* ── Sign-up applicants ──────────────────────────── */}
-      <div>
-        <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>
-          Sign-ups
-          {signups.length > 0 && (
-            <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', fontWeight: 400, marginLeft: '10px', textTransform: 'none' }}>
-              {signups.length} applicant{signups.length !== 1 ? 's' : ''}
-            </span>
-          )}
-        </h3>
+      {applicants.length === 0 ? (
+        <div className="panel" style={{ padding: '28px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
+          No sign-ups or waitlist entries yet.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {applicants.map((applicant) => {
+            const waitingIdx = waitingOnly.findIndex(e => e.user_id === applicant.userId);
+            const canReorder = applicant.waitlistStatus === 'waiting' && waitingIdx !== -1;
+            const atTop = canReorder && waitingIdx === 0;
+            const atBottom = canReorder && waitingIdx === waitingOnly.length - 1;
 
-        {signups.length === 0 ? (
-          <div className="panel" style={{ padding: '28px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
-            No sign-up applications yet.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {signups.map((signup: LeagueApplicant) => (
-              <div key={signup.signup_id} style={cardStyle}>
-                {/* ── Header row */}
+            return (
+              <div key={applicant.userId} style={cardStyle}>
+                {/* Header row */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <div style={{ fontWeight: 700, fontSize: '15px', flex: 1, minWidth: 0 }}>
-                    {signup.display_name ?? <span style={{ color: 'var(--steel)' }}>Unknown user</span>}
+                    {applicant.displayName ?? <span style={{ color: 'var(--steel)' }}>Unknown user</span>}
                   </div>
-                  <DivisionBadge division={signup.skill_division} />
-                  {signup.waitlist_status && (
-                    <span className={`chip ${signup.waitlist_status === 'waiting' ? 'ocr' : 'conf'}`} style={{ fontSize: '10px' }}>
-                      waitlist #{signup.waitlist_position}
+                  <DivisionBadge division={applicant.skillDivision} />
+                  {applicant.isSignup && (
+                    <span className="chip conf" style={{ fontSize: '10px' }}>Sign-up</span>
+                  )}
+                  {applicant.isWaitlist && (
+                    <span className={`chip ${applicant.waitlistStatus === 'waiting' ? 'ocr' : 'conf'}`} style={{ fontSize: '10px' }}>
+                      {applicant.waitlistStatus === 'invited' ? 'Waitlist · invited' : `Waitlist #${applicant.waitlistPosition}`}
                     </span>
                   )}
                 </div>
 
-                {/* ── Meta row */}
+                {/* Meta row */}
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>
-                  {signup.country_code && (
-                    <span title={signup.location ?? undefined}>
-                      📍 {signup.location ? `${signup.location} (${signup.country_code})` : signup.country_code}
+                  {applicant.countryCode && (
+                    <span title={applicant.location ?? undefined}>
+                      {applicant.location ? `${applicant.location} (${applicant.countryCode})` : applicant.countryCode}
                     </span>
                   )}
-                  {signup.platform && <span>🎮 {signup.platform.toUpperCase()}</span>}
-                  {signup.timezone && <span>🕐 {signup.timezone}</span>}
-                  {signup.preferred_club && <span>🏒 {signup.preferred_club}</span>}
-                  <span style={{ marginLeft: 'auto' }}>Applied {new Date(signup.created_at).toLocaleDateString()}</span>
+                  {applicant.platform && <span>{applicant.platform.toUpperCase()}</span>}
+                  {applicant.timezone && <span>{applicant.timezone}</span>}
+                  {applicant.preferredClub && <span>Wants: {applicant.preferredClub}</span>}
+                  <span style={{ marginLeft: 'auto' }}>
+                    {applicant.isSignup ? 'Applied' : 'Joined'} {new Date(applicant.requestedAt).toLocaleDateString()}
+                  </span>
                 </div>
 
-                {/* ── Message */}
-                {signup.message && (
+                {/* Message */}
+                {applicant.message && (
                   <div style={{
                     background: '#F6F8FA',
                     border: '1px solid var(--rule)',
@@ -777,14 +911,14 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                     lineHeight: 1.5,
                     fontStyle: 'italic',
                   }}>
-                    "{signup.message}"
+                    "{applicant.message}"
                   </div>
                 )}
 
-                {/* ── Actions */}
-                <div style={{ display: 'flex', gap: '8px', paddingTop: '4px' }}>
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '8px', paddingTop: '4px', alignItems: 'center' }}>
                   <button
-                    onClick={() => handleAccept(signup)}
+                    onClick={() => handleAccept(applicant)}
                     className="btn"
                     disabled={acceptApplicant.isPending}
                     style={{ background: '#1F7A4C', borderColor: '#1F7A4C' }}
@@ -793,18 +927,47 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setDecliningSignupId(signup.signup_id); setDeclineNote(''); }}
+                    onClick={() => { setDecliningId(applicant.reviewId); setDeclineNote(''); }}
                     className="btn ghost"
-                    disabled={declineApplicant.isPending || decliningSignupId !== null}
+                    disabled={declineApplicant.isPending || decliningId !== null}
                     style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}
                   >
                     Decline
                   </button>
+
+                  {canReorder && (
+                    <div style={{ display: 'flex', gap: '4px', marginLeft: 'auto' }}>
+                      <button
+                        onClick={() => handleMove(applicant, 'up')}
+                        disabled={atTop || reorderWaitlist.isPending}
+                        title="Move up the waitlist"
+                        style={{
+                          width: '26px', height: '26px', border: '1px solid var(--rule)',
+                          borderRadius: '4px', background: '#fff', cursor: atTop ? 'default' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '11px', color: atTop ? 'var(--rule)' : 'var(--steel)',
+                          padding: 0, lineHeight: 1,
+                        }}
+                      >Up</button>
+                      <button
+                        onClick={() => handleMove(applicant, 'down')}
+                        disabled={atBottom || reorderWaitlist.isPending}
+                        title="Move down the waitlist"
+                        style={{
+                          width: '26px', height: '26px', border: '1px solid var(--rule)',
+                          borderRadius: '4px', background: '#fff', cursor: atBottom ? 'default' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '11px', color: atBottom ? 'var(--rule)' : 'var(--steel)',
+                          padding: 0, lineHeight: 1,
+                        }}
+                      >Down</button>
+                    </div>
+                  )}
                 </div>
 
-                {decliningSignupId === signup.signup_id && (
+                {decliningId === applicant.reviewId && (
                   <form
-                    onSubmit={event => handleDecline(event, signup)}
+                    onSubmit={event => handleDecline(event, applicant)}
                     style={{
                       borderTop: '1px solid var(--rule)',
                       paddingTop: '12px',
@@ -814,13 +977,13 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                     }}
                   >
                     <label
-                      htmlFor={`decline-note-${signup.signup_id}`}
+                      htmlFor={`decline-note-${applicant.reviewId}`}
                       style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.06em' }}
                     >
-                      Decline note <span style={{ textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                      Decline note (optional)
                     </label>
                     <textarea
-                      id={`decline-note-${signup.signup_id}`}
+                      id={`decline-note-${applicant.reviewId}`}
                       value={declineNote}
                       onChange={event => setDeclineNote(event.target.value)}
                       maxLength={500}
@@ -845,7 +1008,7 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                         type="button"
                         className="btn ghost"
                         disabled={declineApplicant.isPending}
-                        onClick={() => { setDecliningSignupId(null); setDeclineNote(''); }}
+                        onClick={() => { setDecliningId(null); setDeclineNote(''); }}
                       >
                         Cancel
                       </button>
@@ -856,162 +1019,10 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
                   </form>
                 )}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Waitlist queue ─────────────────────────────── */}
-      <div>
-        <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>
-          Waitlist
-          {waitlist.length > 0 && (
-            <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', fontWeight: 400, marginLeft: '10px', textTransform: 'none' }}>
-              {waitlist.length} queued
-            </span>
-          )}
-        </h3>
-
-        {waitlist.length === 0 ? (
-          <div className="panel" style={{ padding: '20px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
-            No one on the waitlist.
-          </div>
-        ) : (
-          <div className="panel">
-            {waitlist.map((entry: WaitlistApplicant, idx: number) => {
-              const reviewId = getWaitlistReviewId(entry);
-              return (
-              <div key={entry.waitlist_entry_id} style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                padding: '12px 16px',
-                borderBottom: idx < waitlist.length - 1 ? '1px solid var(--rule)' : 'none',
-              }}>
-              <div style={{
-                display: 'flex',
-                gap: '12px',
-                alignItems: 'center',
-              }}>
-                {/* Position number */}
-                <div style={{
-                  fontFamily: 'var(--display)',
-                  fontSize: '22px',
-                  fontWeight: 700,
-                  color: 'var(--steel)',
-                  lineHeight: 1,
-                  minWidth: '28px',
-                }}>
-                  {idx + 1}
-                </div>
-
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 600, fontSize: '14px' }}>
-                      {entry.display_name ?? entry.user_id.slice(0, 8)}
-                    </span>
-                    <DivisionBadge division={entry.skill_division} />
-                    {entry.status === 'invited' && (
-                      <span className="chip ea" style={{ fontSize: '10px' }}>Invited</span>
-                    )}
-                  </div>
-                  <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    {entry.country_code && (
-                      <span>{entry.location ? `${entry.location} · ${entry.country_code}` : entry.country_code}</span>
-                    )}
-                    {entry.platform && <span>{entry.platform.toUpperCase()}</span>}
-                    <span style={{ marginLeft: 'auto' }}>
-                      Joined {new Date(entry.joined_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Up / down reorder buttons — only for 'waiting' entries */}
-                {entry.status === 'waiting' && (() => {
-                  const waitingOnly = waitlist.filter(e => e.status === 'waiting');
-                  const waitingIdx = waitingOnly.findIndex(e => e.user_id === entry.user_id);
-                  const atTop = waitingIdx === 0;
-                  const atBottom = waitingIdx === waitingOnly.length - 1;
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <button
-                        onClick={() => handleMove(entry, 'up')}
-                        disabled={atTop || reorderWaitlist.isPending}
-                        title="Move up"
-                        style={{
-                          width: '26px', height: '26px', border: '1px solid var(--rule)',
-                          borderRadius: '4px', background: '#fff', cursor: atTop ? 'default' : 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '11px', color: atTop ? 'var(--rule)' : 'var(--steel)',
-                          padding: 0, lineHeight: 1,
-                        }}
-                      >▲</button>
-                      <button
-                        onClick={() => handleMove(entry, 'down')}
-                        disabled={atBottom || reorderWaitlist.isPending}
-                        title="Move down"
-                        style={{
-                          width: '26px', height: '26px', border: '1px solid var(--rule)',
-                          borderRadius: '4px', background: '#fff', cursor: atBottom ? 'default' : 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '11px', color: atBottom ? 'var(--rule)' : 'var(--steel)',
-                          padding: 0, lineHeight: 1,
-                        }}
-                      >▼</button>
-                    </div>
-                  );
-                })()}
-              </div>
-              <div style={{ display: 'flex', gap: '8px', paddingLeft: '40px' }}>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => handleWaitlistAccept(entry)}
-                  disabled={acceptApplicant.isPending}
-                  style={{ background: '#1F7A4C', borderColor: '#1F7A4C', padding: '6px 10px', fontSize: '11px' }}
-                >
-                  Accept
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  onClick={() => { setDecliningSignupId(reviewId); setDeclineNote(''); }}
-                  disabled={declineApplicant.isPending || decliningSignupId !== null}
-                  style={{ color: 'var(--goal)', borderColor: 'var(--goal)', padding: '6px 10px', fontSize: '11px' }}
-                >
-                  Decline
-                </button>
-              </div>
-              {decliningSignupId === reviewId && (
-                <form onSubmit={event => handleWaitlistDecline(event, entry)} style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '40px' }}>
-                  <label htmlFor={`decline-note-${reviewId}`} style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', textTransform: 'uppercase' }}>
-                    Decline note (optional)
-                  </label>
-                  <textarea
-                    id={`decline-note-${reviewId}`}
-                    value={declineNote}
-                    onChange={event => setDeclineNote(event.target.value)}
-                    maxLength={500}
-                    rows={2}
-                    autoFocus
-                    placeholder="Add a brief note for your records"
-                    style={{ width: '100%', padding: '8px', fontFamily: 'var(--body)', fontSize: '12px', border: '1px solid var(--rule)', borderRadius: '4px', resize: 'vertical' }}
-                  />
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button type="submit" className="btn ghost" disabled={declineApplicant.isPending} style={{ color: 'var(--goal)', borderColor: 'var(--goal)', padding: '6px 10px', fontSize: '11px' }}>
-                      {declineApplicant.isPending ? 'Declining…' : 'Confirm decline'}
-                    </button>
-                    <button type="button" className="btn ghost" disabled={declineApplicant.isPending} onClick={() => { setDecliningSignupId(null); setDeclineNote(''); }} style={{ padding: '6px 10px', fontSize: '11px' }}>
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              )}
-              </div>
-            );})}
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

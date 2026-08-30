@@ -84,6 +84,7 @@ export type { ListOpenLeaguesSeatsOpen } from "./generated/types/listOpenLeagues
 export type { ListRulebookRevisions200 } from "./generated/types/listRulebookRevisions200";
 export type { ListSeasons200 } from "./generated/types/listSeasons200";
 export type { ListSeats200 } from "./generated/types/listSeats200";
+export type { ListUnassignedMembers200 } from "./generated/types/listUnassignedMembers200";
 // OpenLeague intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { PlayerSystem } from "./generated/types/playerSystem";
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
@@ -109,6 +110,8 @@ export type { SetPublicCodeInput } from "./generated/types/setPublicCodeInput";
 // ShiftWindowBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { StandingsRow } from "./generated/types/standingsRow";
 export type { StandingsRowProvenance } from "./generated/types/standingsRowProvenance";
+export type { UnassignedMember } from "./generated/types/unassignedMember";
+export type { UnassignedMemberIdentity } from "./generated/types/unassignedMemberIdentity";
 export type { UpdateLeagueInput } from "./generated/types/updateLeagueInput";
 export type { UpdateLeagueInputVisibility } from "./generated/types/updateLeagueInputVisibility";
 export type { UpdateLeagueListingInput } from "./generated/types/updateLeagueListingInput";

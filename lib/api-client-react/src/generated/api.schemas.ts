@@ -600,6 +600,26 @@ export interface Seat {
   gm?: AssignedGm | null;
 }
 
+export type UnassignedMemberIdentity = {
+  /** @nullable */
+  gm_display_name?: string | null;
+  gm_platform?: PlayerSystem | null;
+  gm_primary_identity?: PlayerSystem | null;
+  /** @nullable */
+  gm_gamertag?: string | null;
+  /** @nullable */
+  gm_xbox_gamertag?: string | null;
+  /** @nullable */
+  gm_psn_online_id?: string | null;
+};
+
+export interface UnassignedMember {
+  user_id: string;
+  /** @nullable */
+  display_name?: string | null;
+  identity?: UnassignedMemberIdentity;
+}
+
 export type AssignGmInputRole = typeof AssignGmInputRole[keyof typeof AssignGmInputRole];
 
 
@@ -1340,6 +1360,10 @@ export type ListJoinRequests200 = {
 
 export type ListSeats200 = {
   data: Seat[];
+};
+
+export type ListUnassignedMembers200 = {
+  data: UnassignedMember[];
 };
 
 export type RevokeGmParams = {

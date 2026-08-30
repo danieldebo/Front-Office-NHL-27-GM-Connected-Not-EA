@@ -10,6 +10,7 @@
  * POST   /leagues/:leagueId/join-requests/:id/approve      — approve
  * POST   /leagues/:leagueId/join-requests/:id/reject       — reject
  * GET    /leagues/:leagueId/seats                          — list seats
+ * GET    /leagues/:leagueId/members/unassigned             — members with no seat, for the assign picker
  * PUT    /team-seasons/:teamSeasonId/gm                    — assign GM
  * DELETE /team-seasons/:teamSeasonId/gm                    — revoke GM
  */
@@ -471,6 +472,68 @@ router.post(
 );
 
 // ────────────────────────────────────────────── Seats
+
+// GET /leagues/:leagueId/members/unassigned — league members with no active
+// franchise seat, for the commissioner to pick from when assigning a GM.
+router.get(
+  "/leagues/:leagueId/members/unassigned",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res); return; }
+
+    const leagueId = req.params.leagueId as string;
+    const league = await getLeagueOwner(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    if (!can(user, "seat:manage", { kind: "league", ownerId: league.owner_user_id })) {
+      forbidden(res, "Only the league owner can view assignable members");
+      return;
+    }
+
+    const seasonRow = await pool.query<{ id: string }>(
+      `SELECT id FROM season WHERE league_id = $1 AND is_active = TRUE LIMIT 1`,
+      [leagueId]
+    );
+    const activeSeasonId = seasonRow.rows[0]?.id ?? null;
+
+    const { rows } = await pool.query(
+      `SELECT
+         lm.user_id,
+         au.display_name,
+         to_jsonb(au)->>'primary_identity' AS primary_identity,
+         to_jsonb(au)->>'xbox_gamertag' AS xbox_gamertag,
+         to_jsonb(au)->>'psn_online_id' AS psn_online_id,
+         au.platform::text AS legacy_platform,
+         au.platform_gamertag AS legacy_gamertag
+       FROM league_membership lm
+       JOIN app_user au ON au.id = lm.user_id
+      WHERE lm.league_id = $1 AND lm.left_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM gm_assignment ga
+          JOIN team_season ts ON ts.id = ga.team_season_id
+          WHERE ga.user_id = lm.user_id AND ga.ended_at IS NULL
+            AND ($2::uuid IS NULL OR ts.season_id = $2)
+        )
+      ORDER BY au.display_name ASC`,
+      [leagueId, activeSeasonId]
+    );
+
+    res.json({
+      data: rows.map((r) => ({
+        user_id: r.user_id,
+        display_name: r.display_name,
+        identity: canonicalGmIdentity({
+          gm_display_name: r.display_name,
+          gm_primary_identity: r.primary_identity,
+          gm_xbox_gamertag: r.xbox_gamertag,
+          gm_psn_online_id: r.psn_online_id,
+          gm_legacy_platform: r.legacy_platform,
+          gm_legacy_gamertag: r.legacy_gamertag,
+        }),
+      })),
+    });
+  }
+);
 
 // GET /leagues/:leagueId/seats
 router.get(

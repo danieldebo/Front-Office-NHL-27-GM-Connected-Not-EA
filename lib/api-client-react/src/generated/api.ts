@@ -66,6 +66,7 @@ import type {
   ListRulebookRevisions200,
   ListSeasons200,
   ListSeats200,
+  ListUnassignedMembers200,
   PostponeGameBody,
   Problem,
   PublicCodeLookup,
@@ -2660,6 +2661,85 @@ export function useListSeats<TData = Awaited<ReturnType<typeof listSeats>>, TErr
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListSeatsQueryOptions(leagueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListUnassignedMembersUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/members/unassigned`
+}
+
+/**
+ * Feeds the "Assign GM" picker so the commissioner chooses a member
+ * from a list instead of pasting a user id.
+ * @summary List league members with no active franchise seat (commissioner only)
+ */
+export const listUnassignedMembers = async (leagueId: string, options?: RequestInit): Promise<ListUnassignedMembers200> => {
+
+  return customFetch<ListUnassignedMembers200>(getListUnassignedMembersUrl(leagueId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnassignedMembersQueryKey = (leagueId: string,) => {
+    return [
+    `/api/leagues/${leagueId}/members/unassigned`
+    ] as const;
+    }
+
+
+export const getListUnassignedMembersQueryOptions = <TData = Awaited<ReturnType<typeof listUnassignedMembers>>, TError = ErrorType<Problem>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listUnassignedMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnassignedMembersQueryKey(leagueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnassignedMembers>>> = ({ signal }) => listUnassignedMembers(leagueId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnassignedMembers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListUnassignedMembersQueryResult = NonNullable<Awaited<ReturnType<typeof listUnassignedMembers>>>
+export type ListUnassignedMembersQueryError = ErrorType<Problem>
+
+
+/**
+ * @summary List league members with no active franchise seat (commissioner only)
+ */
+
+export function useListUnassignedMembers<TData = Awaited<ReturnType<typeof listUnassignedMembers>>, TError = ErrorType<Problem>>(
+ leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listUnassignedMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListUnassignedMembersQueryOptions(leagueId,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

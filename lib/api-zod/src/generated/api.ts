@@ -1087,6 +1087,31 @@ export const ListSeatsResponse = zod.object({
 
 
 /**
+ * Feeds the "Assign GM" picker so the commissioner chooses a member
+ * from a list instead of pasting a user id.
+ * @summary List league members with no active franchise seat (commissioner only)
+ */
+export const ListUnassignedMembersParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListUnassignedMembersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "user_id": zod.string(),
+  "display_name": zod.string().nullish(),
+  "identity": zod.object({
+  "gm_display_name": zod.string().nullish(),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish()
+}).optional()
+}))
+})
+
+
+/**
  * Closes the current active gm_assignment (if any) and opens a new one.
  * The franchise record is untouched — only the assignment changes.
  * @summary Assign a GM to a franchise seat (commissioner only)

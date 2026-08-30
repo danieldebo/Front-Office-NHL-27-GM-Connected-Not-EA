@@ -124,8 +124,9 @@ button{appearance:none;border:none;background:transparent;cursor:pointer}
 .stat-cell.alert .k{color:var(--bulb)}
 
 /* ---------- layout ---------- */
-.cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:26px;padding:28px 0 60px}
-.panel{background:var(--paper);border:1px solid var(--rule);border-radius:3px;margin-bottom:22px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,320px);gap:26px;padding:28px 0 60px}
+.cols>aside{min-width:0}
+.panel{background:var(--paper);border:1px solid var(--rule);border-radius:3px;margin-bottom:22px;min-width:0;overflow:hidden}
 .panel-head{display:flex;align-items:baseline;gap:12px;padding:14px 16px 12px;border-bottom:1px solid var(--rule)}
 .panel-head h2{font-family:var(--display);font-size:15px;letter-spacing:.09em;text-transform:uppercase;margin:0}
 .panel-head .note{font-family:var(--data);font-size:10.5px;letter-spacing:.05em;color:var(--steel);margin-left:auto}
@@ -181,8 +182,15 @@ tbody tr:hover{background:#F6F9FB}
 .schedule-game-side small{font-family:var(--body);font-size:10.5px;font-weight:400;color:var(--steel);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .schedule-game-at{color:var(--steel);flex:none}
 .schedule-games-status{padding:24px;text-align:center;color:var(--steel);font-family:var(--data);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
-.mu-when{font-size:12px;color:var(--steel);flex:1}
+.mu-when{font-size:12px;color:var(--steel);flex:1;min-width:0}
 .mu-when b{color:var(--ink);font-weight:600}
+
+/* The sidebar column is fixed-width and much narrower than the matchup rows
+   were sized for (mu-teams alone assumes 190px) — let them wrap instead of
+   pushing the panel wider than its box. */
+aside .matchup{flex-wrap:wrap;row-gap:8px}
+aside .mu-teams{min-width:0;flex:1 1 auto}
+aside .mu-when{width:100%;flex-basis:100%}
 .btn{
   font-family:var(--data);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
   border:1px solid var(--slab);background:var(--slab);color:#fff;
@@ -204,7 +212,7 @@ tbody tr:hover{background:#F6F9FB}
 .wire-type.waiver{background:var(--steel)}
 .wire-type.reversal{background:var(--goal)}
 .wire-time{font-family:var(--data);font-size:10px;color:var(--steel);margin-left:auto}
-.wire-body{font-size:12.5px;line-height:1.45}
+.wire-body{font-size:12.5px;line-height:1.45;overflow-wrap:anywhere}
 .wire-body b{font-weight:600}
 .wire-foot{font-family:var(--data);font-size:10px;color:var(--steel);margin-top:5px}
 

@@ -1133,6 +1133,42 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /leagues/{leagueId}/members/unassigned:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Seats]
+      operationId: listUnassignedMembers
+      summary: List league members with no active franchise seat (commissioner only)
+      description: |
+        Feeds the "Assign GM" picker so the commissioner chooses a member
+        from a list instead of pasting a user id.
+      responses:
+        '200':
+          description: Members eligible to be assigned a seat.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UnassignedMember'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
   /team-seasons/{teamSeasonId}/gm:
     parameters:
       - $ref: '#/components/parameters/TeamSeasonId'
@@ -2533,6 +2569,34 @@ components:
           format: date-time
         role:
           type: string
+
+    UnassignedMember:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+        display_name:
+          type: ["string", "null"]
+        identity:
+          type: object
+          properties:
+            gm_display_name:
+              type: ["string", "null"]
+            gm_platform:
+              oneOf:
+                - $ref: '#/components/schemas/PlayerSystem'
+                - type: 'null'
+            gm_primary_identity:
+              oneOf:
+                - $ref: '#/components/schemas/PlayerSystem'
+                - type: 'null'
+            gm_gamertag:
+              type: ["string", "null"]
+            gm_xbox_gamertag:
+              type: ["string", "null"]
+            gm_psn_online_id:
+              type: ["string", "null"]
 
     AssignGmInput:
       type: object
