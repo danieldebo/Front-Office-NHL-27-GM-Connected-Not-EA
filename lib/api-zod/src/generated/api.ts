@@ -979,7 +979,9 @@ export const ListSeasonsResponse = zod.object({
   "points_ot_loss": zod.number().optional(),
   "points_reg_loss": zod.number().optional(),
   "tiebreakers": zod.array(zod.string()).optional(),
-  "is_active": zod.boolean().optional()
+  "is_active": zod.boolean().optional(),
+  "keepers_per_team": zod.number().optional().describe('Commissioner-set keeper limit for this season. 0 disables keepers.'),
+  "keeper_deadline_at": zod.coerce.date().nullish().describe('After this passes, only the commissioner can change keepers. Null means no deadline.')
 }))
 })
 
@@ -1041,7 +1043,9 @@ export const CreateSeasonResponse = zod.object({
   "points_ot_loss": zod.number().optional(),
   "points_reg_loss": zod.number().optional(),
   "tiebreakers": zod.array(zod.string()).optional(),
-  "is_active": zod.boolean().optional()
+  "is_active": zod.boolean().optional(),
+  "keepers_per_team": zod.number().optional().describe('Commissioner-set keeper limit for this season. 0 disables keepers.'),
+  "keeper_deadline_at": zod.coerce.date().nullish().describe('After this passes, only the commissioner can change keepers. Null means no deadline.')
 })
 
 
@@ -1232,6 +1236,8 @@ export const ListSeatsResponse = zod.object({
   "conference": zod.string().nullish(),
   "division": zod.string().nullish(),
   "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "vacated_at": zod.coerce.date().nullish().describe('When an open seat\'s last GM left. Null for a seat that was never filled, or that currently has a GM.'),
+  "never_filled": zod.boolean().optional().describe('True for an open seat that has never had a GM. Omitted on responses that don\'t compute assignment history (e.g. right after an assign\/revoke).'),
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
@@ -1300,6 +1306,8 @@ export const AssignGmResponse = zod.object({
   "conference": zod.string().nullish(),
   "division": zod.string().nullish(),
   "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "vacated_at": zod.coerce.date().nullish().describe('When an open seat\'s last GM left. Null for a seat that was never filled, or that currently has a GM.'),
+  "never_filled": zod.boolean().optional().describe('True for an open seat that has never had a GM. Omitted on responses that don\'t compute assignment history (e.g. right after an assign\/revoke).'),
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
@@ -1336,6 +1344,8 @@ export const RevokeGmResponse = zod.object({
   "conference": zod.string().nullish(),
   "division": zod.string().nullish(),
   "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "vacated_at": zod.coerce.date().nullish().describe('When an open seat\'s last GM left. Null for a seat that was never filled, or that currently has a GM.'),
+  "never_filled": zod.boolean().optional().describe('True for an open seat that has never had a GM. Omitted on responses that don\'t compute assignment history (e.g. right after an assign\/revoke).'),
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
@@ -2464,5 +2474,143 @@ export const SetRosterStatusResponse = zod.object({
   "id": zod.string(),
   "roster_status": zod.enum(['active', 'ir', 'minors'])
 })
+
+
+/**
+ * @summary Set the season's keeper limit and/or deadline (commissioner only)
+ */
+export const SetKeeperSettingsParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "seasonId": zod.coerce.string()
+})
+
+export const setKeeperSettingsBodyKeepersPerTeamMin = 0;
+export const setKeeperSettingsBodyKeepersPerTeamMax = 50;
+
+
+
+export const SetKeeperSettingsBody = zod.object({
+  "keepers_per_team": zod.number().min(setKeeperSettingsBodyKeepersPerTeamMin).max(setKeeperSettingsBodyKeepersPerTeamMax).optional(),
+  "keeper_deadline_at": zod.coerce.date().nullish()
+})
+
+export const SetKeeperSettingsResponse = zod.object({
+  "keepers_per_team": zod.number(),
+  "keeper_deadline_at": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Active keepers for a franchise this season, plus slot usage
+ */
+export const ListKeepersParams = zod.object({
+  "franchiseId": zod.coerce.string(),
+  "seasonId": zod.coerce.string()
+})
+
+export const ListKeepersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "player_id": zod.string(),
+  "full_name": zod.string(),
+  "position": zod.string(),
+  "is_manual": zod.boolean(),
+  "registry_matched": zod.boolean(),
+  "first_marked_at": zod.coerce.date(),
+  "designated_at": zod.coerce.date(),
+  "is_commissioner_override": zod.boolean(),
+  "seasons_kept": zod.number()
+})),
+  "slots": zod.object({
+  "allowed": zod.number(),
+  "used": zod.number(),
+  "open_slots": zod.number()
+})
+})
+
+
+/**
+ * @summary Designate a keeper (that team's GM, or the commissioner with a required note on another team)
+ */
+export const CreateKeeperParams = zod.object({
+  "franchiseId": zod.coerce.string(),
+  "seasonId": zod.coerce.string()
+})
+
+export const createKeeperBodyNoteMax = 500;
+
+
+
+export const CreateKeeperBody = zod.object({
+  "player_id": zod.string(),
+  "note": zod.string().max(createKeeperBodyNoteMax).nullish().describe('Required when the commissioner designates a keeper on another team\'s roster.')
+})
+
+export const CreateKeeperResponse = zod.object({
+  "id": zod.string(),
+  "first_marked_at": zod.coerce.date(),
+  "designated_at": zod.coerce.date(),
+  "is_commissioner_override": zod.boolean()
+})
+
+
+/**
+ * @summary Release a keeper (that team's GM, or the commissioner with a required reason on another team)
+ */
+export const ReleaseKeeperParams = zod.object({
+  "keeperId": zod.coerce.string()
+})
+
+export const ReleaseKeeperQueryParams = zod.object({
+  "reason": zod.coerce.string().optional()
+})
+
+export const ReleaseKeeperResponse = zod.void()
+
+
+/**
+ * @summary Typo-tolerant name search across the player registry
+ */
+export const SearchPlayersQueryParams = zod.object({
+  "q": zod.coerce.string()
+})
+
+export const SearchPlayersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "full_name": zod.string(),
+  "position": zod.string(),
+  "current_team_abbrev": zod.string().nullish(),
+  "is_manual": zod.boolean(),
+  "registry_matched": zod.boolean(),
+  "score": zod.number().optional().describe('Trigram similarity score, best matches first.')
+}))
+})
+
+
+/**
+ * @summary Cached 1/3/5-year stat cards for a registry-matched player. Never blocks on the NHL API — a stale or missing card queues a background refresh and returns what's cached now.
+ */
+export const GetPlayerStatCardsParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+export const GetPlayerStatCardsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "window_years": zod.union([zod.literal(1),zod.literal(3),zod.literal(5)]),
+  "stat_line": zod.record(zod.string(), zod.unknown()).describe('Skater keys: GP, G, A, PTS, \"+\/-\", PIM, SOG, \"S%\", \"TOI\/GP\".\nGoalie keys: GP, GS, W, L, OTL, SO, \"SV%\", GAA.\n'),
+  "season_span": zod.string().nullish(),
+  "fetched_at": zod.coerce.date(),
+  "stale_after": zod.coerce.date().optional()
+})),
+  "registry_matched": zod.boolean(),
+  "refreshing": zod.boolean().optional().describe('True when a background refresh was just queued because the cache was missing or stale.')
+})
+
+
+/**
+ * @summary Manually queue a player registry sync
+ */
+export const RunRegistrySyncNowResponse = zod.void()
 
 

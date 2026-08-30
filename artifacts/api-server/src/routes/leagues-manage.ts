@@ -351,7 +351,8 @@ router.post(
       const result = await pool.query(
         `SELECT id, league_id, settings_version_id, ordinal, label, game_title, starts_on, ends_on,
                 salary_cap_cents, roster_min, roster_max, games_per_matchup,
-                points_win, points_ot_loss, points_reg_loss, tiebreakers, is_active
+                points_win, points_ot_loss, points_reg_loss, tiebreakers, is_active,
+                keepers_per_team, keeper_deadline_at
            FROM season WHERE id = $1`,
         [seasonId]
       );

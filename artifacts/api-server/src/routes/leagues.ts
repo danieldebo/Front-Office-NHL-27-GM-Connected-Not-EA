@@ -282,7 +282,7 @@ router.get(
               starts_on, ends_on, salary_cap_cents,
               roster_min, roster_max, games_per_matchup,
               points_win, points_ot_loss, points_reg_loss,
-              tiebreakers, is_active
+              tiebreakers, is_active, keepers_per_team, keeper_deadline_at
          FROM season
         WHERE league_id = $1
         ORDER BY ordinal ASC`,

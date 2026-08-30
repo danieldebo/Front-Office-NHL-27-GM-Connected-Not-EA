@@ -30,6 +30,8 @@ import type {
   CommissionerInvitePublic,
   ConfirmInput,
   CreateInviteInput,
+  CreateKeeperInput,
+  CreateKeeperResult,
   CreateLeagueInput,
   CreateLeagueSettingsVersion201,
   CreateLeagueSettingsVersionInput,
@@ -53,6 +55,9 @@ import type {
   HealthStatus,
   InviteLink,
   JoinRequest,
+  KeeperListResponse,
+  KeeperSettingsInput,
+  KeeperSettingsResult,
   League,
   LeagueHub,
   LeagueListing,
@@ -82,6 +87,7 @@ import type {
   ListWireTransactionsParams,
   NoLeagueSettingsYet,
   Player,
+  PlayerStatCardsResponse,
   PostponeGameBody,
   Problem,
   ProposeTradeInput,
@@ -90,12 +96,15 @@ import type {
   PublicLeagueEnvelope,
   PublishRulebookInput,
   RejectTransactionInput,
+  ReleaseKeeperParams,
   ReleaseResult,
   ReorderWaitlistEntry200,
   ResultInput,
   RevokeGmParams,
   RosterStatusResult,
   RulebookRevision,
+  SearchPlayers200,
+  SearchPlayersParams,
   Season,
   Seat,
   SetAvailabilityBody,
@@ -6171,5 +6180,547 @@ export const useSetRosterStatus = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSetRosterStatusMutationOptions(options));
+    }
+
+export const getSetKeeperSettingsUrl = (leagueId: string,
+    seasonId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/seasons/${seasonId}/keeper-settings`
+}
+
+/**
+ * @summary Set the season's keeper limit and/or deadline (commissioner only)
+ */
+export const setKeeperSettings = async (leagueId: string,
+    seasonId: string,
+    keeperSettingsInput: KeeperSettingsInput, options?: RequestInit): Promise<KeeperSettingsResult> => {
+
+  return customFetch<KeeperSettingsResult>(getSetKeeperSettingsUrl(leagueId,seasonId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(keeperSettingsInput)
+  }
+);}
+
+
+
+
+
+export const getSetKeeperSettingsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setKeeperSettings>>, TError,{leagueId: string;seasonId: string;data: BodyType<KeeperSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setKeeperSettings>>, TError,{leagueId: string;seasonId: string;data: BodyType<KeeperSettingsInput>}, TContext> => {
+
+const mutationKey = ['setKeeperSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setKeeperSettings>>, {leagueId: string;seasonId: string;data: BodyType<KeeperSettingsInput>}> = (props) => {
+          const {leagueId,seasonId,data} = props ?? {};
+
+          return  setKeeperSettings(leagueId,seasonId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetKeeperSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof setKeeperSettings>>>
+    export type SetKeeperSettingsMutationBody = BodyType<KeeperSettingsInput>
+    export type SetKeeperSettingsMutationError = ErrorType<void>
+
+    /**
+ * @summary Set the season's keeper limit and/or deadline (commissioner only)
+ */
+export const useSetKeeperSettings = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setKeeperSettings>>, TError,{leagueId: string;seasonId: string;data: BodyType<KeeperSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setKeeperSettings>>,
+        TError,
+        {leagueId: string;seasonId: string;data: BodyType<KeeperSettingsInput>},
+        TContext
+      > => {
+      return useMutation(getSetKeeperSettingsMutationOptions(options));
+    }
+
+export const getListKeepersUrl = (franchiseId: string,
+    seasonId: string,) => {
+
+
+
+
+  return `/api/franchises/${franchiseId}/seasons/${seasonId}/keepers`
+}
+
+/**
+ * @summary Active keepers for a franchise this season, plus slot usage
+ */
+export const listKeepers = async (franchiseId: string,
+    seasonId: string, options?: RequestInit): Promise<KeeperListResponse> => {
+
+  return customFetch<KeeperListResponse>(getListKeepersUrl(franchiseId,seasonId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListKeepersQueryKey = (franchiseId: string,
+    seasonId: string,) => {
+    return [
+    `/api/franchises/${franchiseId}/seasons/${seasonId}/keepers`
+    ] as const;
+    }
+
+
+export const getListKeepersQueryOptions = <TData = Awaited<ReturnType<typeof listKeepers>>, TError = ErrorType<unknown>>(franchiseId: string,
+    seasonId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listKeepers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListKeepersQueryKey(franchiseId,seasonId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listKeepers>>> = ({ signal }) => listKeepers(franchiseId,seasonId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: franchiseId !== null && franchiseId !== undefined && seasonId !== null && seasonId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listKeepers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListKeepersQueryResult = NonNullable<Awaited<ReturnType<typeof listKeepers>>>
+export type ListKeepersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Active keepers for a franchise this season, plus slot usage
+ */
+
+export function useListKeepers<TData = Awaited<ReturnType<typeof listKeepers>>, TError = ErrorType<unknown>>(
+ franchiseId: string,
+    seasonId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listKeepers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListKeepersQueryOptions(franchiseId,seasonId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateKeeperUrl = (franchiseId: string,
+    seasonId: string,) => {
+
+
+
+
+  return `/api/franchises/${franchiseId}/seasons/${seasonId}/keepers`
+}
+
+/**
+ * @summary Designate a keeper (that team's GM, or the commissioner with a required note on another team)
+ */
+export const createKeeper = async (franchiseId: string,
+    seasonId: string,
+    createKeeperInput: CreateKeeperInput, options?: RequestInit): Promise<CreateKeeperResult> => {
+
+  return customFetch<CreateKeeperResult>(getCreateKeeperUrl(franchiseId,seasonId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createKeeperInput)
+  }
+);}
+
+
+
+
+
+export const getCreateKeeperMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createKeeper>>, TError,{franchiseId: string;seasonId: string;data: BodyType<CreateKeeperInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createKeeper>>, TError,{franchiseId: string;seasonId: string;data: BodyType<CreateKeeperInput>}, TContext> => {
+
+const mutationKey = ['createKeeper'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createKeeper>>, {franchiseId: string;seasonId: string;data: BodyType<CreateKeeperInput>}> = (props) => {
+          const {franchiseId,seasonId,data} = props ?? {};
+
+          return  createKeeper(franchiseId,seasonId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateKeeperMutationResult = NonNullable<Awaited<ReturnType<typeof createKeeper>>>
+    export type CreateKeeperMutationBody = BodyType<CreateKeeperInput>
+    export type CreateKeeperMutationError = ErrorType<void>
+
+    /**
+ * @summary Designate a keeper (that team's GM, or the commissioner with a required note on another team)
+ */
+export const useCreateKeeper = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createKeeper>>, TError,{franchiseId: string;seasonId: string;data: BodyType<CreateKeeperInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createKeeper>>,
+        TError,
+        {franchiseId: string;seasonId: string;data: BodyType<CreateKeeperInput>},
+        TContext
+      > => {
+      return useMutation(getCreateKeeperMutationOptions(options));
+    }
+
+export const getReleaseKeeperUrl = (keeperId: string,
+    params?: ReleaseKeeperParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/keepers/${keeperId}?${stringifiedParams}` : `/api/keepers/${keeperId}`
+}
+
+/**
+ * @summary Release a keeper (that team's GM, or the commissioner with a required reason on another team)
+ */
+export const releaseKeeper = async (keeperId: string,
+    params?: ReleaseKeeperParams, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getReleaseKeeperUrl(keeperId,params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getReleaseKeeperMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseKeeper>>, TError,{keeperId: string;params?: ReleaseKeeperParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof releaseKeeper>>, TError,{keeperId: string;params?: ReleaseKeeperParams}, TContext> => {
+
+const mutationKey = ['releaseKeeper'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof releaseKeeper>>, {keeperId: string;params?: ReleaseKeeperParams}> = (props) => {
+          const {keeperId,params} = props ?? {};
+
+          return  releaseKeeper(keeperId,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReleaseKeeperMutationResult = NonNullable<Awaited<ReturnType<typeof releaseKeeper>>>
+
+    export type ReleaseKeeperMutationError = ErrorType<void>
+
+    /**
+ * @summary Release a keeper (that team's GM, or the commissioner with a required reason on another team)
+ */
+export const useReleaseKeeper = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof releaseKeeper>>, TError,{keeperId: string;params?: ReleaseKeeperParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof releaseKeeper>>,
+        TError,
+        {keeperId: string;params?: ReleaseKeeperParams},
+        TContext
+      > => {
+      return useMutation(getReleaseKeeperMutationOptions(options));
+    }
+
+export const getSearchPlayersUrl = (params: SearchPlayersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/players/search?${stringifiedParams}` : `/api/players/search`
+}
+
+/**
+ * @summary Typo-tolerant name search across the player registry
+ */
+export const searchPlayers = async (params: SearchPlayersParams, options?: RequestInit): Promise<SearchPlayers200> => {
+
+  return customFetch<SearchPlayers200>(getSearchPlayersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchPlayersQueryKey = (params?: SearchPlayersParams,) => {
+    return [
+    `/api/players/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchPlayersQueryOptions = <TData = Awaited<ReturnType<typeof searchPlayers>>, TError = ErrorType<unknown>>(params: SearchPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchPlayersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchPlayers>>> = ({ signal }) => searchPlayers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchPlayers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type SearchPlayersQueryResult = NonNullable<Awaited<ReturnType<typeof searchPlayers>>>
+export type SearchPlayersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Typo-tolerant name search across the player registry
+ */
+
+export function useSearchPlayers<TData = Awaited<ReturnType<typeof searchPlayers>>, TError = ErrorType<unknown>>(
+ params: SearchPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getSearchPlayersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPlayerStatCardsUrl = (playerId: string,) => {
+
+
+
+
+  return `/api/players/${playerId}/stat-cards`
+}
+
+/**
+ * @summary Cached 1/3/5-year stat cards for a registry-matched player. Never blocks on the NHL API — a stale or missing card queues a background refresh and returns what's cached now.
+ */
+export const getPlayerStatCards = async (playerId: string, options?: RequestInit): Promise<PlayerStatCardsResponse> => {
+
+  return customFetch<PlayerStatCardsResponse>(getGetPlayerStatCardsUrl(playerId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlayerStatCardsQueryKey = (playerId: string,) => {
+    return [
+    `/api/players/${playerId}/stat-cards`
+    ] as const;
+    }
+
+
+export const getGetPlayerStatCardsQueryOptions = <TData = Awaited<ReturnType<typeof getPlayerStatCards>>, TError = ErrorType<void>>(playerId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerStatCards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlayerStatCardsQueryKey(playerId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlayerStatCards>>> = ({ signal }) => getPlayerStatCards(playerId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: playerId !== null && playerId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlayerStatCards>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlayerStatCardsQueryResult = NonNullable<Awaited<ReturnType<typeof getPlayerStatCards>>>
+export type GetPlayerStatCardsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Cached 1/3/5-year stat cards for a registry-matched player. Never blocks on the NHL API — a stale or missing card queues a background refresh and returns what's cached now.
+ */
+
+export function useGetPlayerStatCards<TData = Awaited<ReturnType<typeof getPlayerStatCards>>, TError = ErrorType<void>>(
+ playerId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlayerStatCards>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlayerStatCardsQueryOptions(playerId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRunRegistrySyncNowUrl = () => {
+
+
+
+
+  return `/api/registry-sync/run`
+}
+
+/**
+ * @summary Manually queue a player registry sync
+ */
+export const runRegistrySyncNow = async ( options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRunRegistrySyncNowUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRunRegistrySyncNowMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runRegistrySyncNow>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runRegistrySyncNow>>, TError,void, TContext> => {
+
+const mutationKey = ['runRegistrySyncNow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runRegistrySyncNow>>, void> = () => {
+
+
+          return  runRegistrySyncNow(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RunRegistrySyncNowMutationResult = NonNullable<Awaited<ReturnType<typeof runRegistrySyncNow>>>
+
+    export type RunRegistrySyncNowMutationError = ErrorType<void>
+
+    /**
+ * @summary Manually queue a player registry sync
+ */
+export const useRunRegistrySyncNow = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runRegistrySyncNow>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof runRegistrySyncNow>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRunRegistrySyncNowMutationOptions(options));
     }
 

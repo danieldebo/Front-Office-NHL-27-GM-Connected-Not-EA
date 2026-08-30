@@ -23,7 +23,8 @@ export type Action =
   | "invite:manage"          // create / revoke invite links
   | "rulebook:write"         // publish a new revision
   | "transaction:act"        // GM acting on their own team's side of a transaction, or commissioner acting for any team
-  | "transaction:approve";   // commissioner-only: approve/reject a trade, resolve a waiver
+  | "transaction:approve"    // commissioner-only: approve/reject a trade, resolve a waiver
+  | "keeper:write";          // GM designating/releasing a keeper on their own team, or commissioner on any team (override)
 
 export interface LeagueResource {
   kind: "league";
@@ -100,7 +101,11 @@ export function can(
       );
     }
 
-    case "transaction:act": {
+    case "transaction:act":
+    case "keeper:write": {
+      // Same rule for both: "GM writes only their own team; commissioner
+      // writes league-scoped" (keeper-addendum.md §2) — identical to a GM
+      // acting on their own side of a transaction.
       if (resource.kind !== "transaction") return false;
       const isCommissioner = resource.ownerId === domainUserId ||
         (resource.commissionerIds?.includes(domainUserId) ?? false);
