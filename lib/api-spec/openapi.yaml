@@ -2006,6 +2006,10 @@ paths:
       responses:
         '200':
           description: Overlap computation result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameOverlap'
 
   /leagues/{leagueId}/dq-findings:
     get:
@@ -2139,6 +2143,45 @@ components:
       schema:
         type: string
   schemas:
+
+    GameOverlapSlot:
+      type: object
+      required: [start_utc, end_utc, home_gm, away_gm]
+      properties:
+        start_utc:
+          type: string
+          format: date-time
+        end_utc:
+          type: string
+          format: date-time
+        home_gm:
+          type: string
+          description: Slot start, rendered in the home GM's local timezone.
+        away_gm:
+          type: string
+          description: Slot start, rendered in the away GM's local timezone.
+
+    GameOverlap:
+      type: object
+      required: [has_overlap, overlaps]
+      properties:
+        game_id:
+          type: string
+        window_opens_at:
+          type: string
+          format: date-time
+        window_closes_at:
+          type: string
+          format: date-time
+        has_overlap:
+          type: boolean
+        overlaps:
+          type: array
+          items:
+            $ref: '#/components/schemas/GameOverlapSlot'
+        message:
+          type: string
+          description: Set instead of overlaps when a GM hasn't saved availability yet.
 
     HealthStatus:
       type: object

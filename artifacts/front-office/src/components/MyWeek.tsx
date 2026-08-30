@@ -3,8 +3,27 @@
  * Report / Confirm / Dispute buttons navigate to dedicated pages.
  */
 import { useLocation } from 'wouter';
-import { Game } from '@workspace/api-client-react';
+import { Game, useGetGameOverlap } from '@workspace/api-client-react';
 import { gmIdentityLabel } from '@/components/gmIdentity';
+
+function OverlapHint({ gameId }: { gameId: string }) {
+  const { data, isLoading } = useGetGameOverlap(gameId);
+  if (isLoading || !data) return null;
+  if (data.message) {
+    return <div className="game-gm-identities">{data.message}</div>;
+  }
+  if (!data.has_overlap) {
+    return <div className="game-gm-identities">No shared availability found this window — ask the commissioner to reschedule.</div>;
+  }
+  const first = data.overlaps[0];
+  if (!first) return null;
+  const more = data.overlaps.length - 1;
+  return (
+    <div className="game-gm-identities">
+      Both free: {first.home_gm} (home) / {first.away_gm} (away){more > 0 ? ` · +${more} more window${more === 1 ? '' : 's'}` : ''}
+    </div>
+  );
+}
 
 type ExtendedGameSide = Game['home'] & {
   gm_primary_identity?: string | null;
@@ -69,9 +88,11 @@ export default function MyWeek({ games, isLoading }: { games: Game[]; isLoading:
               }`
             : null;
 
+          const showOverlap = game.status === 'scheduled' || game.status === 'in_window';
+
           return (
+            <div key={game.id}>
             <div
-              key={game.id}
               className="matchup anim"
               style={{ animationDelay: `${i * 0.04}s` }}
             >
@@ -134,6 +155,12 @@ export default function MyWeek({ games, isLoading }: { games: Game[]; isLoading:
                   </button>
                 </div>
               )}
+            </div>
+            {showOverlap && (
+              <div style={{ padding: '0 16px 10px' }}>
+                <OverlapHint gameId={game.id} />
+              </div>
+            )}
             </div>
           );
         })

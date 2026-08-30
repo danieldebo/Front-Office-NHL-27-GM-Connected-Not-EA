@@ -1926,7 +1926,19 @@ export const GetGameOverlapParams = zod.object({
   "gameId": zod.coerce.string()
 })
 
-export const GetGameOverlapResponse = zod.unknown()
+export const GetGameOverlapResponse = zod.object({
+  "game_id": zod.string().optional(),
+  "window_opens_at": zod.coerce.date().optional(),
+  "window_closes_at": zod.coerce.date().optional(),
+  "has_overlap": zod.boolean(),
+  "overlaps": zod.array(zod.object({
+  "start_utc": zod.coerce.date(),
+  "end_utc": zod.coerce.date(),
+  "home_gm": zod.string().describe('Slot start, rendered in the home GM\'s local timezone.'),
+  "away_gm": zod.string().describe('Slot start, rendered in the away GM\'s local timezone.')
+})),
+  "message": zod.string().optional().describe('Set instead of overlaps when a GM hasn\'t saved availability yet.')
+})
 
 
 /**

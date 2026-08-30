@@ -37,6 +37,7 @@ import type {
   FeatureRequestInput,
   FeatureRequestReceipt,
   ForceResolveGameBody,
+  GameOverlap,
   GameResult,
   GenerateScheduleBody,
   GenerateScheduleResult,
@@ -4864,9 +4865,9 @@ export const getGetGameOverlapUrl = (gameId: string,) => {
 /**
  * @summary Get overlapping availability for a game's two GMs
  */
-export const getGameOverlap = async (gameId: string, options?: RequestInit): Promise<void> => {
+export const getGameOverlap = async (gameId: string, options?: RequestInit): Promise<GameOverlap> => {
 
-  return customFetch<void>(getGetGameOverlapUrl(gameId),
+  return customFetch<GameOverlap>(getGetGameOverlapUrl(gameId),
   {
     ...options,
     method: 'GET'

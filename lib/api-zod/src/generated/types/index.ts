@@ -34,6 +34,8 @@ export * from './featureRequestReceipt';
 export * from './forceResolveGameBody';
 export * from './forceResolveGameBodyResolution';
 export * from './game';
+export * from './gameOverlap';
+export * from './gameOverlapSlot';
 export * from './gameResult';
 export * from './gameResultDataSource';
 export * from './gameResultDecision';

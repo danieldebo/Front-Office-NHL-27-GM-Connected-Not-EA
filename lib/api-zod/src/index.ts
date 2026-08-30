@@ -32,6 +32,8 @@ export type { ErrorEnvelope } from "./generated/types/errorEnvelope";
 // ForceResolveGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // ForceResolveGameBodyResolution intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Game } from "./generated/types/game";
+export type { GameOverlap } from "./generated/types/gameOverlap";
+export type { GameOverlapSlot } from "./generated/types/gameOverlapSlot";
 export type { GameResult } from "./generated/types/gameResult";
 export type { GameResultDataSource } from "./generated/types/gameResultDataSource";
 export type { GameResultDecision } from "./generated/types/gameResultDecision";

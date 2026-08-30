@@ -5,6 +5,25 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+export interface GameOverlapSlot {
+  start_utc: string;
+  end_utc: string;
+  /** Slot start, rendered in the home GM's local timezone. */
+  home_gm: string;
+  /** Slot start, rendered in the away GM's local timezone. */
+  away_gm: string;
+}
+
+export interface GameOverlap {
+  game_id?: string;
+  window_opens_at?: string;
+  window_closes_at?: string;
+  has_overlap: boolean;
+  overlaps: GameOverlapSlot[];
+  /** Set instead of overlaps when a GM hasn't saved availability yet. */
+  message?: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
