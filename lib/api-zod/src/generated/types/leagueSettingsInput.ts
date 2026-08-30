@@ -5,8 +5,10 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
-import type { LeagueSettingsInputPlatform } from './leagueSettingsInputPlatform';
+import type { LeaguePlatform } from './leaguePlatform';
+import type { LeagueSettingsInputCapEnforcement } from './leagueSettingsInputCapEnforcement';
 import type { LeagueSettingsInputPlayoffFormat } from './leagueSettingsInputPlayoffFormat';
+import type { LeagueSettingsInputPointsRegLoss } from './leagueSettingsInputPointsRegLoss';
 import type { LeagueSettingsInputRosterSource } from './leagueSettingsInputRosterSource';
 import type { LeagueSettingsInputScheduleFormat } from './leagueSettingsInputScheduleFormat';
 import type { LeagueSettingsInputScheduleSettings } from './leagueSettingsInputScheduleSettings';
@@ -18,7 +20,7 @@ export interface LeagueSettingsInput {
      * @nullable
      */
   ea_league_id?: string | null;
-  platform: LeagueSettingsInputPlatform;
+  platform: LeaguePlatform;
   /**
      * @minimum 3
      * @maximum 32
@@ -48,6 +50,32 @@ export interface LeagueSettingsInput {
   /** @nullable */
   rules_notes?: string | null;
   slider_presets: LeagueSettingsInputSliderPresets;
+  /** Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat. */
+  require_verified_identities?: boolean;
+  /**
+     * League default for a season's points-for-a-win. Seasons may override at creation.
+     * @minimum 0
+     */
+  points_win?: number;
+  /**
+     * League default for a season's points-for-an-overtime-loss.
+     * @minimum 0
+     */
+  points_ot_loss?: number;
+  /** Always 0 — hockey does not award points for a regulation loss. */
+  points_reg_loss?: LeagueSettingsInputPointsRegLoss;
+  /** League default standings tiebreaker order. Seasons may override at creation. */
+  tiebreakers?: string[];
+  /** When true, a trade executes as soon as the counterparty GM accepts — no separate commissioner approval step. */
+  auto_approve_trades?: boolean;
+  /** How a trade or signing that would put a team over the salary cap is handled. */
+  cap_enforcement?: LeagueSettingsInputCapEnforcement;
+  /**
+     * How long a released player is claimable before clearing to free agency outright.
+     * @minimum 1
+     * @maximum 168
+     */
+  waiver_window_hours?: number;
   /**
      * @minLength 1
      * @maxLength 500

@@ -5,6 +5,25 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+export interface GameOverlapSlot {
+  start_utc: string;
+  end_utc: string;
+  /** Slot start, rendered in the home GM's local timezone. */
+  home_gm: string;
+  /** Slot start, rendered in the away GM's local timezone. */
+  away_gm: string;
+}
+
+export interface GameOverlap {
+  game_id?: string;
+  window_opens_at?: string;
+  window_closes_at?: string;
+  has_overlap: boolean;
+  overlaps: GameOverlapSlot[];
+  /** Set instead of overlaps when a GM hasn't saved availability yet. */
+  message?: string;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -33,6 +52,18 @@ export interface ErrorEnvelope {
   error: string;
 }
 
+/**
+ * Which consoles the league accepts. Crossplay means both, not "either unspecified".
+ */
+export type LeaguePlatform = typeof LeaguePlatform[keyof typeof LeaguePlatform];
+
+
+export const LeaguePlatform = {
+  xbox: 'xbox',
+  playstation: 'playstation',
+  crossplay: 'crossplay',
+} as const;
+
 export type LeagueVisibility = typeof LeagueVisibility[keyof typeof LeagueVisibility];
 
 
@@ -47,6 +78,7 @@ export interface League {
   slug: string;
   name: string;
   visibility: LeagueVisibility;
+  platform?: LeaguePlatform;
   /** @nullable */
   logo_url?: string | null;
   /** @nullable */
@@ -79,6 +111,14 @@ export interface CreateLeagueInput {
      */
   slug: string;
   visibility?: CreateLeagueInputVisibility;
+  platform?: LeaguePlatform;
+  /**
+     * @minimum 3
+     * @maximum 32
+     */
+  team_count?: number;
+  /** Which league-settings template to seed version 1 from. Defaults to balanced_standard. */
+  settings_template_id?: string;
   /** @nullable */
   primary_color?: string | null;
   /** @nullable */
@@ -111,15 +151,6 @@ export interface UpdateLeagueInput {
   logo_url?: string | null;
 }
 
-export type LeagueSettingsInputPlatform = typeof LeagueSettingsInputPlatform[keyof typeof LeagueSettingsInputPlatform];
-
-
-export const LeagueSettingsInputPlatform = {
-  psn: 'psn',
-  xbox: 'xbox',
-  both: 'both',
-} as const;
-
 export type LeagueSettingsInputRosterSource = typeof LeagueSettingsInputRosterSource[keyof typeof LeagueSettingsInputRosterSource];
 
 
@@ -144,13 +175,35 @@ export type LeagueSettingsInputPlayoffFormat = { [key: string]: unknown };
 
 export type LeagueSettingsInputSliderPresets = { [key: string]: unknown };
 
+/**
+ * Always 0 — hockey does not award points for a regulation loss.
+ */
+export type LeagueSettingsInputPointsRegLoss = typeof LeagueSettingsInputPointsRegLoss[keyof typeof LeagueSettingsInputPointsRegLoss];
+
+
+export const LeagueSettingsInputPointsRegLoss = {
+  NUMBER_0: 0,
+} as const;
+
+/**
+ * How a trade or signing that would put a team over the salary cap is handled.
+ */
+export type LeagueSettingsInputCapEnforcement = typeof LeagueSettingsInputCapEnforcement[keyof typeof LeagueSettingsInputCapEnforcement];
+
+
+export const LeagueSettingsInputCapEnforcement = {
+  block: 'block',
+  warn: 'warn',
+  off: 'off',
+} as const;
+
 export interface LeagueSettingsInput {
   /**
      * @maxLength 100
      * @nullable
      */
   ea_league_id?: string | null;
-  platform: LeagueSettingsInputPlatform;
+  platform: LeaguePlatform;
   /**
      * @minimum 3
      * @maximum 32
@@ -180,12 +233,50 @@ export interface LeagueSettingsInput {
   /** @nullable */
   rules_notes?: string | null;
   slider_presets: LeagueSettingsInputSliderPresets;
+  /** Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat. */
+  require_verified_identities?: boolean;
+  /**
+     * League default for a season's points-for-a-win. Seasons may override at creation.
+     * @minimum 0
+     */
+  points_win?: number;
+  /**
+     * League default for a season's points-for-an-overtime-loss.
+     * @minimum 0
+     */
+  points_ot_loss?: number;
+  /** Always 0 — hockey does not award points for a regulation loss. */
+  points_reg_loss?: LeagueSettingsInputPointsRegLoss;
+  /** League default standings tiebreaker order. Seasons may override at creation. */
+  tiebreakers?: string[];
+  /** When true, a trade executes as soon as the counterparty GM accepts — no separate commissioner approval step. */
+  auto_approve_trades?: boolean;
+  /** How a trade or signing that would put a team over the salary cap is handled. */
+  cap_enforcement?: LeagueSettingsInputCapEnforcement;
+  /**
+     * How long a released player is claimable before clearing to free agency outright.
+     * @minimum 1
+     * @maximum 168
+     */
+  waiver_window_hours?: number;
   /**
      * @minLength 1
      * @maxLength 500
      */
   change_summary: string;
 }
+
+export type CreateLeagueSettingsVersionInput = LeagueSettingsInput & {
+  /**
+     * When true and the league has an active season, also update that
+     * season's own points/tiebreaker snapshot to match this version
+     * (the season's salary cap, roster limits, and games-per-matchup
+     * stay as originally set — only points and tiebreakers, which a
+     * commissioner might reasonably want to correct mid-season, are
+     * retroactively applied).
+     */
+  apply_to_active_season?: boolean;
+};
 
 export type LeagueSettingsVersion = LeagueSettingsInput & {
   id: string;
@@ -197,9 +288,107 @@ export type LeagueSettingsVersion = LeagueSettingsInput & {
   can_manage: boolean;
 };
 
+export interface NoLeagueSettingsYet {
+  can_manage: boolean;
+}
+
+export type LeagueSettingsTemplateFieldsRosterSource = typeof LeagueSettingsTemplateFieldsRosterSource[keyof typeof LeagueSettingsTemplateFieldsRosterSource];
+
+
+export const LeagueSettingsTemplateFieldsRosterSource = {
+  manual: 'manual',
+  ea: 'ea',
+  csv_import: 'csv_import',
+} as const;
+
+export type LeagueSettingsTemplateFieldsScheduleFormat = typeof LeagueSettingsTemplateFieldsScheduleFormat[keyof typeof LeagueSettingsTemplateFieldsScheduleFormat];
+
+
+export const LeagueSettingsTemplateFieldsScheduleFormat = {
+  round_robin: 'round_robin',
+  double_round_robin: 'double_round_robin',
+  custom: 'custom',
+} as const;
+
+export type LeagueSettingsTemplateFieldsScheduleSettings = { [key: string]: unknown };
+
+export type LeagueSettingsTemplateFieldsPlayoffFormat = { [key: string]: unknown };
+
+export type LeagueSettingsTemplateFieldsSliderPresets = { [key: string]: unknown };
+
+export type LeagueSettingsTemplateFieldsPointsRegLoss = typeof LeagueSettingsTemplateFieldsPointsRegLoss[keyof typeof LeagueSettingsTemplateFieldsPointsRegLoss];
+
+
+export const LeagueSettingsTemplateFieldsPointsRegLoss = {
+  NUMBER_0: 0,
+} as const;
+
+export type LeagueSettingsTemplateFieldsCapEnforcement = typeof LeagueSettingsTemplateFieldsCapEnforcement[keyof typeof LeagueSettingsTemplateFieldsCapEnforcement];
+
+
+export const LeagueSettingsTemplateFieldsCapEnforcement = {
+  block: 'block',
+  warn: 'warn',
+  off: 'off',
+} as const;
+
+/**
+ * Everything a settings version needs except platform, team_count, and
+ * change_summary — those are chosen independently (platform/team_count
+ * are league-identity facts, change_summary is per-save).
+ */
+export interface LeagueSettingsTemplateFields {
+  roster_source: LeagueSettingsTemplateFieldsRosterSource;
+  schedule_format: LeagueSettingsTemplateFieldsScheduleFormat;
+  schedule_settings: LeagueSettingsTemplateFieldsScheduleSettings;
+  playoff_format: LeagueSettingsTemplateFieldsPlayoffFormat;
+  /** @nullable */
+  salary_cap_cents?: number | null;
+  /** @nullable */
+  roster_min?: number | null;
+  /** @nullable */
+  roster_max?: number | null;
+  divisions: string[];
+  conferences: string[];
+  /** @nullable */
+  rules_notes?: string | null;
+  slider_presets: LeagueSettingsTemplateFieldsSliderPresets;
+  require_verified_identities?: boolean;
+  /** @minimum 0 */
+  points_win?: number;
+  /** @minimum 0 */
+  points_ot_loss?: number;
+  points_reg_loss?: LeagueSettingsTemplateFieldsPointsRegLoss;
+  tiebreakers?: string[];
+  auto_approve_trades?: boolean;
+  cap_enforcement?: LeagueSettingsTemplateFieldsCapEnforcement;
+  /**
+     * @minimum 1
+     * @maximum 168
+     */
+  waiver_window_hours?: number;
+}
+
+export interface LeagueSettingsTemplate {
+  id: string;
+  name: string;
+  description: string;
+  fields: LeagueSettingsTemplateFields;
+}
+
 export interface LeagueSettingsHistory {
   data: LeagueSettingsVersion[];
 }
+
+/**
+ * Always 0 — hockey does not award points for a regulation loss.
+ */
+export type CreateSeasonInputPointsRegLoss = typeof CreateSeasonInputPointsRegLoss[keyof typeof CreateSeasonInputPointsRegLoss];
+
+
+export const CreateSeasonInputPointsRegLoss = {
+  NUMBER_0: 0,
+} as const;
 
 export interface CreateSeasonInput {
   /**
@@ -231,14 +420,24 @@ export interface CreateSeasonInput {
      * @nullable
      */
   roster_max?: number | null;
-  /** @minimum 1 */
+  /**
+     * Overrides the league's configured schedule format for this season only. Defaults to the league's active settings.
+     * @minimum 1
+     */
   games_per_matchup?: number;
-  /** @minimum 0 */
+  /**
+     * Overrides the league's default points-for-a-win for this season only. Defaults to the league's active settings.
+     * @minimum 0
+     */
   points_win?: number;
-  /** @minimum 0 */
+  /**
+     * Overrides the league's default points-for-an-OT-loss for this season only. Defaults to the league's active settings.
+     * @minimum 0
+     */
   points_ot_loss?: number;
-  /** @minimum 0 */
-  points_reg_loss?: number;
+  /** Always 0 — hockey does not award points for a regulation loss. */
+  points_reg_loss?: CreateSeasonInputPointsRegLoss;
+  /** Overrides the league's default tiebreaker order for this season only. Defaults to the league's active settings. */
   tiebreakers?: string[];
 }
 
@@ -1281,6 +1480,250 @@ export interface DqFindingsEnvelope {
   total: number;
 }
 
+export type PlayerContractRosterStatus = typeof PlayerContractRosterStatus[keyof typeof PlayerContractRosterStatus];
+
+
+export const PlayerContractRosterStatus = {
+  active: 'active',
+  ir: 'ir',
+  minors: 'minors',
+} as const;
+
+/**
+ * @nullable
+ */
+export type PlayerContract = {
+  id?: string;
+  /** @nullable */
+  team_season_id?: string | null;
+  cap_hit_cents?: number;
+  /** @nullable */
+  term_years?: number | null;
+  roster_status?: PlayerContractRosterStatus;
+} | null;
+
+export interface Player {
+  id: string;
+  full_name: string;
+  position: string;
+  /** @nullable */
+  shoots?: string | null;
+  /** @nullable */
+  country_code?: string | null;
+  /** @nullable */
+  contract?: PlayerContract;
+}
+
+export type CreatePlayerInputPosition = typeof CreatePlayerInputPosition[keyof typeof CreatePlayerInputPosition];
+
+
+export const CreatePlayerInputPosition = {
+  C: 'C',
+  LW: 'LW',
+  RW: 'RW',
+  D: 'D',
+  G: 'G',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CreatePlayerInputShoots = typeof CreatePlayerInputShoots[keyof typeof CreatePlayerInputShoots] | null;
+
+
+export const CreatePlayerInputShoots = {
+  L: 'L',
+  R: 'R',
+} as const;
+
+export interface CreatePlayerInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  full_name: string;
+  position: CreatePlayerInputPosition;
+  /** @nullable */
+  shoots?: CreatePlayerInputShoots;
+  /** @nullable */
+  birthdate?: string | null;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     * @nullable
+     */
+  country_code?: string | null;
+}
+
+export interface CapPosition {
+  team_season_id: string;
+  /** @nullable */
+  salary_cap_cents?: number | null;
+  cap_used_cents: number;
+  /** @nullable */
+  cap_space_cents?: number | null;
+  roster_count: number;
+  is_illegal: boolean;
+}
+
+export interface WireEntry {
+  id: string;
+  type: string;
+  status: string;
+  summary: string;
+  /** @nullable */
+  note?: string | null;
+  proposed_at: string;
+  /** @nullable */
+  resolved_at?: string | null;
+  /** @nullable */
+  decided_by?: string | null;
+  /** @nullable */
+  decided_at?: string | null;
+}
+
+export interface TradeSideInput {
+  team_season_id: string;
+  /** @maxItems 5 */
+  player_ids: string[];
+}
+
+export interface ProposeTradeInput {
+  side_a: TradeSideInput;
+  side_b: TradeSideInput;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  note?: string | null;
+}
+
+export interface CapPreviewSide {
+  team_season_id: string;
+  before: CapPosition;
+  projected_cap_used_cents: number;
+  would_be_over_cap: boolean;
+}
+
+export type TradeProposalResultType = typeof TradeProposalResultType[keyof typeof TradeProposalResultType];
+
+
+export const TradeProposalResultType = {
+  trade: 'trade',
+} as const;
+
+export type TradeProposalResultCapPreview = {
+  side_a: CapPreviewSide;
+  side_b: CapPreviewSide;
+};
+
+export interface TradeProposalResult {
+  id: string;
+  type: TradeProposalResultType;
+  status: string;
+  proposed_at: string;
+  cap_preview: TradeProposalResultCapPreview;
+}
+
+export interface TransactionStatusResult {
+  id: string;
+  status: string;
+}
+
+export interface RejectTransactionInput {
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  reason?: string | null;
+}
+
+export interface CreateSigningInput {
+  team_season_id: string;
+  player_id: string;
+  /** @minimum 0 */
+  cap_hit_cents: number;
+  /**
+     * @minimum 1
+     * @maximum 8
+     * @nullable
+     */
+  term_years?: number | null;
+}
+
+export interface SigningResult {
+  id: string;
+  contract_id: string;
+  status: string;
+  over_cap_warning: boolean;
+}
+
+export interface CreateReleaseInput {
+  player_id: string;
+}
+
+export interface ReleaseResult {
+  transaction_id: string;
+  waiver_id: string;
+  expires_at: string;
+}
+
+export type WaiverStatus = typeof WaiverStatus[keyof typeof WaiverStatus];
+
+
+export const WaiverStatus = {
+  open: 'open',
+  resolved: 'resolved',
+  withdrawn: 'withdrawn',
+} as const;
+
+export interface Waiver {
+  id: string;
+  player_id: string;
+  full_name: string;
+  waived_by_team_season_id: string;
+  opened_at: string;
+  expires_at: string;
+  status: WaiverStatus;
+  claim_count: number;
+}
+
+export interface CreateWaiverClaimInput {
+  team_season_id: string;
+}
+
+export interface WaiverResolution {
+  /** @nullable */
+  winning_team_season_id: string | null;
+}
+
+export type SetRosterStatusInputRosterStatus = typeof SetRosterStatusInputRosterStatus[keyof typeof SetRosterStatusInputRosterStatus];
+
+
+export const SetRosterStatusInputRosterStatus = {
+  active: 'active',
+  ir: 'ir',
+  minors: 'minors',
+} as const;
+
+export interface SetRosterStatusInput {
+  roster_status: SetRosterStatusInputRosterStatus;
+}
+
+export type RosterStatusResultRosterStatus = typeof RosterStatusResultRosterStatus[keyof typeof RosterStatusResultRosterStatus];
+
+
+export const RosterStatusResultRosterStatus = {
+  active: 'active',
+  ir: 'ir',
+  minors: 'minors',
+} as const;
+
+export interface RosterStatusResult {
+  id: string;
+  roster_status: RosterStatusResultRosterStatus;
+}
+
 export type IdempotencyKeyParameter = string;
 
 export type IfMatchParameter = string;
@@ -1337,6 +1780,18 @@ export type ReorderWaitlistEntry200 = {
 export type GetMyLeagues200 = {
   data: League[];
 };
+
+export type ListLeagueSettingsTemplates200 = {
+  data: LeagueSettingsTemplate[];
+};
+
+export type CreateLeagueSettingsVersion201 = LeagueSettingsVersion & ({
+  /**
+     * Set when apply_to_active_season was true and the league had an active season.
+     * @nullable
+     */
+  applied_to_active_season_id: string | null;
+});
 
 export type ListLeagueSignups200 = {
   data: LeagueApplicant[];
@@ -1429,4 +1884,28 @@ export const ListDqFindingsSeverity = {
   ALERT: 'ALERT',
   WATCH: 'WATCH',
 } as const;
+
+export type ListPlayersParams = {
+free_agents_only?: boolean;
+};
+
+export type ListPlayers200 = {
+  data: Player[];
+};
+
+export type ListWireTransactionsParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
+
+export type ListWireTransactions200 = {
+  data: WireEntry[];
+};
+
+export type ListWaivers200 = {
+  data: Waiver[];
+};
 

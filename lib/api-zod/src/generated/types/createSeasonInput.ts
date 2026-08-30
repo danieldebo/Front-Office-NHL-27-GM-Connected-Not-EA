@@ -5,6 +5,7 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { CreateSeasonInputPointsRegLoss } from './createSeasonInputPointsRegLoss';
 
 export interface CreateSeasonInput {
   /**
@@ -36,13 +37,23 @@ export interface CreateSeasonInput {
      * @nullable
      */
   roster_max?: number | null;
-  /** @minimum 1 */
+  /**
+     * Overrides the league's configured schedule format for this season only. Defaults to the league's active settings.
+     * @minimum 1
+     */
   games_per_matchup?: number;
-  /** @minimum 0 */
+  /**
+     * Overrides the league's default points-for-a-win for this season only. Defaults to the league's active settings.
+     * @minimum 0
+     */
   points_win?: number;
-  /** @minimum 0 */
+  /**
+     * Overrides the league's default points-for-an-OT-loss for this season only. Defaults to the league's active settings.
+     * @minimum 0
+     */
   points_ot_loss?: number;
-  /** @minimum 0 */
-  points_reg_loss?: number;
+  /** Always 0 — hockey does not award points for a regulation loss. */
+  points_reg_loss?: CreateSeasonInputPointsRegLoss;
+  /** Overrides the league's default tiebreaker order for this season only. Defaults to the league's active settings. */
   tiebreakers?: string[];
 }

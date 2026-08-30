@@ -14,6 +14,7 @@ import dqRouter from "./dq";
 import usersRouter from "./users";
 import leagueSettingsRouter from "./league-settings";
 import xboxLinkRouter from "./xbox-link";
+import transactionsRouter from "./transactions";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(commissionerLinksRouter);
 router.use(featureRequestsRouter);
 router.use(dqRouter);
 router.use(xboxLinkRouter);
+router.use(transactionsRouter);
 
 export default router;

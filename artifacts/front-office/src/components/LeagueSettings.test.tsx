@@ -12,7 +12,7 @@ const settings: LeagueSettingsVersion = {
   is_active: true,
   can_manage: true,
   ea_league_id: 'EA-123',
-  platform: 'both',
+  platform: 'crossplay',
   team_count: 16,
   roster_source: 'ea',
   schedule_format: 'double_round_robin',

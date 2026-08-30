@@ -83,8 +83,9 @@ button{appearance:none;border:none;background:transparent;cursor:pointer}
 .crest{
   display:block;width:34px;height:34px;border-radius:3px;
 }
-.league-name{font-family:var(--display);font-size:20px;letter-spacing:.04em;text-transform:uppercase;line-height:1}
-.league-meta{font-family:var(--data);font-size:11px;color:var(--steel);letter-spacing:.06em;text-transform:uppercase}
+.masthead-identity{flex:1 1 auto;min-width:0}
+.league-name{font-family:var(--display);font-size:20px;letter-spacing:.04em;text-transform:uppercase;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.league-meta{font-family:var(--data);font-size:11px;color:var(--steel);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .masthead nav{margin-left:auto;display:flex;gap:22px}
 .masthead nav a{
   position:relative;
@@ -103,7 +104,7 @@ button{appearance:none;border:none;background:transparent;cursor:pointer}
 .masthead nav a:hover::after{transform:scaleX(1)}
 @media (prefers-reduced-motion:reduce){.masthead nav a::after{transition:none}}
 .nav-toggle{
-  display:none;margin-left:auto;align-items:center;gap:7px;
+  display:none;flex:none;margin-left:auto;align-items:center;gap:7px;
   border:1px solid var(--rule);border-radius:3px;padding:7px 10px;
   color:var(--ink);background:var(--paper);
   font-family:var(--data);font-size:10px;font-weight:600;

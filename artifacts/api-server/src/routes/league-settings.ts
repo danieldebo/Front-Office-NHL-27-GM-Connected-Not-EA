@@ -7,8 +7,15 @@ import { getCurrentUser } from "../server/auth";
 import { can } from "../server/authz";
 import { idempotencyMiddleware } from "../middlewares/idempotency";
 import { badRequest, conflict, forbidden, notFound, unauthorized } from "../server/errors";
+import { LEAGUE_SETTINGS_TEMPLATES } from "../server/leagueSettingsTemplates";
 
 const router: IRouter = Router();
+
+// GET /league-settings/templates — static, no auth required (feeds the
+// template picker on Create League, which runs before the league exists).
+router.get("/league-settings/templates", (_req: Request, res: Response): void => {
+  res.json({ data: LEAGUE_SETTINGS_TEMPLATES });
+});
 
 type Access = {
   leagueId: string;
@@ -40,7 +47,10 @@ function settingsSelect(where: string): string {
                  v.team_count, v.roster_source, v.schedule_format,
                  v.schedule_settings, v.playoff_format, v.salary_cap_cents,
                  v.roster_min, v.roster_max, v.divisions, v.conferences,
-                 v.rules_notes, v.slider_presets, v.changed_by, v.changed_at,
+                 v.rules_notes, v.slider_presets, v.require_verified_identities,
+                 v.points_win, v.points_ot_loss, v.points_reg_loss, v.tiebreakers,
+                 v.auto_approve_trades, v.cap_enforcement, v.waiver_window_hours,
+                 v.changed_by, v.changed_at,
                  v.change_summary, (a.settings_version_id = v.id) AS is_active
             FROM league_settings_version v
             LEFT JOIN league_settings_active a ON a.league_id = v.league_id
@@ -124,9 +134,13 @@ router.get("/leagues/:leagueId/settings", async (req: Request, res: Response): P
                     WHERE v.league_id = $1`),
     [leagueId],
   );
-  if (!rows[0]) { notFound(res, "League settings not found"); return; }
   const canManage = ["owner", "commissioner", "assistant_commissioner"].includes(access.role ?? "") ||
     access.ownerId === access.appUserId;
+  // Every league created through this API seeds version 1 at creation, so this
+  // should be unreachable in practice — but a league created another way must
+  // still get a working "create your first settings version" screen instead
+  // of a 404 the client has no way to recover from.
+  if (!rows[0]) { res.json({ can_manage: canManage }); return; }
   res.json(formatSettings(rows[0], canManage));
 });
 
@@ -217,14 +231,20 @@ router.post(
            league_id, version, ea_league_id, platform, team_count, roster_source,
            schedule_format, schedule_settings, playoff_format, salary_cap_cents,
            roster_min, roster_max, divisions, conferences, rules_notes,
-           slider_presets, changed_by, change_summary
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+           slider_presets, require_verified_identities, points_win, points_ot_loss,
+           points_reg_loss, tiebreakers, auto_approve_trades, cap_enforcement,
+           waiver_window_hours, changed_by, change_summary
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
          RETURNING *`,
         [leagueId, nextVersion, d.ea_league_id ?? null, d.platform, d.team_count,
          d.roster_source, d.schedule_format, d.schedule_settings, d.playoff_format,
          d.salary_cap_cents ?? null, d.roster_min ?? null, d.roster_max ?? null,
          JSON.stringify(d.divisions), JSON.stringify(d.conferences), d.rules_notes ?? null,
-         d.slider_presets, access.appUserId, d.change_summary],
+         d.slider_presets, d.require_verified_identities ?? false,
+         d.points_win ?? 2, d.points_ot_loss ?? 1, d.points_reg_loss ?? 0,
+         JSON.stringify(d.tiebreakers ?? ["points", "row", "wins", "goal_diff", "goals_for"]),
+         d.auto_approve_trades ?? false, d.cap_enforcement ?? "warn", d.waiver_window_hours ?? 24,
+         access.appUserId, d.change_summary],
       );
       const version = inserted.rows[0]!;
       await client.query(
@@ -233,6 +253,22 @@ router.post(
          ON CONFLICT (league_id) DO UPDATE SET settings_version_id = EXCLUDED.settings_version_id`,
         [leagueId, version.id],
       );
+      // league.platform is the canonical, cross-feature field (discovery,
+      // eligibility) — keep it in step with what the settings editor calls
+      // "Platform" rather than maintaining two independently-editable copies.
+      await client.query(`UPDATE league SET platform = $2 WHERE id = $1`, [leagueId, d.platform]);
+      let updatedActiveSeasonId: string | null = null;
+      if (d.apply_to_active_season) {
+        const activeSeason = await client.query<{ id: string }>(
+          `UPDATE season
+              SET points_win = $2, points_ot_loss = $3, points_reg_loss = $4, tiebreakers = $5
+            WHERE league_id = $1 AND is_active = TRUE
+           RETURNING id`,
+          [leagueId, version.points_win, version.points_ot_loss, version.points_reg_loss,
+           version.tiebreakers],
+        );
+        updatedActiveSeasonId = activeSeason.rows[0]?.id ?? null;
+      }
       await client.query(
         `INSERT INTO audit_log
            (actor_user_id, league_id, entity_type, entity_id, action, before, after, reason)
@@ -240,7 +276,10 @@ router.post(
         [access.appUserId, leagueId, version.id, current.rows[0] ?? null, version,
          d.change_summary],
       );
-      const response = formatSettings({ ...version, is_active: true }, true);
+      const response = {
+        ...formatSettings({ ...version, is_active: true }, true),
+        applied_to_active_season_id: updatedActiveSeasonId,
+      };
       if (key) {
         await client.query(
           `INSERT INTO idempotency_key

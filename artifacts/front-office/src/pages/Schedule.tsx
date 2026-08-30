@@ -22,7 +22,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
-import LeagueSettings from '@/components/LeagueSettings';
+import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
 
 // ─────────────────────────────────────── status chip colour map
 const STATUS_CHIP: Record<string, string> = {
@@ -158,6 +158,9 @@ function GenerateScheduleForm({
   const [startDate, setStartDate] = useState(
     new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10)
   );
+  const [weekDurationDays, setWeekDurationDays] = useState(
+    Number(settings.schedule_settings.week_duration_days ?? 7)
+  );
   const [error, setError] = useState<string | null>(null);
   const generate = useGenerateSchedule();
 
@@ -167,14 +170,14 @@ function GenerateScheduleForm({
       `Generate this season's schedule from active league settings?\n\n` +
       `• Season starts: ${startDate}\n` +
       `• Format: ${settings.schedule_format.replaceAll('_', ' ')}\n` +
-      `• Window duration: ${String(settings.schedule_settings.week_duration_days ?? 7)} days\n\n` +
+      `• Window duration: ${weekDurationDays} days\n\n` +
       `This cannot be undone.`
     )) return;
 
     generate.mutate(
       {
         seasonId,
-        data: { start_date: startDate },
+        data: { start_date: startDate, week_duration_days: weekDurationDays },
       },
       {
         onSuccess: () => onSuccess(),
@@ -202,9 +205,25 @@ function GenerateScheduleForm({
             style={{ fontFamily: 'var(--data)', fontSize: '13px', padding: '8px 10px', border: '1px solid var(--rule)', borderRadius: '3px', width: '100%', boxSizing: 'border-box' }}
           />
         </div>
+        <div>
+          <label style={{ fontFamily: 'var(--data)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--steel)', display: 'block', marginBottom: '6px' }}>
+            Week Length Override (days)
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={31}
+            value={weekDurationDays}
+            onChange={e => setWeekDurationDays(Number(e.target.value))}
+            style={{ fontFamily: 'var(--data)', fontSize: '13px', padding: '8px 10px', border: '1px solid var(--rule)', borderRadius: '3px', width: '100%', boxSizing: 'border-box' }}
+          />
+          <small style={{ color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '10.5px' }}>
+            Defaults to the active settings value ({String(settings.schedule_settings.week_duration_days ?? 7)} days) — change it for this generation only.
+          </small>
+        </div>
         <div style={{ padding: '12px', border: '1px solid var(--rule)', borderRadius: '3px', background: '#FAFCFD', fontFamily: 'var(--data)', fontSize: '11px', lineHeight: 1.7 }}>
           <strong>Active settings · version {settings.version}</strong><br />
-          {settings.schedule_format.replaceAll('_', ' ')} · {String(settings.schedule_settings.games_per_matchup ?? 1)} game(s) per matchup · {String(settings.schedule_settings.week_duration_days ?? 7)} day weeks
+          {settings.schedule_format.replaceAll('_', ' ')} · {String(settings.schedule_settings.games_per_matchup ?? 1)} game(s) per matchup · {weekDurationDays} day weeks
           <div style={{ color: 'var(--steel)' }}>Authoritative schedule values are managed in League Settings.</div>
         </div>
         {error && (
@@ -234,7 +253,8 @@ function ScheduleContent({
   isCommissioner,
 }: { leagueId: string; isCommissioner: boolean }) {
   const { data: seasonsData, isLoading: seasonsLoading } = useListSeasons(leagueId);
-  const { data: settings } = useGetLeagueSettings(leagueId);
+  const { data: settingsResponse } = useGetLeagueSettings(leagueId);
+  const settings = hasSettings(settingsResponse) ? settingsResponse : undefined;
   const { data: settingsHistory } = useListLeagueSettingsHistory(leagueId);
   const seasons = seasonsData?.data ?? [];
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
@@ -359,7 +379,8 @@ function ScheduleContent({
 export default function Schedule() {
   const { id: leagueId } = useParams<{ id: string }>();
   const { data: league, isLoading } = useGetLeague(leagueId ?? '');
-  const { data: settings } = useGetLeagueSettings(leagueId ?? '');
+  const { data: settingsResponse } = useGetLeagueSettings(leagueId ?? '');
+  const settings = hasSettings(settingsResponse) ? settingsResponse : undefined;
 
   if (isLoading) return <div className="loading-screen">Loading…</div>;
   if (!league)   return <div className="loading-screen">League not found.</div>;

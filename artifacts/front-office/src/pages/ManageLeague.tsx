@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useLocation, useParams, Link } from 'wouter';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useParams, useSearch, Link } from 'wouter';
 import { 
   useGetLeague, 
   useListSeats,
@@ -45,7 +45,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
 import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
-import LeagueSettings from '@/components/LeagueSettings';
+import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
+import SetupChecklist from '@/components/SetupChecklist';
 
 // Helper components
 export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) {
@@ -367,7 +368,7 @@ function RulebookTab({ leagueId }: { leagueId: string }) {
                 background: '#FAFCFD',
                 resize: 'vertical'
               }}
-              placeholder="# League Rules\n\n1. Be cool."
+              placeholder={"# League Rules\n\n1. No tanking — every team plays to win, every game.\n2. Report results within 24 hours of the final horn.\n3. Be cool."}
               required
             />
             <input
@@ -1318,7 +1319,8 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   const { data: seasonsData, isLoading: seasonsLoading } = useListSeasons(leagueId);
   const seasons = seasonsData?.data ?? [];
   const qc = useQueryClient();
-  const { data: settings } = useGetLeagueSettings(leagueId);
+  const { data: settingsResponse } = useGetLeagueSettings(leagueId);
+  const settings = hasSettings(settingsResponse) ? settingsResponse : undefined;
   const { data: settingsHistory } = useListLeagueSettingsHistory(leagueId);
 
   // Pick first season by default
@@ -1411,7 +1413,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
                 {generate.isPending ? 'Generating…' : 'Generate Schedule'}
               </button>
               <Link href={`/leagues/${leagueId}/schedule`} className="btn ghost">
-                Advanced Options
+                Open Schedule Page
               </Link>
             </div>
           </div>
@@ -1468,10 +1470,23 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   );
 }
 
+type ManageTab = 'seats'|'requests'|'rulebook'|'schedule'|'settings'|'links'|'discovery'|'applicants';
+const MANAGE_TABS: ManageTab[] = ['seats', 'requests', 'rulebook', 'schedule', 'settings', 'links', 'discovery', 'applicants'];
+
 export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'seats'|'requests'|'rulebook'|'schedule'|'settings'|'links'|'discovery'|'applicants'>('seats');
-  
+  const search = useSearch();
+  const [activeTab, setActiveTab] = useState<ManageTab>('seats');
+
+  // Lets a "why isn't this done yet" link (e.g. the setup checklist) land on
+  // the right tab instead of always the default.
+  useEffect(() => {
+    const requested = new URLSearchParams(search).get('tab');
+    if (requested && (MANAGE_TABS as string[]).includes(requested)) {
+      setActiveTab(requested as ManageTab);
+    }
+  }, [search]);
+
   const { isLoaded, isSignedIn } = useAuth();
   const { data: league, isLoading: isLoadingLeague } = useGetLeague(id || '');
   const { data: seasonsData } = useListSeasons(id || '');
@@ -1510,6 +1525,7 @@ export default function ManageLeague() {
         </div>
       </div>
       <div className="wrap" style={{ paddingTop: '20px', paddingBottom: '60px' }}>
+        <SetupChecklist leagueId={league.id} />
         <div className="manage-tabs" style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--rule)', paddingBottom: '12px' }}>
           <button 
             onClick={() => setActiveTab('seats')}

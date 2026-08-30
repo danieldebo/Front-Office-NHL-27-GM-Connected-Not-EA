@@ -12,6 +12,7 @@ import { useParams, Link } from 'wouter';
 import {
   useGetLeague,
   useGetMyAvailability,
+  useGetMyProfile,
   useSetAvailability,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -76,25 +77,34 @@ export default function Availability() {
 
   const { data: league, isLoading: leagueLoading } = useGetLeague(leagueId ?? '');
   const { data: saved, isLoading: savedLoading } = useGetMyAvailability(leagueId ?? '');
+  const { data: profile } = useGetMyProfile();
 
   const [timezone, setTimezone] = useState<string>(localTz());
+  const [timezoneFromProfile, setTimezoneFromProfile] = useState(false);
   const [selected, setSelected] = useState<Set<SlotKey>>(new Set());
   const [saved2, setSaved2] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const setAvail = useSetAvailability();
 
-  // Populate from saved data when it loads
+  // A timezone the GM already saved availability under wins — it's an explicit
+  // choice made in this exact context. Absent that, prefer the profile's IANA
+  // timezone (what the rest of the app treats as authoritative) over the
+  // browser's ambient guess, which silently drifts from a VPN, travel, or an
+  // OS clock set wrong.
   useEffect(() => {
-    if (saved) {
-      // The API returns timezone + slots from the server
-      const data = saved as any;
-      if (data.timezone) setTimezone(data.timezone);
-      if (Array.isArray(data.slots)) {
-        setSelected(new Set(data.slots.map((s: { dow: number; block: Block }) => slotKey(s.dow, s.block))));
-      }
+    const data = saved as any;
+    if (data?.timezone) {
+      setTimezone(data.timezone);
+      setTimezoneFromProfile(false);
+    } else if (profile?.timezone) {
+      setTimezone(profile.timezone);
+      setTimezoneFromProfile(true);
     }
-  }, [saved]);
+    if (Array.isArray(data?.slots)) {
+      setSelected(new Set(data.slots.map((s: { dow: number; block: Block }) => slotKey(s.dow, s.block))));
+    }
+  }, [saved, profile]);
 
   const toggleSlot = (dow: number, block: Block) => {
     const k = slotKey(dow, block);
@@ -161,11 +171,11 @@ export default function Availability() {
             {/* Timezone selector */}
             <div style={{ marginBottom: '20px' }}>
               <label style={{ fontFamily: 'var(--data)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.1em', color: 'var(--steel)', display: 'block', marginBottom: '6px' }}>
-                Your Timezone
+                Your Timezone {timezoneFromProfile && <span style={{ color: 'var(--crease)', textTransform: 'none', letterSpacing: 0 }}>(from your profile)</span>}
               </label>
               <select
                 value={timezone}
-                onChange={e => { setTimezone(e.target.value); setSaved2(false); }}
+                onChange={e => { setTimezone(e.target.value); setTimezoneFromProfile(false); setSaved2(false); }}
                 style={{ fontFamily: 'var(--data)', fontSize: '13px', padding: '8px 10px', border: '1px solid var(--rule)', borderRadius: '3px', background: 'var(--paper)', color: 'var(--ink)', width: '100%', maxWidth: '320px' }}
               >
                 {/* Make sure current TZ is always listed */}

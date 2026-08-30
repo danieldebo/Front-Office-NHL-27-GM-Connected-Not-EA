@@ -9,7 +9,8 @@ type IdentityStandingsRow = StandingsRow & {
 
 type ProvenanceChip = 'conf' | 'man' | 'ocr' | 'ea' | 'dispute';
 
-function provenanceChip(row: StandingsRow): { cls: ProvenanceChip; label: string } {
+function provenanceChip(row: StandingsRow): { cls: ProvenanceChip; label: string } | null {
+  if ((row.GP ?? 0) === 0 && !row.provenance) return null; // no games played — nothing to attribute a source to
   const p = row.provenance ?? (row.unconfirmed_games ? 'manual' : 'confirmed');
   switch (p) {
     case 'dispute':    return { cls: 'dispute', label: 'Disputed' };
@@ -27,6 +28,12 @@ function StandingsTable({
   rows: StandingsRow[];
   computedAt?: string | null;
 }) {
+  // v_standings returns one row per team_season regardless of whether any
+  // game has been played — an empty season is 32 rows of zeroes, not zero
+  // rows. The real "nothing to show yet" signal is no confirmed games
+  // anywhere, not an empty array.
+  const hasAnyGamePlayed = rows.some(row => (row.GP ?? 0) > 0);
+
   return (
     <section className="panel" id="standings">
       <div className="panel-head">
@@ -37,6 +44,11 @@ function StandingsTable({
             : 'Live'}
         </span>
       </div>
+      {!hasAnyGamePlayed ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--steel)' }}>
+          No standings data yet — games need to be confirmed.
+        </div>
+      ) : (
       <div style={{ overflowX: 'auto' }}>
         <table>
           <thead>
@@ -89,24 +101,15 @@ function StandingsTable({
                     {diff > 0 ? `+${diff}` : diff === 0 ? '±0' : `−${Math.abs(diff)}`}
                   </td>
                   <td className="l">
-                    <span className={`chip ${chip.cls}`}>{chip.label}</span>
+                    {chip && <span className={`chip ${chip.cls}`}>{chip.label}</span>}
                   </td>
                 </tr>
               );
             })}
-            {rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={12}
-                  style={{ textAlign: 'center', padding: '30px', color: 'var(--steel)' }}
-                >
-                  No standings data yet — games need to be confirmed.
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
+      )}
       <div className="legend">
         <span className="lbl">Source</span>
         <span className="chip conf">Confirmed</span>

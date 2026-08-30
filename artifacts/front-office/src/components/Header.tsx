@@ -19,7 +19,7 @@ export default function Header({ league }: { league?: League }) {
         <Link href="/" className="crest-link" aria-label="Front Office home">
           <img src="/logo.svg" alt="" className="crest" />
         </Link>
-        <div>
+        <div className="masthead-identity">
           <div className="league-name">{league ? league.name : 'Front Office'}</div>
           <div className="league-meta">
             {league ? `Visibility: ${league.visibility} · Franchise 27` : 'Connected Franchise 27 Hub'}
@@ -62,6 +62,15 @@ export default function Header({ league }: { league?: League }) {
               aria-current={location === `/leagues/${league.id}/availability` ? 'page' : undefined}
             >
               Availability
+            </Link>
+          )}
+          {league && (
+            <Link
+              href={`/leagues/${league.id}/transactions`}
+              className="nav-link"
+              aria-current={location === `/leagues/${league.id}/transactions` ? 'page' : undefined}
+            >
+              Transactions
             </Link>
           )}
           {league && (

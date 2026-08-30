@@ -22,6 +22,7 @@ import {
   CreateSeasonBody,
 } from "@workspace/api-zod";
 import { ensureClubCatalog, provisionSeasonSeats } from "../server/seasonProvisioning";
+import { getTemplate } from "../server/leagueSettingsTemplates";
 
 const router: IRouter = Router();
 
@@ -40,8 +41,11 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const { name, slug, visibility = "public", primary_color, secondary_color, logo_url } =
-    parsed.data;
+  const {
+    name, slug, visibility = "public", primary_color, secondary_color, logo_url,
+    platform = "crossplay", team_count = 32, settings_template_id,
+  } = parsed.data;
+  const template = getTemplate(settings_template_id);
 
   // Ensure app_user exists for this Replit user
   const userRow = await pool.query<{ id: string }>(
@@ -72,16 +76,17 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
       slug: string;
       name: string;
       visibility: string;
+      platform: string;
       logo_url: string | null;
       primary_color: string | null;
       secondary_color: string | null;
       owner_user_id: string;
       created_at: Date;
     }>(
-      `INSERT INTO league (name, slug, visibility, primary_color, secondary_color, logo_url, owner_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, slug, name, visibility, logo_url, primary_color, secondary_color, owner_user_id, created_at`,
-      [name, slug, visibility, primary_color ?? null, secondary_color ?? null, logo_url ?? null, appUserId]
+      `INSERT INTO league (name, slug, visibility, platform, primary_color, secondary_color, logo_url, owner_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, slug, name, visibility, platform, logo_url, primary_color, secondary_color, owner_user_id, created_at`,
+      [name, slug, visibility, platform, primary_color ?? null, secondary_color ?? null, logo_url ?? null, appUserId]
     );
 
     const league = insertRow.rows[0]!;
@@ -93,12 +98,25 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
       [league.id, appUserId]
     );
 
+    const f = template.fields;
     const initial = await client.query<{ id: string }>(
-      `INSERT INTO league_settings_version
-         (league_id, version, changed_by, change_summary)
-       VALUES ($1, 1, $2, 'Initial league settings')
+      `INSERT INTO league_settings_version (
+         league_id, version, platform, team_count, roster_source, schedule_format,
+         schedule_settings, playoff_format, salary_cap_cents, roster_min, roster_max,
+         divisions, conferences, rules_notes, slider_presets, require_verified_identities,
+         points_win, points_ot_loss, points_reg_loss, tiebreakers,
+         auto_approve_trades, cap_enforcement, waiver_window_hours,
+         changed_by, change_summary
+       ) VALUES ($1,1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
        RETURNING id`,
-      [league.id, appUserId],
+      [
+        league.id, platform, team_count, f.roster_source, f.schedule_format,
+        f.schedule_settings, f.playoff_format, f.salary_cap_cents, f.roster_min, f.roster_max,
+        JSON.stringify(f.divisions), JSON.stringify(f.conferences), f.rules_notes, f.slider_presets,
+        f.require_verified_identities, f.points_win, f.points_ot_loss, f.points_reg_loss,
+        JSON.stringify(f.tiebreakers), f.auto_approve_trades, f.cap_enforcement, f.waiver_window_hours,
+        appUserId, `Initial league settings — ${template.name} template`,
+      ],
     );
     await client.query(
       `INSERT INTO league_settings_active (league_id, settings_version_id)
@@ -228,16 +246,7 @@ router.post(
       return;
     }
 
-    const {
-      label,
-      game_title,
-      starts_on,
-      ends_on,
-      points_win = 2,
-      points_ot_loss = 1,
-      points_reg_loss = 0,
-      tiebreakers = ["points", "row", "wins", "goal_diff", "goals_for"],
-    } = parsed.data;
+    const { label, game_title, starts_on, ends_on } = parsed.data;
 
     const client = await pool.connect();
     try {
@@ -252,9 +261,14 @@ router.post(
         roster_max: number | null;
         schedule_format: string;
         schedule_settings: Record<string, unknown>;
+        points_win: number;
+        points_ot_loss: number;
+        points_reg_loss: number;
+        tiebreakers: string[];
       }>(
         `SELECT v.id AS settings_version_id, v.team_count, v.salary_cap_cents, v.roster_min, v.roster_max,
-                v.schedule_format, v.schedule_settings
+                v.schedule_format, v.schedule_settings, v.points_win, v.points_ot_loss,
+                v.points_reg_loss, v.tiebreakers
            FROM league_settings_active a
            JOIN league_settings_version v ON v.id = a.settings_version_id
           WHERE a.league_id = $1`,
@@ -264,10 +278,33 @@ router.post(
       if (!settings) {
         throw new Error(`League ${leagueId} has no active settings version`);
       }
-      const configuredGamesPerMatchup =
+      const settingsGamesPerMatchup =
         settings.schedule_format === "double_round_robin" ? 2 :
         settings.schedule_format === "round_robin" ? 1 :
         Number(settings.schedule_settings.games_per_matchup);
+
+      // Every field below inherits from the league's active settings by
+      // default; the caller may override any of them for this season only
+      // (the season row is an immutable snapshot from here on — later
+      // settings changes never retroactively affect it, except through the
+      // explicit "apply to active season" points/tiebreakers path).
+      const salaryCapCents = parsed.data.salary_cap_cents !== undefined
+        ? parsed.data.salary_cap_cents : settings.salary_cap_cents;
+      const rosterMin = parsed.data.roster_min !== undefined
+        ? parsed.data.roster_min : settings.roster_min;
+      const rosterMax = parsed.data.roster_max !== undefined
+        ? parsed.data.roster_max : settings.roster_max;
+      const configuredGamesPerMatchup = parsed.data.games_per_matchup ?? settingsGamesPerMatchup;
+      const points_win = parsed.data.points_win ?? settings.points_win;
+      const points_ot_loss = parsed.data.points_ot_loss ?? settings.points_ot_loss;
+      const points_reg_loss = parsed.data.points_reg_loss ?? settings.points_reg_loss;
+      const tiebreakers = parsed.data.tiebreakers ?? settings.tiebreakers;
+
+      if (rosterMin != null && rosterMax != null && rosterMin > rosterMax) {
+        await client.query("ROLLBACK");
+        badRequest(res, "roster_min must not exceed roster_max");
+        return;
+      }
 
       const ordinalRow = await client.query<{ max_ord: string | null }>(
         `SELECT MAX(ordinal) AS max_ord FROM season WHERE league_id = $1`,
@@ -293,9 +330,9 @@ router.post(
         [
           leagueId, nextOrdinal, label, game_title,
           starts_on ?? null, ends_on ?? null,
-          settings.salary_cap_cents,
-          settings.roster_min,
-          settings.roster_max,
+          salaryCapCents,
+          rosterMin,
+          rosterMax,
           configuredGamesPerMatchup,
           points_win, points_ot_loss, points_reg_loss, tiebreakers,
           settings.team_count,

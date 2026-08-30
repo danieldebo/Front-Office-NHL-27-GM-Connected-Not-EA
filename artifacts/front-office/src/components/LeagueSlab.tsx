@@ -1,7 +1,12 @@
+import { Link } from 'wouter';
 import { LeagueHub } from '@workspace/api-client-react';
 import Countdown from './Countdown';
+import type { SetupChecklist } from '@/hooks/useSetupChecklist';
 
-function slabCopy(hub: LeagueHub): { eyebrow: string; h1: string; sub: string } {
+function slabCopy(
+  hub: LeagueHub,
+  setup: SetupChecklist | undefined,
+): { eyebrow: string; h1: string; sub: string; setupHref?: string } {
   const myGames = hub.my_games_this_week ?? [];
   const pending  = myGames.filter(g => g.status === 'scheduled' || g.status === 'in_window');
   const disputed = myGames.filter(g => g.status === 'disputed');
@@ -52,6 +57,17 @@ function slabCopy(hub: LeagueHub): { eyebrow: string; h1: string; sub: string } 
     return { eyebrow: 'Offseason', h1: 'No active\nseason.', sub: 'The commissioner will open the next season soon.' };
   }
 
+  // A league that isn't fully set up can't have games yet either — that's
+  // "nothing pending" for the wrong reason, not "all clear".
+  if (setup && !setup.complete) {
+    return {
+      eyebrow,
+      h1: `Setup:\n${setup.doneCount} of ${setup.total}.`,
+      sub: 'Finish setting up the league before GMs can play.',
+      setupHref: setup.steps.find(s => !s.done)?.href,
+    };
+  }
+
   return {
     eyebrow,
     h1: 'All clear.',
@@ -62,9 +78,11 @@ function slabCopy(hub: LeagueHub): { eyebrow: string; h1: string; sub: string } 
 export default function LeagueSlab({
   hub,
   isLoading,
+  setup,
 }: {
   hub?: LeagueHub;
   isLoading: boolean;
+  setup?: SetupChecklist;
 }) {
   if (isLoading) {
     return (
@@ -76,7 +94,7 @@ export default function LeagueSlab({
 
   if (!hub) return null;
 
-  const copy = slabCopy(hub);
+  const copy = slabCopy(hub, setup);
 
   // Find the soonest window close for the countdown
   const soonestClose = (hub.my_games_this_week ?? [])
@@ -91,6 +109,11 @@ export default function LeagueSlab({
           <div className="eyebrow">{copy.eyebrow}</div>
           <h1 style={{ whiteSpace: 'pre-line' }}>{copy.h1}</h1>
           <p className="sub">{copy.sub}</p>
+          {copy.setupHref && (
+            <Link href={copy.setupHref} className="btn" style={{ marginTop: '14px', display: 'inline-block' }}>
+              Continue setup
+            </Link>
+          )}
           {soonestClose && <Countdown closesAt={soonestClose} />}
         </div>
 

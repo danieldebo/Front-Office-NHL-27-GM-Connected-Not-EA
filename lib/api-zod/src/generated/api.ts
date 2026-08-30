@@ -264,11 +264,20 @@ export const createLeagueBodySlugMax = 40;
 
 export const createLeagueBodySlugRegExp = new RegExp('^[a-z0-9][a-z0-9-]*[a-z0-9]$');
 export const createLeagueBodyVisibilityDefault = `public`;
+export const createLeagueBodyPlatformDefault = `crossplay`;
+export const createLeagueBodyTeamCountDefault = 32;
+export const createLeagueBodyTeamCountMin = 3;
+export const createLeagueBodyTeamCountMax = 32;
+
+
 
 export const CreateLeagueBody = zod.object({
   "name": zod.string().min(1).max(createLeagueBodyNameMax),
   "slug": zod.string().min(createLeagueBodySlugMin).max(createLeagueBodySlugMax).regex(createLeagueBodySlugRegExp),
   "visibility": zod.enum(['public', 'unlisted', 'private']).default(createLeagueBodyVisibilityDefault),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".').default(createLeagueBodyPlatformDefault),
+  "team_count": zod.number().min(createLeagueBodyTeamCountMin).max(createLeagueBodyTeamCountMax).default(createLeagueBodyTeamCountDefault),
+  "settings_template_id": zod.string().optional().describe('Which league-settings template to seed version 1 from. Defaults to balanced_standard.'),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
   "logo_url": zod.string().nullish()
@@ -279,6 +288,7 @@ export const CreateLeagueResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
   "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).optional().describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "logo_url": zod.string().nullish(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
@@ -296,6 +306,7 @@ export const GetMyLeaguesResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
   "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).optional().describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "logo_url": zod.string().nullish(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
@@ -317,6 +328,7 @@ export const GetLeagueResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
   "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).optional().describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "logo_url": zod.string().nullish(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
@@ -349,11 +361,53 @@ export const UpdateLeagueResponse = zod.object({
   "slug": zod.string(),
   "name": zod.string(),
   "visibility": zod.enum(['public', 'unlisted', 'private']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).optional().describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "logo_url": zod.string().nullish(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
   "owner_user_id": zod.string().optional(),
   "created_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Starting points for the settings editor and Create League's settings step
+ */
+export const listLeagueSettingsTemplatesResponseDataItemFieldsPointsWinMin = 0;
+
+export const listLeagueSettingsTemplatesResponseDataItemFieldsPointsOtLossMin = 0;
+
+export const listLeagueSettingsTemplatesResponseDataItemFieldsWaiverWindowHoursMax = 168;
+
+
+
+export const ListLeagueSettingsTemplatesResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "fields": zod.object({
+  "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
+  "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
+  "schedule_settings": zod.record(zod.string(), zod.unknown()),
+  "playoff_format": zod.record(zod.string(), zod.unknown()),
+  "salary_cap_cents": zod.number().nullish(),
+  "roster_min": zod.number().nullish(),
+  "roster_max": zod.number().nullish(),
+  "divisions": zod.array(zod.string()),
+  "conferences": zod.array(zod.string()),
+  "rules_notes": zod.string().nullish(),
+  "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "require_verified_identities": zod.boolean().optional(),
+  "points_win": zod.number().min(listLeagueSettingsTemplatesResponseDataItemFieldsPointsWinMin).optional(),
+  "points_ot_loss": zod.number().min(listLeagueSettingsTemplatesResponseDataItemFieldsPointsOtLossMin).optional(),
+  "points_reg_loss": zod.literal(0).optional(),
+  "tiebreakers": zod.array(zod.string()).optional(),
+  "auto_approve_trades": zod.boolean().optional(),
+  "cap_enforcement": zod.enum(['block', 'warn', 'off']).optional(),
+  "waiver_window_hours": zod.number().min(1).max(listLeagueSettingsTemplatesResponseDataItemFieldsWaiverWindowHoursMax).optional()
+}).describe('Everything a settings version needs except platform, team_count, and\nchange_summary — those are chosen independently (platform\/team_count\nare league-identity facts, change_summary is per-save).\n')
+}))
 })
 
 
@@ -364,35 +418,57 @@ export const GetLeagueSettingsParams = zod.object({
   "leagueId": zod.coerce.string()
 })
 
-export const getLeagueSettingsResponseOneEaLeagueIdMax = 100;
+export const getLeagueSettingsResponseOneOneEaLeagueIdMax = 100;
 
-export const getLeagueSettingsResponseOneTeamCountMin = 3;
-export const getLeagueSettingsResponseOneTeamCountMax = 32;
+export const getLeagueSettingsResponseOneOneTeamCountMin = 3;
+export const getLeagueSettingsResponseOneOneTeamCountMax = 32;
 
-export const getLeagueSettingsResponseOneSalaryCapCentsMin = 0;
-
-
-
-export const getLeagueSettingsResponseOneChangeSummaryMax = 500;
+export const getLeagueSettingsResponseOneOneSalaryCapCentsMin = 0;
 
 
 
-export const GetLeagueSettingsResponse = zod.object({
-  "ea_league_id": zod.string().max(getLeagueSettingsResponseOneEaLeagueIdMax).nullish(),
-  "platform": zod.enum(['psn', 'xbox', 'both']),
-  "team_count": zod.number().min(getLeagueSettingsResponseOneTeamCountMin).max(getLeagueSettingsResponseOneTeamCountMax),
+export const getLeagueSettingsResponseOneOneRequireVerifiedIdentitiesDefault = false;
+export const getLeagueSettingsResponseOneOnePointsWinDefault = 2;
+export const getLeagueSettingsResponseOneOnePointsWinMin = 0;
+
+export const getLeagueSettingsResponseOneOnePointsOtLossDefault = 1;
+export const getLeagueSettingsResponseOneOnePointsOtLossMin = 0;
+
+export const getLeagueSettingsResponseOneOnePointsRegLossDefault = 0;
+export const getLeagueSettingsResponseOneOneTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
+export const getLeagueSettingsResponseOneOneAutoApproveTradesDefault = false;
+export const getLeagueSettingsResponseOneOneCapEnforcementDefault = `warn`;
+export const getLeagueSettingsResponseOneOneWaiverWindowHoursDefault = 24;
+export const getLeagueSettingsResponseOneOneWaiverWindowHoursMax = 168;
+
+export const getLeagueSettingsResponseOneOneChangeSummaryMax = 500;
+
+
+
+export const GetLeagueSettingsResponse = zod.union([zod.object({
+  "ea_league_id": zod.string().max(getLeagueSettingsResponseOneOneEaLeagueIdMax).nullish(),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
+  "team_count": zod.number().min(getLeagueSettingsResponseOneOneTeamCountMin).max(getLeagueSettingsResponseOneOneTeamCountMax),
   "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
   "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
   "schedule_settings": zod.record(zod.string(), zod.unknown()),
   "playoff_format": zod.record(zod.string(), zod.unknown()),
-  "salary_cap_cents": zod.number().min(getLeagueSettingsResponseOneSalaryCapCentsMin).nullish(),
+  "salary_cap_cents": zod.number().min(getLeagueSettingsResponseOneOneSalaryCapCentsMin).nullish(),
   "roster_min": zod.number().min(1).nullish(),
   "roster_max": zod.number().min(1).nullish(),
   "divisions": zod.array(zod.string()),
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
-  "change_summary": zod.string().min(1).max(getLeagueSettingsResponseOneChangeSummaryMax)
+  "require_verified_identities": zod.boolean().default(getLeagueSettingsResponseOneOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
+  "points_win": zod.number().min(getLeagueSettingsResponseOneOnePointsWinMin).default(getLeagueSettingsResponseOneOnePointsWinDefault).describe('League default for a season\'s points-for-a-win. Seasons may override at creation.'),
+  "points_ot_loss": zod.number().min(getLeagueSettingsResponseOneOnePointsOtLossMin).default(getLeagueSettingsResponseOneOnePointsOtLossDefault).describe('League default for a season\'s points-for-an-overtime-loss.'),
+  "points_reg_loss": zod.literal(0).default(getLeagueSettingsResponseOneOnePointsRegLossDefault).describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).default(getLeagueSettingsResponseOneOneTiebreakersDefault).describe('League default standings tiebreaker order. Seasons may override at creation.'),
+  "auto_approve_trades": zod.boolean().default(getLeagueSettingsResponseOneOneAutoApproveTradesDefault).describe('When true, a trade executes as soon as the counterparty GM accepts — no separate commissioner approval step.'),
+  "cap_enforcement": zod.enum(['block', 'warn', 'off']).default(getLeagueSettingsResponseOneOneCapEnforcementDefault).describe('How a trade or signing that would put a team over the salary cap is handled.'),
+  "waiver_window_hours": zod.number().min(1).max(getLeagueSettingsResponseOneOneWaiverWindowHoursMax).default(getLeagueSettingsResponseOneOneWaiverWindowHoursDefault).describe('How long a released player is claimable before clearing to free agency outright.'),
+  "change_summary": zod.string().min(1).max(getLeagueSettingsResponseOneOneChangeSummaryMax)
 }).and(zod.object({
   "id": zod.string(),
   "league_id": zod.string(),
@@ -401,7 +477,9 @@ export const GetLeagueSettingsResponse = zod.object({
   "changed_at": zod.coerce.date(),
   "is_active": zod.boolean(),
   "can_manage": zod.boolean()
-}))
+})),zod.object({
+  "can_manage": zod.boolean()
+})])
 
 
 /**
@@ -420,66 +498,112 @@ export const CreateLeagueSettingsVersionHeader = zod.object({
   "Idempotency-Key": zod.string().max(createLeagueSettingsVersionHeaderIdempotencyKeyMax).optional()
 })
 
-export const createLeagueSettingsVersionBodyEaLeagueIdMax = 100;
+export const createLeagueSettingsVersionBodyOneEaLeagueIdMax = 100;
 
-export const createLeagueSettingsVersionBodyTeamCountMin = 3;
-export const createLeagueSettingsVersionBodyTeamCountMax = 32;
+export const createLeagueSettingsVersionBodyOneTeamCountMin = 3;
+export const createLeagueSettingsVersionBodyOneTeamCountMax = 32;
 
-export const createLeagueSettingsVersionBodySalaryCapCentsMin = 0;
-
-
-
-export const createLeagueSettingsVersionBodyChangeSummaryMax = 500;
+export const createLeagueSettingsVersionBodyOneSalaryCapCentsMin = 0;
 
 
+
+export const createLeagueSettingsVersionBodyOneRequireVerifiedIdentitiesDefault = false;
+export const createLeagueSettingsVersionBodyOnePointsWinDefault = 2;
+export const createLeagueSettingsVersionBodyOnePointsWinMin = 0;
+
+export const createLeagueSettingsVersionBodyOnePointsOtLossDefault = 1;
+export const createLeagueSettingsVersionBodyOnePointsOtLossMin = 0;
+
+export const createLeagueSettingsVersionBodyOnePointsRegLossDefault = 0;
+export const createLeagueSettingsVersionBodyOneTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
+export const createLeagueSettingsVersionBodyOneAutoApproveTradesDefault = false;
+export const createLeagueSettingsVersionBodyOneCapEnforcementDefault = `warn`;
+export const createLeagueSettingsVersionBodyOneWaiverWindowHoursDefault = 24;
+export const createLeagueSettingsVersionBodyOneWaiverWindowHoursMax = 168;
+
+export const createLeagueSettingsVersionBodyOneChangeSummaryMax = 500;
+
+export const createLeagueSettingsVersionBodyTwoApplyToActiveSeasonDefault = false;
 
 export const CreateLeagueSettingsVersionBody = zod.object({
-  "ea_league_id": zod.string().max(createLeagueSettingsVersionBodyEaLeagueIdMax).nullish(),
-  "platform": zod.enum(['psn', 'xbox', 'both']),
-  "team_count": zod.number().min(createLeagueSettingsVersionBodyTeamCountMin).max(createLeagueSettingsVersionBodyTeamCountMax),
+  "ea_league_id": zod.string().max(createLeagueSettingsVersionBodyOneEaLeagueIdMax).nullish(),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
+  "team_count": zod.number().min(createLeagueSettingsVersionBodyOneTeamCountMin).max(createLeagueSettingsVersionBodyOneTeamCountMax),
   "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
   "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
   "schedule_settings": zod.record(zod.string(), zod.unknown()),
   "playoff_format": zod.record(zod.string(), zod.unknown()),
-  "salary_cap_cents": zod.number().min(createLeagueSettingsVersionBodySalaryCapCentsMin).nullish(),
+  "salary_cap_cents": zod.number().min(createLeagueSettingsVersionBodyOneSalaryCapCentsMin).nullish(),
   "roster_min": zod.number().min(1).nullish(),
   "roster_max": zod.number().min(1).nullish(),
   "divisions": zod.array(zod.string()),
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
-  "change_summary": zod.string().min(1).max(createLeagueSettingsVersionBodyChangeSummaryMax)
-})
+  "require_verified_identities": zod.boolean().default(createLeagueSettingsVersionBodyOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
+  "points_win": zod.number().min(createLeagueSettingsVersionBodyOnePointsWinMin).default(createLeagueSettingsVersionBodyOnePointsWinDefault).describe('League default for a season\'s points-for-a-win. Seasons may override at creation.'),
+  "points_ot_loss": zod.number().min(createLeagueSettingsVersionBodyOnePointsOtLossMin).default(createLeagueSettingsVersionBodyOnePointsOtLossDefault).describe('League default for a season\'s points-for-an-overtime-loss.'),
+  "points_reg_loss": zod.literal(0).default(createLeagueSettingsVersionBodyOnePointsRegLossDefault).describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).default(createLeagueSettingsVersionBodyOneTiebreakersDefault).describe('League default standings tiebreaker order. Seasons may override at creation.'),
+  "auto_approve_trades": zod.boolean().default(createLeagueSettingsVersionBodyOneAutoApproveTradesDefault).describe('When true, a trade executes as soon as the counterparty GM accepts — no separate commissioner approval step.'),
+  "cap_enforcement": zod.enum(['block', 'warn', 'off']).default(createLeagueSettingsVersionBodyOneCapEnforcementDefault).describe('How a trade or signing that would put a team over the salary cap is handled.'),
+  "waiver_window_hours": zod.number().min(1).max(createLeagueSettingsVersionBodyOneWaiverWindowHoursMax).default(createLeagueSettingsVersionBodyOneWaiverWindowHoursDefault).describe('How long a released player is claimable before clearing to free agency outright.'),
+  "change_summary": zod.string().min(1).max(createLeagueSettingsVersionBodyOneChangeSummaryMax)
+}).and(zod.object({
+  "apply_to_active_season": zod.boolean().default(createLeagueSettingsVersionBodyTwoApplyToActiveSeasonDefault).describe('When true and the league has an active season, also update that\nseason\'s own points\/tiebreaker snapshot to match this version\n(the season\'s salary cap, roster limits, and games-per-matchup\nstay as originally set — only points and tiebreakers, which a\ncommissioner might reasonably want to correct mid-season, are\nretroactively applied).\n')
+}))
 
-export const createLeagueSettingsVersionResponseOneEaLeagueIdMax = 100;
+export const createLeagueSettingsVersionResponseOneOneEaLeagueIdMax = 100;
 
-export const createLeagueSettingsVersionResponseOneTeamCountMin = 3;
-export const createLeagueSettingsVersionResponseOneTeamCountMax = 32;
+export const createLeagueSettingsVersionResponseOneOneTeamCountMin = 3;
+export const createLeagueSettingsVersionResponseOneOneTeamCountMax = 32;
 
-export const createLeagueSettingsVersionResponseOneSalaryCapCentsMin = 0;
+export const createLeagueSettingsVersionResponseOneOneSalaryCapCentsMin = 0;
 
 
 
-export const createLeagueSettingsVersionResponseOneChangeSummaryMax = 500;
+export const createLeagueSettingsVersionResponseOneOneRequireVerifiedIdentitiesDefault = false;
+export const createLeagueSettingsVersionResponseOneOnePointsWinDefault = 2;
+export const createLeagueSettingsVersionResponseOneOnePointsWinMin = 0;
+
+export const createLeagueSettingsVersionResponseOneOnePointsOtLossDefault = 1;
+export const createLeagueSettingsVersionResponseOneOnePointsOtLossMin = 0;
+
+export const createLeagueSettingsVersionResponseOneOnePointsRegLossDefault = 0;
+export const createLeagueSettingsVersionResponseOneOneTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
+export const createLeagueSettingsVersionResponseOneOneAutoApproveTradesDefault = false;
+export const createLeagueSettingsVersionResponseOneOneCapEnforcementDefault = `warn`;
+export const createLeagueSettingsVersionResponseOneOneWaiverWindowHoursDefault = 24;
+export const createLeagueSettingsVersionResponseOneOneWaiverWindowHoursMax = 168;
+
+export const createLeagueSettingsVersionResponseOneOneChangeSummaryMax = 500;
 
 
 
 export const CreateLeagueSettingsVersionResponse = zod.object({
-  "ea_league_id": zod.string().max(createLeagueSettingsVersionResponseOneEaLeagueIdMax).nullish(),
-  "platform": zod.enum(['psn', 'xbox', 'both']),
-  "team_count": zod.number().min(createLeagueSettingsVersionResponseOneTeamCountMin).max(createLeagueSettingsVersionResponseOneTeamCountMax),
+  "ea_league_id": zod.string().max(createLeagueSettingsVersionResponseOneOneEaLeagueIdMax).nullish(),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
+  "team_count": zod.number().min(createLeagueSettingsVersionResponseOneOneTeamCountMin).max(createLeagueSettingsVersionResponseOneOneTeamCountMax),
   "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
   "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
   "schedule_settings": zod.record(zod.string(), zod.unknown()),
   "playoff_format": zod.record(zod.string(), zod.unknown()),
-  "salary_cap_cents": zod.number().min(createLeagueSettingsVersionResponseOneSalaryCapCentsMin).nullish(),
+  "salary_cap_cents": zod.number().min(createLeagueSettingsVersionResponseOneOneSalaryCapCentsMin).nullish(),
   "roster_min": zod.number().min(1).nullish(),
   "roster_max": zod.number().min(1).nullish(),
   "divisions": zod.array(zod.string()),
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
-  "change_summary": zod.string().min(1).max(createLeagueSettingsVersionResponseOneChangeSummaryMax)
+  "require_verified_identities": zod.boolean().default(createLeagueSettingsVersionResponseOneOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
+  "points_win": zod.number().min(createLeagueSettingsVersionResponseOneOnePointsWinMin).default(createLeagueSettingsVersionResponseOneOnePointsWinDefault).describe('League default for a season\'s points-for-a-win. Seasons may override at creation.'),
+  "points_ot_loss": zod.number().min(createLeagueSettingsVersionResponseOneOnePointsOtLossMin).default(createLeagueSettingsVersionResponseOneOnePointsOtLossDefault).describe('League default for a season\'s points-for-an-overtime-loss.'),
+  "points_reg_loss": zod.literal(0).default(createLeagueSettingsVersionResponseOneOnePointsRegLossDefault).describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).default(createLeagueSettingsVersionResponseOneOneTiebreakersDefault).describe('League default standings tiebreaker order. Seasons may override at creation.'),
+  "auto_approve_trades": zod.boolean().default(createLeagueSettingsVersionResponseOneOneAutoApproveTradesDefault).describe('When true, a trade executes as soon as the counterparty GM accepts — no separate commissioner approval step.'),
+  "cap_enforcement": zod.enum(['block', 'warn', 'off']).default(createLeagueSettingsVersionResponseOneOneCapEnforcementDefault).describe('How a trade or signing that would put a team over the salary cap is handled.'),
+  "waiver_window_hours": zod.number().min(1).max(createLeagueSettingsVersionResponseOneOneWaiverWindowHoursMax).default(createLeagueSettingsVersionResponseOneOneWaiverWindowHoursDefault).describe('How long a released player is claimable before clearing to free agency outright.'),
+  "change_summary": zod.string().min(1).max(createLeagueSettingsVersionResponseOneOneChangeSummaryMax)
 }).and(zod.object({
   "id": zod.string(),
   "league_id": zod.string(),
@@ -488,6 +612,8 @@ export const CreateLeagueSettingsVersionResponse = zod.object({
   "changed_at": zod.coerce.date(),
   "is_active": zod.boolean(),
   "can_manage": zod.boolean()
+})).and(zod.object({
+  "applied_to_active_season_id": zod.string().nullable().describe('Set when apply_to_active_season was true and the league had an active season.')
 }))
 
 
@@ -507,6 +633,20 @@ export const listLeagueSettingsHistoryResponseDataItemOneSalaryCapCentsMin = 0;
 
 
 
+export const listLeagueSettingsHistoryResponseDataItemOneRequireVerifiedIdentitiesDefault = false;
+export const listLeagueSettingsHistoryResponseDataItemOnePointsWinDefault = 2;
+export const listLeagueSettingsHistoryResponseDataItemOnePointsWinMin = 0;
+
+export const listLeagueSettingsHistoryResponseDataItemOnePointsOtLossDefault = 1;
+export const listLeagueSettingsHistoryResponseDataItemOnePointsOtLossMin = 0;
+
+export const listLeagueSettingsHistoryResponseDataItemOnePointsRegLossDefault = 0;
+export const listLeagueSettingsHistoryResponseDataItemOneTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
+export const listLeagueSettingsHistoryResponseDataItemOneAutoApproveTradesDefault = false;
+export const listLeagueSettingsHistoryResponseDataItemOneCapEnforcementDefault = `warn`;
+export const listLeagueSettingsHistoryResponseDataItemOneWaiverWindowHoursDefault = 24;
+export const listLeagueSettingsHistoryResponseDataItemOneWaiverWindowHoursMax = 168;
+
 export const listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax = 500;
 
 
@@ -514,7 +654,7 @@ export const listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax = 500;
 export const ListLeagueSettingsHistoryResponse = zod.object({
   "data": zod.array(zod.object({
   "ea_league_id": zod.string().max(listLeagueSettingsHistoryResponseDataItemOneEaLeagueIdMax).nullish(),
-  "platform": zod.enum(['psn', 'xbox', 'both']),
+  "platform": zod.enum(['xbox', 'playstation', 'crossplay']).describe('Which consoles the league accepts. Crossplay means both, not \"either unspecified\".'),
   "team_count": zod.number().min(listLeagueSettingsHistoryResponseDataItemOneTeamCountMin).max(listLeagueSettingsHistoryResponseDataItemOneTeamCountMax),
   "roster_source": zod.enum(['manual', 'ea', 'csv_import']),
   "schedule_format": zod.enum(['round_robin', 'double_round_robin', 'custom']),
@@ -527,6 +667,14 @@ export const ListLeagueSettingsHistoryResponse = zod.object({
   "conferences": zod.array(zod.string()),
   "rules_notes": zod.string().nullish(),
   "slider_presets": zod.record(zod.string(), zod.unknown()),
+  "require_verified_identities": zod.boolean().default(listLeagueSettingsHistoryResponseDataItemOneRequireVerifiedIdentitiesDefault).describe('Members must confirm their gamertag (Xbox verification, or commissioner attestation) before claiming a seat.'),
+  "points_win": zod.number().min(listLeagueSettingsHistoryResponseDataItemOnePointsWinMin).default(listLeagueSettingsHistoryResponseDataItemOnePointsWinDefault).describe('League default for a season\'s points-for-a-win. Seasons may override at creation.'),
+  "points_ot_loss": zod.number().min(listLeagueSettingsHistoryResponseDataItemOnePointsOtLossMin).default(listLeagueSettingsHistoryResponseDataItemOnePointsOtLossDefault).describe('League default for a season\'s points-for-an-overtime-loss.'),
+  "points_reg_loss": zod.literal(0).default(listLeagueSettingsHistoryResponseDataItemOnePointsRegLossDefault).describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).default(listLeagueSettingsHistoryResponseDataItemOneTiebreakersDefault).describe('League default standings tiebreaker order. Seasons may override at creation.'),
+  "auto_approve_trades": zod.boolean().default(listLeagueSettingsHistoryResponseDataItemOneAutoApproveTradesDefault).describe('When true, a trade executes as soon as the counterparty GM accepts — no separate commissioner approval step.'),
+  "cap_enforcement": zod.enum(['block', 'warn', 'off']).default(listLeagueSettingsHistoryResponseDataItemOneCapEnforcementDefault).describe('How a trade or signing that would put a team over the salary cap is handled.'),
+  "waiver_window_hours": zod.number().min(1).max(listLeagueSettingsHistoryResponseDataItemOneWaiverWindowHoursMax).default(listLeagueSettingsHistoryResponseDataItemOneWaiverWindowHoursDefault).describe('How long a released player is claimable before clearing to free agency outright.'),
   "change_summary": zod.string().min(1).max(listLeagueSettingsHistoryResponseDataItemOneChangeSummaryMax)
 }).and(zod.object({
   "id": zod.string(),
@@ -851,18 +999,12 @@ export const createSeasonBodySalaryCapCentsMin = 0;
 
 
 
-export const createSeasonBodyGamesPerMatchupDefault = 1;
 
-export const createSeasonBodyPointsWinDefault = 2;
 export const createSeasonBodyPointsWinMin = 0;
 
-export const createSeasonBodyPointsOtLossDefault = 1;
 export const createSeasonBodyPointsOtLossMin = 0;
 
-export const createSeasonBodyPointsRegLossDefault = 0;
-export const createSeasonBodyPointsRegLossMin = 0;
 
-export const createSeasonBodyTiebreakersDefault = [`points`, `row`, `wins`, `goal_diff`, `goals_for`];
 
 export const CreateSeasonBody = zod.object({
   "label": zod.string().min(1).max(createSeasonBodyLabelMax),
@@ -872,11 +1014,11 @@ export const CreateSeasonBody = zod.object({
   "salary_cap_cents": zod.number().min(createSeasonBodySalaryCapCentsMin).nullish(),
   "roster_min": zod.number().min(1).nullish(),
   "roster_max": zod.number().min(1).nullish(),
-  "games_per_matchup": zod.number().min(1).default(createSeasonBodyGamesPerMatchupDefault),
-  "points_win": zod.number().min(createSeasonBodyPointsWinMin).default(createSeasonBodyPointsWinDefault),
-  "points_ot_loss": zod.number().min(createSeasonBodyPointsOtLossMin).default(createSeasonBodyPointsOtLossDefault),
-  "points_reg_loss": zod.number().min(createSeasonBodyPointsRegLossMin).default(createSeasonBodyPointsRegLossDefault),
-  "tiebreakers": zod.array(zod.string()).default(createSeasonBodyTiebreakersDefault)
+  "games_per_matchup": zod.number().min(1).optional().describe('Overrides the league\'s configured schedule format for this season only. Defaults to the league\'s active settings.'),
+  "points_win": zod.number().min(createSeasonBodyPointsWinMin).optional().describe('Overrides the league\'s default points-for-a-win for this season only. Defaults to the league\'s active settings.'),
+  "points_ot_loss": zod.number().min(createSeasonBodyPointsOtLossMin).optional().describe('Overrides the league\'s default points-for-an-OT-loss for this season only. Defaults to the league\'s active settings.'),
+  "points_reg_loss": zod.literal(0).optional().describe('Always 0 — hockey does not award points for a regulation loss.'),
+  "tiebreakers": zod.array(zod.string()).optional().describe('Overrides the league\'s default tiebreaker order for this season only. Defaults to the league\'s active settings.')
 })
 
 
@@ -1877,7 +2019,19 @@ export const GetGameOverlapParams = zod.object({
   "gameId": zod.coerce.string()
 })
 
-export const GetGameOverlapResponse = zod.unknown()
+export const GetGameOverlapResponse = zod.object({
+  "game_id": zod.string().optional(),
+  "window_opens_at": zod.coerce.date().optional(),
+  "window_closes_at": zod.coerce.date().optional(),
+  "has_overlap": zod.boolean(),
+  "overlaps": zod.array(zod.object({
+  "start_utc": zod.coerce.date(),
+  "end_utc": zod.coerce.date(),
+  "home_gm": zod.string().describe('Slot start, rendered in the home GM\'s local timezone.'),
+  "away_gm": zod.string().describe('Slot start, rendered in the away GM\'s local timezone.')
+})),
+  "message": zod.string().optional().describe('Set instead of overlaps when a GM hasn\'t saved availability yet.')
+})
 
 
 /**
@@ -1935,6 +2089,380 @@ export const ResolveDqFindingResponse = zod.object({
   "detail": zod.string().describe('JSON string — the full row from the check view, serialised with row_to_json().'),
   "resolved_at": zod.coerce.date().nullish(),
   "resolved_by": zod.string().nullish()
+})
+
+
+/**
+ * @summary List players in this league's pool (free agents and rostered)
+ */
+export const ListPlayersParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListPlayersQueryParams = zod.object({
+  "free_agents_only": zod.coerce.boolean().optional()
+})
+
+export const ListPlayersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "full_name": zod.string(),
+  "position": zod.string(),
+  "shoots": zod.string().nullish(),
+  "country_code": zod.string().nullish(),
+  "contract": zod.object({
+  "id": zod.string().optional(),
+  "team_season_id": zod.string().nullish(),
+  "cap_hit_cents": zod.number().optional(),
+  "term_years": zod.number().nullish(),
+  "roster_status": zod.enum(['active', 'ir', 'minors']).optional()
+}).nullish()
+}))
+})
+
+
+/**
+ * @summary Add a player to the league's pool by hand (commissioner only, manual roster source)
+ */
+export const CreatePlayerParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const createPlayerBodyFullNameMax = 100;
+
+export const createPlayerBodyCountryCodeMin = 2;
+export const createPlayerBodyCountryCodeMax = 2;
+
+
+
+export const CreatePlayerBody = zod.object({
+  "full_name": zod.string().min(1).max(createPlayerBodyFullNameMax),
+  "position": zod.enum(['C', 'LW', 'RW', 'D', 'G']),
+  "shoots": zod.union([zod.literal('L'),zod.literal('R'),zod.literal(null)]).nullish(),
+  "birthdate": zod.coerce.date().nullish(),
+  "country_code": zod.string().min(createPlayerBodyCountryCodeMin).max(createPlayerBodyCountryCodeMax).nullish()
+})
+
+export const CreatePlayerResponse = zod.object({
+  "id": zod.string(),
+  "full_name": zod.string(),
+  "position": zod.string(),
+  "shoots": zod.string().nullish(),
+  "country_code": zod.string().nullish(),
+  "contract": zod.object({
+  "id": zod.string().optional(),
+  "team_season_id": zod.string().nullish(),
+  "cap_hit_cents": zod.number().optional(),
+  "term_years": zod.number().nullish(),
+  "roster_status": zod.enum(['active', 'ir', 'minors']).optional()
+}).nullish()
+})
+
+
+/**
+ * @summary Recent decided transactions (executed, rejected, or reversed), newest first
+ */
+export const ListWireTransactionsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const listWireTransactionsQueryLimitMax = 100;
+
+
+
+export const ListWireTransactionsQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listWireTransactionsQueryLimitMax).optional()
+})
+
+export const ListWireTransactionsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "status": zod.string(),
+  "summary": zod.string(),
+  "note": zod.string().nullish(),
+  "proposed_at": zod.coerce.date(),
+  "resolved_at": zod.coerce.date().nullish(),
+  "decided_by": zod.string().nullish(),
+  "decided_at": zod.coerce.date().nullish()
+}))
+})
+
+
+/**
+ * @summary Real-time salary cap position for a team, derived from active contracts
+ */
+export const GetCapPositionParams = zod.object({
+  "teamSeasonId": zod.coerce.string()
+})
+
+export const GetCapPositionResponse = zod.object({
+  "team_season_id": zod.string(),
+  "salary_cap_cents": zod.number().nullish(),
+  "cap_used_cents": zod.number(),
+  "cap_space_cents": zod.number().nullish(),
+  "roster_count": zod.number(),
+  "is_illegal": zod.boolean()
+})
+
+
+/**
+ * @summary Propose a trade between two teams (a GM on either side, or the commissioner)
+ */
+export const ProposeTradeParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const proposeTradeHeaderIdempotencyKeyMax = 255;
+
+
+
+export const ProposeTradeHeader = zod.object({
+  "Idempotency-Key": zod.string().max(proposeTradeHeaderIdempotencyKeyMax).optional()
+})
+
+export const proposeTradeBodySideAPlayerIdsMax = 5;
+
+export const proposeTradeBodySideBPlayerIdsMax = 5;
+
+export const proposeTradeBodyNoteMax = 500;
+
+
+
+export const ProposeTradeBody = zod.object({
+  "side_a": zod.object({
+  "team_season_id": zod.string(),
+  "player_ids": zod.array(zod.string()).max(proposeTradeBodySideAPlayerIdsMax)
+}),
+  "side_b": zod.object({
+  "team_season_id": zod.string(),
+  "player_ids": zod.array(zod.string()).max(proposeTradeBodySideBPlayerIdsMax)
+}),
+  "note": zod.string().max(proposeTradeBodyNoteMax).nullish()
+})
+
+export const ProposeTradeResponse = zod.object({
+  "id": zod.string(),
+  "type": zod.enum(['trade']),
+  "status": zod.string(),
+  "proposed_at": zod.coerce.date(),
+  "cap_preview": zod.object({
+  "side_a": zod.object({
+  "team_season_id": zod.string(),
+  "before": zod.object({
+  "team_season_id": zod.string(),
+  "salary_cap_cents": zod.number().nullish(),
+  "cap_used_cents": zod.number(),
+  "cap_space_cents": zod.number().nullish(),
+  "roster_count": zod.number(),
+  "is_illegal": zod.boolean()
+}),
+  "projected_cap_used_cents": zod.number(),
+  "would_be_over_cap": zod.boolean()
+}),
+  "side_b": zod.object({
+  "team_season_id": zod.string(),
+  "before": zod.object({
+  "team_season_id": zod.string(),
+  "salary_cap_cents": zod.number().nullish(),
+  "cap_used_cents": zod.number(),
+  "cap_space_cents": zod.number().nullish(),
+  "roster_count": zod.number(),
+  "is_illegal": zod.boolean()
+}),
+  "projected_cap_used_cents": zod.number(),
+  "would_be_over_cap": zod.boolean()
+})
+})
+})
+
+
+/**
+ * @summary The counterparty GM's co-signature. Executes immediately if the league auto-approves trades.
+ */
+export const AcceptTradeParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "transactionId": zod.coerce.string()
+})
+
+export const AcceptTradeResponse = zod.object({
+  "id": zod.string(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Commissioner approves an accepted trade and executes it
+ */
+export const ApproveTradeParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "transactionId": zod.coerce.string()
+})
+
+export const ApproveTradeResponse = zod.object({
+  "id": zod.string(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Either side's GM, or the commissioner, rejects a pending trade
+ */
+export const RejectTradeParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "transactionId": zod.coerce.string()
+})
+
+export const rejectTradeBodyReasonMax = 500;
+
+
+
+export const RejectTradeBody = zod.object({
+  "reason": zod.string().max(rejectTradeBodyReasonMax).nullish()
+})
+
+export const RejectTradeResponse = zod.object({
+  "id": zod.string(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Sign a free agent to a team (that team's GM, or the commissioner)
+ */
+export const CreateSigningParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const createSigningHeaderIdempotencyKeyMax = 255;
+
+
+
+export const CreateSigningHeader = zod.object({
+  "Idempotency-Key": zod.string().max(createSigningHeaderIdempotencyKeyMax).optional()
+})
+
+export const createSigningBodyCapHitCentsMin = 0;
+
+export const createSigningBodyTermYearsMax = 8;
+
+
+
+export const CreateSigningBody = zod.object({
+  "team_season_id": zod.string(),
+  "player_id": zod.string(),
+  "cap_hit_cents": zod.number().min(createSigningBodyCapHitCentsMin),
+  "term_years": zod.number().min(1).max(createSigningBodyTermYearsMax).nullish()
+})
+
+export const CreateSigningResponse = zod.object({
+  "id": zod.string(),
+  "contract_id": zod.string(),
+  "status": zod.string(),
+  "over_cap_warning": zod.boolean()
+})
+
+
+/**
+ * @summary Release a rostered player to waivers (that team's GM, or the commissioner)
+ */
+export const CreateReleaseParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const createReleaseHeaderIdempotencyKeyMax = 255;
+
+
+
+export const CreateReleaseHeader = zod.object({
+  "Idempotency-Key": zod.string().max(createReleaseHeaderIdempotencyKeyMax).optional()
+})
+
+export const CreateReleaseBody = zod.object({
+  "player_id": zod.string()
+})
+
+export const CreateReleaseResponse = zod.object({
+  "transaction_id": zod.string(),
+  "waiver_id": zod.string(),
+  "expires_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Open waivers for this league's active season (auto-resolves any past their claim window)
+ */
+export const ListWaiversParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListWaiversResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "player_id": zod.string(),
+  "full_name": zod.string(),
+  "waived_by_team_season_id": zod.string(),
+  "opened_at": zod.coerce.date(),
+  "expires_at": zod.coerce.date(),
+  "status": zod.enum(['open', 'resolved', 'withdrawn']),
+  "claim_count": zod.number()
+}))
+})
+
+
+/**
+ * @summary Submit a claim on a waived player (the claiming team's GM, or the commissioner)
+ */
+export const CreateWaiverClaimParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "waiverId": zod.coerce.string()
+})
+
+export const createWaiverClaimHeaderIdempotencyKeyMax = 255;
+
+
+
+export const CreateWaiverClaimHeader = zod.object({
+  "Idempotency-Key": zod.string().max(createWaiverClaimHeaderIdempotencyKeyMax).optional()
+})
+
+export const CreateWaiverClaimBody = zod.object({
+  "team_season_id": zod.string()
+})
+
+export const CreateWaiverClaimResponse = zod.object({
+  "id": zod.string(),
+  "status": zod.string()
+})
+
+
+/**
+ * @summary Commissioner resolves a waiver before its window closes
+ */
+export const ResolveWaiverNowParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "waiverId": zod.coerce.string()
+})
+
+export const ResolveWaiverNowResponse = zod.object({
+  "winning_team_season_id": zod.string().nullable()
+})
+
+
+/**
+ * @summary Move a rostered player between active, IR, and minors (that team's GM, or the commissioner)
+ */
+export const SetRosterStatusParams = zod.object({
+  "contractId": zod.coerce.string()
+})
+
+export const SetRosterStatusBody = zod.object({
+  "roster_status": zod.enum(['active', 'ir', 'minors'])
+})
+
+export const SetRosterStatusResponse = zod.object({
+  "id": zod.string(),
+  "roster_status": zod.enum(['active', 'ir', 'minors'])
 })
 
 

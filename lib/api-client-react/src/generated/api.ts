@@ -22,6 +22,7 @@ import type {
 import type {
   ApplicantActionResult,
   AssignGmInput,
+  CapPosition,
   ClaimOutcome,
   CommissionerInvite,
   CommissionerInviteEnvelope,
@@ -30,13 +31,20 @@ import type {
   ConfirmInput,
   CreateInviteInput,
   CreateLeagueInput,
+  CreateLeagueSettingsVersion201,
+  CreateLeagueSettingsVersionInput,
+  CreatePlayerInput,
+  CreateReleaseInput,
   CreateSeasonInput,
+  CreateSigningInput,
+  CreateWaiverClaimInput,
   DeclineApplicantInput,
   DqFinding,
   DqFindingsEnvelope,
   FeatureRequestInput,
   FeatureRequestReceipt,
   ForceResolveGameBody,
+  GameOverlap,
   GameResult,
   GenerateScheduleBody,
   GenerateScheduleResult,
@@ -49,7 +57,6 @@ import type {
   LeagueHub,
   LeagueListing,
   LeagueSettingsHistory,
-  LeagueSettingsInput,
   LeagueSettingsVersion,
   LeagueSignup,
   LeagueSignupInput,
@@ -59,35 +66,52 @@ import type {
   ListInvites200,
   ListJoinRequests200,
   ListJoinRequestsParams,
+  ListLeagueSettingsTemplates200,
   ListLeagueSignups200,
   ListLeagueWaitlist200,
   ListOpenLeagues200,
   ListOpenLeaguesParams,
+  ListPlayers200,
+  ListPlayersParams,
   ListRulebookRevisions200,
   ListSeasons200,
   ListSeats200,
   ListUnassignedMembers200,
+  ListWaivers200,
+  ListWireTransactions200,
+  ListWireTransactionsParams,
+  NoLeagueSettingsYet,
+  Player,
   PostponeGameBody,
   Problem,
+  ProposeTradeInput,
   PublicCodeLookup,
   PublicCodeResult,
   PublicLeagueEnvelope,
   PublishRulebookInput,
+  RejectTransactionInput,
+  ReleaseResult,
   ReorderWaitlistEntry200,
   ResultInput,
   RevokeGmParams,
+  RosterStatusResult,
   RulebookRevision,
   Season,
   Seat,
   SetAvailabilityBody,
   SetPublicCodeInput,
+  SetRosterStatusInput,
   ShiftWindowBody,
+  SigningResult,
+  TradeProposalResult,
+  TransactionStatusResult,
   UpdateLeagueInput,
   UpdateLeagueListingInput,
   UserProfile,
   UserProfileUpdate,
   WaitlistEntry,
   WaitlistPositionInput,
+  WaiverResolution,
   WeekListEnvelope,
   XboxLinkStatus
 } from './api.schemas';
@@ -1239,6 +1263,83 @@ export const useUpdateLeague = <TError = ErrorType<Problem>,
       return useMutation(getUpdateLeagueMutationOptions(options));
     }
 
+export const getListLeagueSettingsTemplatesUrl = () => {
+
+
+
+
+  return `/api/league-settings/templates`
+}
+
+/**
+ * @summary Starting points for the settings editor and Create League's settings step
+ */
+export const listLeagueSettingsTemplates = async ( options?: RequestInit): Promise<ListLeagueSettingsTemplates200> => {
+
+  return customFetch<ListLeagueSettingsTemplates200>(getListLeagueSettingsTemplatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLeagueSettingsTemplatesQueryKey = () => {
+    return [
+    `/api/league-settings/templates`
+    ] as const;
+    }
+
+
+export const getListLeagueSettingsTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLeagueSettingsTemplatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>> = ({ signal }) => listLeagueSettingsTemplates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLeagueSettingsTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>>
+export type ListLeagueSettingsTemplatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Starting points for the settings editor and Create League's settings step
+ */
+
+export function useListLeagueSettingsTemplates<TData = Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSettingsTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLeagueSettingsTemplatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetLeagueSettingsUrl = (leagueId: string,) => {
 
 
@@ -1250,9 +1351,9 @@ export const getGetLeagueSettingsUrl = (leagueId: string,) => {
 /**
  * @summary Get the active immutable settings version (league members)
  */
-export const getLeagueSettings = async (leagueId: string, options?: RequestInit): Promise<LeagueSettingsVersion> => {
+export const getLeagueSettings = async (leagueId: string, options?: RequestInit): Promise<LeagueSettingsVersion | NoLeagueSettingsYet> => {
 
-  return customFetch<LeagueSettingsVersion>(getGetLeagueSettingsUrl(leagueId),
+  return customFetch<LeagueSettingsVersion | NoLeagueSettingsYet>(getGetLeagueSettingsUrl(leagueId),
   {
     ...options,
     method: 'GET'
@@ -1329,14 +1430,14 @@ export const getCreateLeagueSettingsVersionUrl = (leagueId: string,) => {
  * @summary Append and activate a new settings version (commissioner only)
  */
 export const createLeagueSettingsVersion = async (leagueId: string,
-    leagueSettingsInput: LeagueSettingsInput, options?: RequestInit): Promise<LeagueSettingsVersion> => {
+    createLeagueSettingsVersionInput: CreateLeagueSettingsVersionInput, options?: RequestInit): Promise<CreateLeagueSettingsVersion201> => {
 
-  return customFetch<LeagueSettingsVersion>(getCreateLeagueSettingsVersionUrl(leagueId),
+  return customFetch<CreateLeagueSettingsVersion201>(getCreateLeagueSettingsVersionUrl(leagueId),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(leagueSettingsInput)
+    body: JSON.stringify(createLeagueSettingsVersionInput)
   }
 );}
 
@@ -1345,8 +1446,8 @@ export const createLeagueSettingsVersion = async (leagueId: string,
 
 
 export const getCreateLeagueSettingsVersionMutationOptions = <TError = ErrorType<Problem>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<LeagueSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<LeagueSettingsInput>}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>}, TContext> => {
 
 const mutationKey = ['createLeagueSettingsVersion'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -1358,7 +1459,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, {leagueId: string;data: BodyType<LeagueSettingsInput>}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, {leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>}> = (props) => {
           const {leagueId,data} = props ?? {};
 
           return  createLeagueSettingsVersion(leagueId,data,requestOptions)
@@ -1372,18 +1473,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type CreateLeagueSettingsVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createLeagueSettingsVersion>>>
-    export type CreateLeagueSettingsVersionMutationBody = BodyType<LeagueSettingsInput>
+    export type CreateLeagueSettingsVersionMutationBody = BodyType<CreateLeagueSettingsVersionInput>
     export type CreateLeagueSettingsVersionMutationError = ErrorType<Problem>
 
     /**
  * @summary Append and activate a new settings version (commissioner only)
  */
 export const useCreateLeagueSettingsVersion = <TError = ErrorType<Problem>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<LeagueSettingsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLeagueSettingsVersion>>, TError,{leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createLeagueSettingsVersion>>,
         TError,
-        {leagueId: string;data: BodyType<LeagueSettingsInput>},
+        {leagueId: string;data: BodyType<CreateLeagueSettingsVersionInput>},
         TContext
       > => {
       return useMutation(getCreateLeagueSettingsVersionMutationOptions(options));
@@ -4785,9 +4886,9 @@ export const getGetGameOverlapUrl = (gameId: string,) => {
 /**
  * @summary Get overlapping availability for a game's two GMs
  */
-export const getGameOverlap = async (gameId: string, options?: RequestInit): Promise<void> => {
+export const getGameOverlap = async (gameId: string, options?: RequestInit): Promise<GameOverlap> => {
 
-  return customFetch<void>(getGetGameOverlapUrl(gameId),
+  return customFetch<GameOverlap>(getGetGameOverlapUrl(gameId),
   {
     ...options,
     method: 'GET'
@@ -5011,5 +5112,1064 @@ export const useResolveDqFinding = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getResolveDqFindingMutationOptions(options));
+    }
+
+export const getListPlayersUrl = (leagueId: string,
+    params?: ListPlayersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/leagues/${leagueId}/players?${stringifiedParams}` : `/api/leagues/${leagueId}/players`
+}
+
+/**
+ * @summary List players in this league's pool (free agents and rostered)
+ */
+export const listPlayers = async (leagueId: string,
+    params?: ListPlayersParams, options?: RequestInit): Promise<ListPlayers200> => {
+
+  return customFetch<ListPlayers200>(getListPlayersUrl(leagueId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlayersQueryKey = (leagueId: string,
+    params?: ListPlayersParams,) => {
+    return [
+    `/api/leagues/${leagueId}/players`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPlayersQueryOptions = <TData = Awaited<ReturnType<typeof listPlayers>>, TError = ErrorType<void>>(leagueId: string,
+    params?: ListPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlayersQueryKey(leagueId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlayers>>> = ({ signal }) => listPlayers(leagueId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlayers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPlayersQueryResult = NonNullable<Awaited<ReturnType<typeof listPlayers>>>
+export type ListPlayersQueryError = ErrorType<void>
+
+
+/**
+ * @summary List players in this league's pool (free agents and rostered)
+ */
+
+export function useListPlayers<TData = Awaited<ReturnType<typeof listPlayers>>, TError = ErrorType<void>>(
+ leagueId: string,
+    params?: ListPlayersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPlayers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPlayersQueryOptions(leagueId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePlayerUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/players`
+}
+
+/**
+ * @summary Add a player to the league's pool by hand (commissioner only, manual roster source)
+ */
+export const createPlayer = async (leagueId: string,
+    createPlayerInput: CreatePlayerInput, options?: RequestInit): Promise<Player> => {
+
+  return customFetch<Player>(getCreatePlayerUrl(leagueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPlayerInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePlayerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlayer>>, TError,{leagueId: string;data: BodyType<CreatePlayerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPlayer>>, TError,{leagueId: string;data: BodyType<CreatePlayerInput>}, TContext> => {
+
+const mutationKey = ['createPlayer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPlayer>>, {leagueId: string;data: BodyType<CreatePlayerInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  createPlayer(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePlayerMutationResult = NonNullable<Awaited<ReturnType<typeof createPlayer>>>
+    export type CreatePlayerMutationBody = BodyType<CreatePlayerInput>
+    export type CreatePlayerMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a player to the league's pool by hand (commissioner only, manual roster source)
+ */
+export const useCreatePlayer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlayer>>, TError,{leagueId: string;data: BodyType<CreatePlayerInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPlayer>>,
+        TError,
+        {leagueId: string;data: BodyType<CreatePlayerInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePlayerMutationOptions(options));
+    }
+
+export const getListWireTransactionsUrl = (leagueId: string,
+    params?: ListWireTransactionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/leagues/${leagueId}/wire?${stringifiedParams}` : `/api/leagues/${leagueId}/wire`
+}
+
+/**
+ * @summary Recent decided transactions (executed, rejected, or reversed), newest first
+ */
+export const listWireTransactions = async (leagueId: string,
+    params?: ListWireTransactionsParams, options?: RequestInit): Promise<ListWireTransactions200> => {
+
+  return customFetch<ListWireTransactions200>(getListWireTransactionsUrl(leagueId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWireTransactionsQueryKey = (leagueId: string,
+    params?: ListWireTransactionsParams,) => {
+    return [
+    `/api/leagues/${leagueId}/wire`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListWireTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof listWireTransactions>>, TError = ErrorType<void>>(leagueId: string,
+    params?: ListWireTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWireTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWireTransactionsQueryKey(leagueId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWireTransactions>>> = ({ signal }) => listWireTransactions(leagueId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWireTransactions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWireTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof listWireTransactions>>>
+export type ListWireTransactionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Recent decided transactions (executed, rejected, or reversed), newest first
+ */
+
+export function useListWireTransactions<TData = Awaited<ReturnType<typeof listWireTransactions>>, TError = ErrorType<void>>(
+ leagueId: string,
+    params?: ListWireTransactionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWireTransactions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWireTransactionsQueryOptions(leagueId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCapPositionUrl = (teamSeasonId: string,) => {
+
+
+
+
+  return `/api/team-seasons/${teamSeasonId}/cap`
+}
+
+/**
+ * @summary Real-time salary cap position for a team, derived from active contracts
+ */
+export const getCapPosition = async (teamSeasonId: string, options?: RequestInit): Promise<CapPosition> => {
+
+  return customFetch<CapPosition>(getGetCapPositionUrl(teamSeasonId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCapPositionQueryKey = (teamSeasonId: string,) => {
+    return [
+    `/api/team-seasons/${teamSeasonId}/cap`
+    ] as const;
+    }
+
+
+export const getGetCapPositionQueryOptions = <TData = Awaited<ReturnType<typeof getCapPosition>>, TError = ErrorType<void>>(teamSeasonId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCapPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCapPositionQueryKey(teamSeasonId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCapPosition>>> = ({ signal }) => getCapPosition(teamSeasonId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: teamSeasonId !== null && teamSeasonId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCapPosition>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCapPositionQueryResult = NonNullable<Awaited<ReturnType<typeof getCapPosition>>>
+export type GetCapPositionQueryError = ErrorType<void>
+
+
+/**
+ * @summary Real-time salary cap position for a team, derived from active contracts
+ */
+
+export function useGetCapPosition<TData = Awaited<ReturnType<typeof getCapPosition>>, TError = ErrorType<void>>(
+ teamSeasonId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCapPosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCapPositionQueryOptions(teamSeasonId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getProposeTradeUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/trades`
+}
+
+/**
+ * @summary Propose a trade between two teams (a GM on either side, or the commissioner)
+ */
+export const proposeTrade = async (leagueId: string,
+    proposeTradeInput: ProposeTradeInput, options?: RequestInit): Promise<TradeProposalResult> => {
+
+  return customFetch<TradeProposalResult>(getProposeTradeUrl(leagueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(proposeTradeInput)
+  }
+);}
+
+
+
+
+
+export const getProposeTradeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof proposeTrade>>, TError,{leagueId: string;data: BodyType<ProposeTradeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof proposeTrade>>, TError,{leagueId: string;data: BodyType<ProposeTradeInput>}, TContext> => {
+
+const mutationKey = ['proposeTrade'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof proposeTrade>>, {leagueId: string;data: BodyType<ProposeTradeInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  proposeTrade(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProposeTradeMutationResult = NonNullable<Awaited<ReturnType<typeof proposeTrade>>>
+    export type ProposeTradeMutationBody = BodyType<ProposeTradeInput>
+    export type ProposeTradeMutationError = ErrorType<void>
+
+    /**
+ * @summary Propose a trade between two teams (a GM on either side, or the commissioner)
+ */
+export const useProposeTrade = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof proposeTrade>>, TError,{leagueId: string;data: BodyType<ProposeTradeInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof proposeTrade>>,
+        TError,
+        {leagueId: string;data: BodyType<ProposeTradeInput>},
+        TContext
+      > => {
+      return useMutation(getProposeTradeMutationOptions(options));
+    }
+
+export const getAcceptTradeUrl = (leagueId: string,
+    transactionId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/trades/${transactionId}/accept`
+}
+
+/**
+ * @summary The counterparty GM's co-signature. Executes immediately if the league auto-approves trades.
+ */
+export const acceptTrade = async (leagueId: string,
+    transactionId: string, options?: RequestInit): Promise<TransactionStatusResult> => {
+
+  return customFetch<TransactionStatusResult>(getAcceptTradeUrl(leagueId,transactionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptTradeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptTrade>>, TError,{leagueId: string;transactionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptTrade>>, TError,{leagueId: string;transactionId: string}, TContext> => {
+
+const mutationKey = ['acceptTrade'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptTrade>>, {leagueId: string;transactionId: string}> = (props) => {
+          const {leagueId,transactionId} = props ?? {};
+
+          return  acceptTrade(leagueId,transactionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptTradeMutationResult = NonNullable<Awaited<ReturnType<typeof acceptTrade>>>
+
+    export type AcceptTradeMutationError = ErrorType<void>
+
+    /**
+ * @summary The counterparty GM's co-signature. Executes immediately if the league auto-approves trades.
+ */
+export const useAcceptTrade = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptTrade>>, TError,{leagueId: string;transactionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptTrade>>,
+        TError,
+        {leagueId: string;transactionId: string},
+        TContext
+      > => {
+      return useMutation(getAcceptTradeMutationOptions(options));
+    }
+
+export const getApproveTradeUrl = (leagueId: string,
+    transactionId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/trades/${transactionId}/approve`
+}
+
+/**
+ * @summary Commissioner approves an accepted trade and executes it
+ */
+export const approveTrade = async (leagueId: string,
+    transactionId: string, options?: RequestInit): Promise<TransactionStatusResult> => {
+
+  return customFetch<TransactionStatusResult>(getApproveTradeUrl(leagueId,transactionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getApproveTradeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveTrade>>, TError,{leagueId: string;transactionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveTrade>>, TError,{leagueId: string;transactionId: string}, TContext> => {
+
+const mutationKey = ['approveTrade'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveTrade>>, {leagueId: string;transactionId: string}> = (props) => {
+          const {leagueId,transactionId} = props ?? {};
+
+          return  approveTrade(leagueId,transactionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveTradeMutationResult = NonNullable<Awaited<ReturnType<typeof approveTrade>>>
+
+    export type ApproveTradeMutationError = ErrorType<void>
+
+    /**
+ * @summary Commissioner approves an accepted trade and executes it
+ */
+export const useApproveTrade = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveTrade>>, TError,{leagueId: string;transactionId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveTrade>>,
+        TError,
+        {leagueId: string;transactionId: string},
+        TContext
+      > => {
+      return useMutation(getApproveTradeMutationOptions(options));
+    }
+
+export const getRejectTradeUrl = (leagueId: string,
+    transactionId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/trades/${transactionId}/reject`
+}
+
+/**
+ * @summary Either side's GM, or the commissioner, rejects a pending trade
+ */
+export const rejectTrade = async (leagueId: string,
+    transactionId: string,
+    rejectTransactionInput?: RejectTransactionInput, options?: RequestInit): Promise<TransactionStatusResult> => {
+
+  return customFetch<TransactionStatusResult>(getRejectTradeUrl(leagueId,transactionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(rejectTransactionInput)
+  }
+);}
+
+
+
+
+
+export const getRejectTradeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectTrade>>, TError,{leagueId: string;transactionId: string;data?: BodyType<RejectTransactionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectTrade>>, TError,{leagueId: string;transactionId: string;data?: BodyType<RejectTransactionInput>}, TContext> => {
+
+const mutationKey = ['rejectTrade'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectTrade>>, {leagueId: string;transactionId: string;data?: BodyType<RejectTransactionInput>}> = (props) => {
+          const {leagueId,transactionId,data} = props ?? {};
+
+          return  rejectTrade(leagueId,transactionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectTradeMutationResult = NonNullable<Awaited<ReturnType<typeof rejectTrade>>>
+    export type RejectTradeMutationBody = BodyType<RejectTransactionInput> | undefined
+    export type RejectTradeMutationError = ErrorType<void>
+
+    /**
+ * @summary Either side's GM, or the commissioner, rejects a pending trade
+ */
+export const useRejectTrade = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectTrade>>, TError,{leagueId: string;transactionId: string;data?: BodyType<RejectTransactionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectTrade>>,
+        TError,
+        {leagueId: string;transactionId: string;data?: BodyType<RejectTransactionInput>},
+        TContext
+      > => {
+      return useMutation(getRejectTradeMutationOptions(options));
+    }
+
+export const getCreateSigningUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/signings`
+}
+
+/**
+ * @summary Sign a free agent to a team (that team's GM, or the commissioner)
+ */
+export const createSigning = async (leagueId: string,
+    createSigningInput: CreateSigningInput, options?: RequestInit): Promise<SigningResult> => {
+
+  return customFetch<SigningResult>(getCreateSigningUrl(leagueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createSigningInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSigningMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSigning>>, TError,{leagueId: string;data: BodyType<CreateSigningInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSigning>>, TError,{leagueId: string;data: BodyType<CreateSigningInput>}, TContext> => {
+
+const mutationKey = ['createSigning'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSigning>>, {leagueId: string;data: BodyType<CreateSigningInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  createSigning(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSigningMutationResult = NonNullable<Awaited<ReturnType<typeof createSigning>>>
+    export type CreateSigningMutationBody = BodyType<CreateSigningInput>
+    export type CreateSigningMutationError = ErrorType<void>
+
+    /**
+ * @summary Sign a free agent to a team (that team's GM, or the commissioner)
+ */
+export const useCreateSigning = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSigning>>, TError,{leagueId: string;data: BodyType<CreateSigningInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSigning>>,
+        TError,
+        {leagueId: string;data: BodyType<CreateSigningInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSigningMutationOptions(options));
+    }
+
+export const getCreateReleaseUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/releases`
+}
+
+/**
+ * @summary Release a rostered player to waivers (that team's GM, or the commissioner)
+ */
+export const createRelease = async (leagueId: string,
+    createReleaseInput: CreateReleaseInput, options?: RequestInit): Promise<ReleaseResult> => {
+
+  return customFetch<ReleaseResult>(getCreateReleaseUrl(leagueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createReleaseInput)
+  }
+);}
+
+
+
+
+
+export const getCreateReleaseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRelease>>, TError,{leagueId: string;data: BodyType<CreateReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRelease>>, TError,{leagueId: string;data: BodyType<CreateReleaseInput>}, TContext> => {
+
+const mutationKey = ['createRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRelease>>, {leagueId: string;data: BodyType<CreateReleaseInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  createRelease(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof createRelease>>>
+    export type CreateReleaseMutationBody = BodyType<CreateReleaseInput>
+    export type CreateReleaseMutationError = ErrorType<void>
+
+    /**
+ * @summary Release a rostered player to waivers (that team's GM, or the commissioner)
+ */
+export const useCreateRelease = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRelease>>, TError,{leagueId: string;data: BodyType<CreateReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRelease>>,
+        TError,
+        {leagueId: string;data: BodyType<CreateReleaseInput>},
+        TContext
+      > => {
+      return useMutation(getCreateReleaseMutationOptions(options));
+    }
+
+export const getListWaiversUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/waivers`
+}
+
+/**
+ * @summary Open waivers for this league's active season (auto-resolves any past their claim window)
+ */
+export const listWaivers = async (leagueId: string, options?: RequestInit): Promise<ListWaivers200> => {
+
+  return customFetch<ListWaivers200>(getListWaiversUrl(leagueId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWaiversQueryKey = (leagueId: string,) => {
+    return [
+    `/api/leagues/${leagueId}/waivers`
+    ] as const;
+    }
+
+
+export const getListWaiversQueryOptions = <TData = Awaited<ReturnType<typeof listWaivers>>, TError = ErrorType<void>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWaivers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWaiversQueryKey(leagueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWaivers>>> = ({ signal }) => listWaivers(leagueId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: leagueId !== null && leagueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWaivers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWaiversQueryResult = NonNullable<Awaited<ReturnType<typeof listWaivers>>>
+export type ListWaiversQueryError = ErrorType<void>
+
+
+/**
+ * @summary Open waivers for this league's active season (auto-resolves any past their claim window)
+ */
+
+export function useListWaivers<TData = Awaited<ReturnType<typeof listWaivers>>, TError = ErrorType<void>>(
+ leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWaivers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWaiversQueryOptions(leagueId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateWaiverClaimUrl = (leagueId: string,
+    waiverId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/waivers/${waiverId}/claims`
+}
+
+/**
+ * @summary Submit a claim on a waived player (the claiming team's GM, or the commissioner)
+ */
+export const createWaiverClaim = async (leagueId: string,
+    waiverId: string,
+    createWaiverClaimInput: CreateWaiverClaimInput, options?: RequestInit): Promise<TransactionStatusResult> => {
+
+  return customFetch<TransactionStatusResult>(getCreateWaiverClaimUrl(leagueId,waiverId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createWaiverClaimInput)
+  }
+);}
+
+
+
+
+
+export const getCreateWaiverClaimMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWaiverClaim>>, TError,{leagueId: string;waiverId: string;data: BodyType<CreateWaiverClaimInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWaiverClaim>>, TError,{leagueId: string;waiverId: string;data: BodyType<CreateWaiverClaimInput>}, TContext> => {
+
+const mutationKey = ['createWaiverClaim'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWaiverClaim>>, {leagueId: string;waiverId: string;data: BodyType<CreateWaiverClaimInput>}> = (props) => {
+          const {leagueId,waiverId,data} = props ?? {};
+
+          return  createWaiverClaim(leagueId,waiverId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWaiverClaimMutationResult = NonNullable<Awaited<ReturnType<typeof createWaiverClaim>>>
+    export type CreateWaiverClaimMutationBody = BodyType<CreateWaiverClaimInput>
+    export type CreateWaiverClaimMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a claim on a waived player (the claiming team's GM, or the commissioner)
+ */
+export const useCreateWaiverClaim = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWaiverClaim>>, TError,{leagueId: string;waiverId: string;data: BodyType<CreateWaiverClaimInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWaiverClaim>>,
+        TError,
+        {leagueId: string;waiverId: string;data: BodyType<CreateWaiverClaimInput>},
+        TContext
+      > => {
+      return useMutation(getCreateWaiverClaimMutationOptions(options));
+    }
+
+export const getResolveWaiverNowUrl = (leagueId: string,
+    waiverId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/waivers/${waiverId}/resolve`
+}
+
+/**
+ * @summary Commissioner resolves a waiver before its window closes
+ */
+export const resolveWaiverNow = async (leagueId: string,
+    waiverId: string, options?: RequestInit): Promise<WaiverResolution> => {
+
+  return customFetch<WaiverResolution>(getResolveWaiverNowUrl(leagueId,waiverId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResolveWaiverNowMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveWaiverNow>>, TError,{leagueId: string;waiverId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resolveWaiverNow>>, TError,{leagueId: string;waiverId: string}, TContext> => {
+
+const mutationKey = ['resolveWaiverNow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resolveWaiverNow>>, {leagueId: string;waiverId: string}> = (props) => {
+          const {leagueId,waiverId} = props ?? {};
+
+          return  resolveWaiverNow(leagueId,waiverId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResolveWaiverNowMutationResult = NonNullable<Awaited<ReturnType<typeof resolveWaiverNow>>>
+
+    export type ResolveWaiverNowMutationError = ErrorType<void>
+
+    /**
+ * @summary Commissioner resolves a waiver before its window closes
+ */
+export const useResolveWaiverNow = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resolveWaiverNow>>, TError,{leagueId: string;waiverId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resolveWaiverNow>>,
+        TError,
+        {leagueId: string;waiverId: string},
+        TContext
+      > => {
+      return useMutation(getResolveWaiverNowMutationOptions(options));
+    }
+
+export const getSetRosterStatusUrl = (contractId: string,) => {
+
+
+
+
+  return `/api/contracts/${contractId}/roster-status`
+}
+
+/**
+ * @summary Move a rostered player between active, IR, and minors (that team's GM, or the commissioner)
+ */
+export const setRosterStatus = async (contractId: string,
+    setRosterStatusInput: SetRosterStatusInput, options?: RequestInit): Promise<RosterStatusResult> => {
+
+  return customFetch<RosterStatusResult>(getSetRosterStatusUrl(contractId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setRosterStatusInput)
+  }
+);}
+
+
+
+
+
+export const getSetRosterStatusMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setRosterStatus>>, TError,{contractId: string;data: BodyType<SetRosterStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setRosterStatus>>, TError,{contractId: string;data: BodyType<SetRosterStatusInput>}, TContext> => {
+
+const mutationKey = ['setRosterStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setRosterStatus>>, {contractId: string;data: BodyType<SetRosterStatusInput>}> = (props) => {
+          const {contractId,data} = props ?? {};
+
+          return  setRosterStatus(contractId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetRosterStatusMutationResult = NonNullable<Awaited<ReturnType<typeof setRosterStatus>>>
+    export type SetRosterStatusMutationBody = BodyType<SetRosterStatusInput>
+    export type SetRosterStatusMutationError = ErrorType<void>
+
+    /**
+ * @summary Move a rostered player between active, IR, and minors (that team's GM, or the commissioner)
+ */
+export const useSetRosterStatus = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setRosterStatus>>, TError,{contractId: string;data: BodyType<SetRosterStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setRosterStatus>>,
+        TError,
+        {contractId: string;data: BodyType<SetRosterStatusInput>},
+        TContext
+      > => {
+      return useMutation(getSetRosterStatusMutationOptions(options));
     }
 
