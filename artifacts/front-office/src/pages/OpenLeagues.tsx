@@ -23,6 +23,7 @@ interface OpenLeague {
   accepting_signups: boolean;
   accepting_waitlist: boolean;
   active_season_id: string | null;
+  season_starts_on: string | null;
   max_seats: number;
   seats_filled: number;
   seats_open: number;
@@ -91,6 +92,13 @@ function normalisePlatform(p: string | null): 'playstation' | 'xbox' | 'crosspla
   if (l === 'xbox') return 'xbox';
   if (l === 'both' || l === 'crossplay') return 'crossplay';
   return null;
+}
+
+function formatSeasonStart(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  const d = new Date(`${dateStr.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  return `Starts ${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
 }
 
 function platformLabel(p: string | null): string {
@@ -350,6 +358,11 @@ export default function OpenLeagues() {
                         <span style={{ textTransform: 'capitalize' }}>{league.competitiveness}</span>
                       )}
                     </div>
+                    {formatSeasonStart(league.season_starts_on) && (
+                      <div className="lmeta" style={{ marginTop: '2px' }}>
+                        <span>{formatSeasonStart(league.season_starts_on)}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="health">
                     <div className="g" style={{ fontFamily: 'var(--display)', fontSize: '22px', lineHeight: 1, color: 'var(--pos)' }}>

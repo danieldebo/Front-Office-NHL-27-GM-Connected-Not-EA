@@ -64,7 +64,7 @@ function FindingRow({
     setResolving(true);
     try {
       await resolve.mutateAsync({ leagueId, findingId: finding.id });
-      await queryClient.invalidateQueries({ queryKey: ['listDqFindings'] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/dq-findings`] as any });
     } finally {
       setResolving(false);
     }

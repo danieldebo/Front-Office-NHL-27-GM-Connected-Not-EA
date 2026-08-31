@@ -3932,8 +3932,9 @@ components:
           type: string
         user_id:
           type: string
-        display_name:
+        gm_display_name:
           type: ["string", "null"]
+          description: Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.
         gm_platform:
           oneOf:
             - $ref: '#/components/schemas/PlayerSystem'
@@ -4464,6 +4465,10 @@ components:
           type: boolean
         active_season_id:
           type: ["string", "null"]
+        season_starts_on:
+          type: ["string", "null"]
+          format: date
+          description: Start date of the active season, if one exists.
         max_seats:
           type: integer
         seats_filled:

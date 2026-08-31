@@ -60,7 +60,10 @@ export function useSetupChecklist(leagueId: string): SetupChecklist {
     query: { enabled: Boolean(leagueId) } as any,
   });
   const invite = inviteEnvelope?.invite ?? null;
-  const inviteReady = Boolean(invite && (invite.max_uses != null || invite.expires_at != null || invite.uses > 0));
+  const publicCode = inviteEnvelope?.public_code ?? null;
+  // Step is only done once BOTH the reusable invite link and the public join
+  // code exist — not the moment either one gets used for the first time.
+  const inviteReady = Boolean(invite) && Boolean(publicCode);
 
   const { data: weeksData, isLoading: weeksLoading } = useListWeeks(activeSeason?.id ?? '', {
     query: { enabled: Boolean(activeSeason?.id) } as any,
@@ -104,7 +107,7 @@ export function useSetupChecklist(leagueId: string): SetupChecklist {
     {
       key: 'invite',
       title: 'Invite link',
-      why: 'How GMs actually get in.',
+      why: 'Generate both a reusable invite link and a public join code from the Players tab — GMs can use either to get in.',
       done: inviteReady,
       blockedReason: null,
       href: `/leagues/${leagueId}/manage?tab=players`,

@@ -6,7 +6,7 @@ import { SeatGmLabel } from './ManageLeague';
 const gm: AssignedGm = {
   assignment_id: 'assignment-1',
   user_id: 'user-1',
-  display_name: 'Commissioner Coach',
+  gm_display_name: 'Commissioner Coach',
   gm_platform: 'xbox',
   gm_primary_identity: 'playstation',
   gm_gamertag: 'CoachPSN',
@@ -30,7 +30,7 @@ describe('SeatGmLabel', () => {
   });
 
   it('falls back to "Unknown GM" instead of a raw user id when display_name is missing', () => {
-    render(<SeatGmLabel gm={{ ...gm, display_name: null }} seatId="seat-3" />);
+    render(<SeatGmLabel gm={{ ...gm, gm_display_name: null }} seatId="seat-3" />);
     const card = screen.getByTestId('text-seat-gm-seat-3');
     expect(within(card).getByText('Unknown GM')).toBeTruthy();
     expect(card.textContent).not.toContain('user-1');

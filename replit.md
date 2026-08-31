@@ -223,6 +223,7 @@ two places numeric order and dependency order diverge):
 | 2.15.0 | `db/schema-join-requests.sql` | `join_request` + `invite_link` — seats.ts always queried these; never previously committed as a migration |
 | 2.16.0 | `db/schema-gm-card-profile.sql` | `app_user.first_nhl_game` + `profile_image_url`, surfaced on the GM seat card |
 | 2.17.0 | `db/schema-league-limits.sql` | `app_user.extra_leagues_approved` — manual admin gate for a user's 6th-10th league |
+| 2.18.0 | `db/schema-open-league-season-start.sql` | `v_open_leagues.season_starts_on` — active season start date, for the public Open Leagues card |
 
 ---
 

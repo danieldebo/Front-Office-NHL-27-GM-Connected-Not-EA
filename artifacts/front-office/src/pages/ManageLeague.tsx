@@ -48,6 +48,7 @@ import { gmIdentityLabel } from '@/components/gmIdentity';
 import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
 import SetupChecklist from '@/components/SetupChecklist';
 import OperationsTab from '@/components/OperationsTab';
+import { toast } from '@/hooks/use-toast';
 
 // Helper components
 
@@ -60,7 +61,7 @@ function formatGmRecord(record?: { w: number; l: number; otl: number } | null): 
 
 export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) {
   const identity = gmIdentityLabel(gm);
-  const name = gm.display_name || 'Unknown GM';
+  const name = gm.gm_display_name || 'Unknown GM';
   const leagueRecord = formatGmRecord(gm.league_record);
   const siteRecord = formatGmRecord(gm.site_record);
   const hasFacts = Boolean(gm.first_nhl_game || leagueRecord || siteRecord);
@@ -201,8 +202,8 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
   }
 
   const invalidateSeatData = () => {
-    queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'seats'] as any });
-    queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'members', 'unassigned'] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/seats`] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/members/unassigned`] as any });
   };
 
   const handleRevoke = (seat: Seat) => {
@@ -294,9 +295,9 @@ function RulebookTab({ leagueId }: { leagueId: string }) {
     publish.mutate({ leagueId, data: { body_md: bodyMd, change_note: changeNote || null } }, {
       onSuccess: () => {
         setChangeNote('');
-        queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'rulebook'] as any });
-        queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'rulebook', 'revisions'] as any });
-        alert('Rulebook published!');
+        queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/rulebook`] as any });
+        queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/rulebook/revisions`] as any });
+        toast({ title: 'Rulebook published', description: changeNote || undefined });
       }
     });
   };
@@ -540,7 +541,7 @@ function PendingPlayers({ leagueId, leagueSlug }: { leagueId: string; leagueSlug
   const [capEditing, setCapEditing] = useState(false);
 
   const invalidateCommissionerInvite = () =>
-    queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'commissioner-invite'] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/commissioner-invite`] as any });
 
   React.useEffect(() => {
     if (commInviteData?.public_code && !publicCodeEditing) {
@@ -1544,7 +1545,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
     generate.mutate(
       { seasonId: activeSeason.id, data: { start_date: startDate } },
       {
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['/api/seasons', activeSeason.id, 'weeks'] as any }),
+        onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/seasons/${activeSeason.id}/weeks`] as any }),
         onError: (err: unknown) => setGenError(err instanceof Error ? err.message : 'Failed'),
       }
     );

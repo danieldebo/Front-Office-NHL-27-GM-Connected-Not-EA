@@ -117,6 +117,7 @@ export const ListOpenLeaguesResponse = zod.object({
   "accepting_signups": zod.boolean(),
   "accepting_waitlist": zod.boolean(),
   "active_season_id": zod.string().nullish(),
+  "season_starts_on": zod.coerce.date().nullish().describe('Start date of the active season, if one exists.'),
   "max_seats": zod.number(),
   "seats_filled": zod.number(),
   "seats_open": zod.number(),
@@ -1367,7 +1368,7 @@ export const ListSeatsResponse = zod.object({
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
-  "display_name": zod.string().nullish(),
+  "gm_display_name": zod.string().nullish().describe('Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.'),
   "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_gamertag": zod.string().nullish(),
@@ -1449,7 +1450,7 @@ export const AssignGmResponse = zod.object({
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
-  "display_name": zod.string().nullish(),
+  "gm_display_name": zod.string().nullish().describe('Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.'),
   "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_gamertag": zod.string().nullish(),
@@ -1499,7 +1500,7 @@ export const RevokeGmResponse = zod.object({
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
-  "display_name": zod.string().nullish(),
+  "gm_display_name": zod.string().nullish().describe('Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.'),
   "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_gamertag": zod.string().nullish(),

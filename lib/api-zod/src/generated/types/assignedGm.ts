@@ -11,8 +11,11 @@ import type { PlayerSystem } from './playerSystem';
 export interface AssignedGm {
   assignment_id: string;
   user_id: string;
-  /** @nullable */
-  display_name?: string | null;
+  /**
+     * Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.
+     * @nullable
+     */
+  gm_display_name?: string | null;
   gm_platform?: PlayerSystem | null;
   gm_primary_identity?: PlayerSystem | null;
   /** @nullable */

@@ -25,6 +25,11 @@ export interface OpenLeague {
   accepting_waitlist: boolean;
   /** @nullable */
   active_season_id?: string | null;
+  /**
+     * Start date of the active season, if one exists.
+     * @nullable
+     */
+  season_starts_on?: Date | null;
   max_seats: number;
   seats_filled: number;
   seats_open: number;
