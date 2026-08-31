@@ -806,6 +806,8 @@ export interface JoinRequest {
   /** @nullable */
   reviewed_by?: string | null;
   /** @nullable */
+  reviewed_by_name?: string | null;
+  /** @nullable */
   reviewed_at?: string | null;
   /** @nullable */
   note?: string | null;
@@ -1406,6 +1408,15 @@ export interface UpdateLeagueListingInput {
   timezone_focus?: string | null;
 }
 
+export type LeagueApplicantStatus = typeof LeagueApplicantStatus[keyof typeof LeagueApplicantStatus];
+
+
+export const LeagueApplicantStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
 export interface LeagueApplicant {
   signup_id: string;
   league_id: string;
@@ -1439,6 +1450,13 @@ export interface LeagueApplicant {
   waitlist_status?: string | null;
   /** @nullable */
   waitlist_position?: number | null;
+  status?: LeagueApplicantStatus;
+  /** @nullable */
+  decided_at?: string | null;
+  /** @nullable */
+  decision_note?: string | null;
+  /** @nullable */
+  decided_by_name?: string | null;
 }
 
 export type WaitlistApplicantStatus = typeof WaitlistApplicantStatus[keyof typeof WaitlistApplicantStatus];
@@ -1480,6 +1498,12 @@ export interface WaitlistApplicant {
   invited_at?: string | null;
   /** @nullable */
   invite_expires_at?: string | null;
+  /** @nullable */
+  resolved_at?: string | null;
+  /** @nullable */
+  decline_note?: string | null;
+  /** @nullable */
+  decided_by_name?: string | null;
 }
 
 export type ApplicantActionResultOutcome = typeof ApplicantActionResultOutcome[keyof typeof ApplicantActionResultOutcome];
@@ -2084,6 +2108,22 @@ export type ListOpenLeagues200 = {
   total: number;
 };
 
+export type ListLeagueWaitlistParams = {
+/**
+ * active (default, the live queue) — resolved (past decisions) — all
+ */
+status?: ListLeagueWaitlistStatus;
+};
+
+export type ListLeagueWaitlistStatus = typeof ListLeagueWaitlistStatus[keyof typeof ListLeagueWaitlistStatus];
+
+
+export const ListLeagueWaitlistStatus = {
+  active: 'active',
+  resolved: 'resolved',
+  all: 'all',
+} as const;
+
 export type ListLeagueWaitlist200 = {
   data: WaitlistApplicant[];
   total: number;
@@ -2110,6 +2150,22 @@ export type CreateLeagueSettingsVersion201 = LeagueSettingsVersion & ({
      */
   applied_to_active_season_id: string | null;
 });
+
+export type ListLeagueSignupsParams = {
+/**
+ * pending (default, the live queue) — resolved (past decisions) — all
+ */
+status?: ListLeagueSignupsStatus;
+};
+
+export type ListLeagueSignupsStatus = typeof ListLeagueSignupsStatus[keyof typeof ListLeagueSignupsStatus];
+
+
+export const ListLeagueSignupsStatus = {
+  pending: 'pending',
+  resolved: 'resolved',
+  all: 'all',
+} as const;
 
 export type ListLeagueSignups200 = {
   data: LeagueApplicant[];

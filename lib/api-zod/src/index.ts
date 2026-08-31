@@ -78,6 +78,7 @@ export type { KeeperSettingsResult } from "./generated/types/keeperSettingsResul
 export type { KeeperSlots } from "./generated/types/keeperSlots";
 export type { League } from "./generated/types/league";
 export type { LeagueApplicant } from "./generated/types/leagueApplicant";
+export type { LeagueApplicantStatus } from "./generated/types/leagueApplicantStatus";
 export type { LeagueHub } from "./generated/types/leagueHub";
 export type { LeagueListing } from "./generated/types/leagueListing";
 export type { LeagueListingCompetitiveness } from "./generated/types/leagueListingCompetitiveness";
@@ -116,7 +117,11 @@ export type { ListJoinRequestsParams } from "./generated/types/listJoinRequestsP
 export type { ListJoinRequestsStatus } from "./generated/types/listJoinRequestsStatus";
 export type { ListLeagueSettingsTemplates200 } from "./generated/types/listLeagueSettingsTemplates200";
 export type { ListLeagueSignups200 } from "./generated/types/listLeagueSignups200";
+export type { ListLeagueSignupsParams } from "./generated/types/listLeagueSignupsParams";
+export type { ListLeagueSignupsStatus } from "./generated/types/listLeagueSignupsStatus";
 export type { ListLeagueWaitlist200 } from "./generated/types/listLeagueWaitlist200";
+export type { ListLeagueWaitlistParams } from "./generated/types/listLeagueWaitlistParams";
+export type { ListLeagueWaitlistStatus } from "./generated/types/listLeagueWaitlistStatus";
 export type { ListOpenLeagues200 } from "./generated/types/listOpenLeagues200";
 export type { ListOpenLeaguesCompetitiveness } from "./generated/types/listOpenLeaguesCompetitiveness";
 // ListOpenLeaguesParams intentionally excluded — collides with Zod const of the same name in generated/api.ts

@@ -182,6 +182,9 @@ apply schema-email-digest.sql 2.9.0
 apply schema-calendar-feed.sql 2.10.0
 apply schema-league-partners.sql 2.11.0
 apply schema-replit-id.sql 2.12.0
+apply schema-signup-history.sql 2.13.0
+apply schema-waitlist-decided-by.sql 2.14.0
+apply schema-join-requests.sql 2.15.0
 
 echo
 echo "== Done. Current schema_version: =="

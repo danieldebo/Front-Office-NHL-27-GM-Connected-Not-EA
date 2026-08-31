@@ -85,7 +85,7 @@ async function intakeConflict(
     }
   } else {
     const existing = await pool.query<{ id: string }>(
-      `SELECT id FROM league_signup WHERE league_id = $1 AND user_id = $2`,
+      `SELECT id FROM league_signup WHERE league_id = $1 AND user_id = $2 AND status = 'pending'`,
       [leagueId, appUserId],
     );
     if (existing.rows[0]) {
@@ -463,6 +463,14 @@ router.get(
       return;
     }
 
+    // ?status=pending (default) shows the live queue; ?status=resolved shows
+    // past decisions; ?status=all shows everything.
+    const statusFilter = typeof req.query.status === "string" ? req.query.status : "pending";
+    const statusClause =
+      statusFilter === "all" ? "" :
+      statusFilter === "resolved" ? "AND su.status <> 'pending'" :
+      "AND su.status = 'pending'";
+
     // Query underlying tables directly so we can include su.id (signup id),
     // which v_league_applicants omits but the commissioner needs for accept/decline.
     const { rows } = await pool.query(
@@ -484,12 +492,17 @@ router.get(
           su.message,
           su.preferred_club,
           su.created_at,
+          su.status,
+          su.decided_at,
+          su.decision_note,
+          decider.display_name                          AS decided_by_name,
           w.status                                      AS waitlist_status,
           w.position                                    AS waitlist_position
        FROM league_signup su
        JOIN app_user u ON u.id = su.user_id
+       LEFT JOIN app_user decider ON decider.id = su.decided_by
        LEFT JOIN waitlist_entry w ON w.signup_id = su.id
-       WHERE su.league_id = $1
+       WHERE su.league_id = $1 ${statusClause}
        ORDER BY su.created_at ASC`,
       [leagueId]
     );
@@ -516,31 +529,43 @@ router.get(
       return;
     }
 
+    const statusFilter = typeof req.query.status === "string" ? req.query.status : "active";
+    const statusClause =
+      statusFilter === "all" ? "" :
+      statusFilter === "resolved" ? "AND w.status IN ('placed','declined','withdrawn','expired')" :
+      "AND w.status IN ('waiting','invited')";
+
+    // v_waitlist only carries the live queue (waiting/invited) — resolved
+    // entries are queried directly off the base tables here so a
+    // waitlist-only decision (no league_signup row) still has a history.
     const { rows } = await pool.query(
       `SELECT
            w.id                                          AS waitlist_entry_id,
            w.signup_id,
-           v.league_id,
-           v.position,
-           v.status,
-           v.user_id,
-           v.display_name,
-           v.skill_division,
-           v.country_code,
-           v.location,
-           v.timezone,
-            COALESCE(su.platform::text, w.platform)      AS platform,
-            COALESCE(su.platform_gamertag, w.platform_gamertag)
+           w.league_id,
+           w.position,
+           w.status,
+           w.user_id,
+           u.display_name,
+           su.stated_division                            AS skill_division,
+           COALESCE(su.country_code, u.country_code)      AS country_code,
+           COALESCE(su.location, u.location)              AS location,
+           COALESCE(su.timezone, u.timezone)               AS timezone,
+           COALESCE(su.platform::text, w.platform)         AS platform,
+           COALESCE(su.platform_gamertag, w.platform_gamertag)
                                                             AS platform_gamertag,
-           v.joined_at,
-           v.invited_at,
-           v.invite_expires_at
-        FROM v_waitlist v
-        JOIN waitlist_entry w
-          ON w.league_id = v.league_id AND w.user_id = v.user_id
-         LEFT JOIN league_signup su ON su.id = w.signup_id
-        WHERE v.league_id = $1
-        ORDER BY v.position ASC`,
+           w.joined_at,
+           w.invited_at,
+           w.invite_expires_at,
+           w.resolved_at,
+           w.decline_note,
+           decider.display_name                           AS decided_by_name
+        FROM waitlist_entry w
+        JOIN app_user u ON u.id = w.user_id
+        LEFT JOIN league_signup su ON su.id = w.signup_id
+        LEFT JOIN app_user decider ON decider.id = w.decided_by
+       WHERE w.league_id = $1 ${statusClause}
+       ORDER BY w.position ASC`,
       [leagueId]
     );
 
@@ -591,16 +616,16 @@ router.post(
     try {
       await client.query("BEGIN");
 
-      // Resolve waitlist entries for this applicant in this league.
-      // We filter by (league_id, user_id) — not just signup_id — so rows where
-      // the user joined the waitlist without a signup (signup_id IS NULL) are also
-      // captured. Nulling signup_id is idempotent and keeps the FK safe before
-      // the signup row is deleted below.
+      // Resolve waitlist entries for this applicant in this league. Filter by
+      // (league_id, user_id) — not just signup_id — so rows where the user
+      // joined the waitlist without a signup (signup_id IS NULL) are also
+      // captured. signup_id is left intact now that the signup row it points
+      // to is never deleted — that link is part of the history too.
       await client.query(
         `UPDATE waitlist_entry
-            SET signup_id = NULL, status = 'placed', resolved_at = now()
+            SET status = 'placed', resolved_at = now(), decided_by = $3
           WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
-        [leagueId, applicant.user_id]
+        [leagueId, applicant.user_id, callerAppUserId]
       );
 
       // Upsert league_membership so the applicant becomes a league member.
@@ -612,11 +637,12 @@ router.post(
         [leagueId, applicant.user_id]
       );
 
-      // Remove the signup so it no longer appears in the pending queue.
+      // Record the decision rather than deleting the signup, so a
+      // commissioner can look back at who they accepted and when.
       if (signupRow.rows[0]) {
         await client.query(
-          `DELETE FROM league_signup WHERE id = $1`,
-          [signupId]
+          `UPDATE league_signup SET status = 'accepted', decided_by = $1, decided_at = now() WHERE id = $2`,
+          [callerAppUserId, signupId]
         );
       }
 
@@ -686,31 +712,35 @@ router.post(
     try {
       await client.query("BEGIN");
 
-      // Resolve waitlist entries for this applicant in this league.
-      // Filter by (league_id, user_id) — not just signup_id — so rows where
-      // the user joined the waitlist without a signup (signup_id IS NULL) are
-      // also captured. Nulling signup_id is idempotent and keeps the FK safe.
+      // Resolve waitlist entries for this applicant in this league. Filter by
+      // (league_id, user_id) — not just signup_id — so rows where the user
+      // joined the waitlist without a signup (signup_id IS NULL) are also
+      // captured. signup_id is left intact — the signup row it points to is
+      // never deleted, so that link stays part of the history.
       if (note === undefined) {
         await client.query(
           `UPDATE waitlist_entry
-              SET signup_id = NULL, status = 'declined', resolved_at = now()
+              SET status = 'declined', resolved_at = now(), decided_by = $3
             WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
-          [leagueId, applicant.user_id]
+          [leagueId, applicant.user_id, callerAppUserId]
         );
       } else {
         await client.query(
           `UPDATE waitlist_entry
-              SET signup_id = NULL, status = 'declined', resolved_at = now(), decline_note = $3
+              SET status = 'declined', resolved_at = now(), decline_note = $3, decided_by = $4
             WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
-          [leagueId, applicant.user_id, note]
+          [leagueId, applicant.user_id, note, callerAppUserId]
         );
       }
 
-      // Remove the signup so it no longer appears in the pending queue.
+      // Record the decision rather than deleting the signup, so a
+      // commissioner can look back at who they declined, when, and why.
       if (signupRow.rows[0]) {
         await client.query(
-          `DELETE FROM league_signup WHERE id = $1`,
-          [signupId]
+          `UPDATE league_signup
+              SET status = 'declined', decided_by = $1, decided_at = now(), decision_note = $2
+            WHERE id = $3`,
+          [callerAppUserId, note ?? null, signupId]
         );
       }
 

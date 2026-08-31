@@ -357,9 +357,11 @@ router.get(
 
     const { rows } = await pool.query(
       `SELECT jr.id, jr.league_id, jr.user_id, au.display_name,
-              jr.status, jr.reviewed_by, jr.reviewed_at, jr.note, jr.created_at
+              jr.status, jr.reviewed_by, jr.reviewed_at, jr.note, jr.created_at,
+              reviewer.display_name AS reviewed_by_name
          FROM join_request jr
          JOIN app_user au ON au.id = jr.user_id
+         LEFT JOIN app_user reviewer ON reviewer.id = jr.reviewed_by
         WHERE jr.league_id = $1 ${statusClause}
         ORDER BY jr.created_at ASC`,
       params

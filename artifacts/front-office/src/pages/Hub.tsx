@@ -6,6 +6,7 @@ import MyWeek from '@/components/MyWeek';
 import Standings from '@/components/Standings';
 import Sidebar from '@/components/Sidebar';
 import { useSetupChecklist } from '@/hooks/useSetupChecklist';
+import { ACTIVE_LEAGUE_STORAGE_KEY } from '@/components/LeagueSwitcher';
 
 function LeagueDashboard({ league }: { league: League }) {
   const { data: hub, isLoading } = useGetLeagueHub(league.id);
@@ -37,7 +38,14 @@ function LeagueDashboard({ league }: { league: League }) {
 export default function Hub() {
   const { data: leaguesResponse, isLoading } = useGetMyLeagues();
   const leagues = leaguesResponse?.data || [];
-  const activeLeague = leagues[0];
+
+  let storedLeagueId: string | null = null;
+  try {
+    storedLeagueId = window.localStorage.getItem(ACTIVE_LEAGUE_STORAGE_KEY);
+  } catch {
+    // Private browsing / storage disabled — fall through to the default.
+  }
+  const activeLeague = leagues.find((l) => l.id === storedLeagueId) ?? leagues[0];
 
   if (isLoading) return <div className="loading-screen">Loading Front Office...</div>;
 

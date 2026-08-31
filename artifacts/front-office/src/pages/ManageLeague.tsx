@@ -79,7 +79,7 @@ function AssignGmPicker({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
       {members.length === 0 ? (
         <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>
-          No unassigned members. Accept an applicant from the Applicants tab first.
+          No unassigned members. Accept an applicant from the Players tab first.
         </div>
       ) : (
         <select
@@ -218,100 +218,6 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function JoinRequestsTab({ leagueId }: { leagueId: string }) {
-  const { data: reqsResponse, isLoading: isLoadingReqs } = useListJoinRequests(leagueId);
-  const { data: invResponse, isLoading: isLoadingInv } = useListInvites(leagueId);
-  
-  const approveReq = useApproveJoinRequest();
-  const rejectReq = useRejectJoinRequest();
-  const createInvite = useCreateInvite();
-  const queryClient = useQueryClient();
-
-  const requests = reqsResponse?.data || [];
-  const invites = invResponse?.data || [];
-  const pendingRequests = requests.filter(r => r.status === 'pending');
-
-  const handleApprove = (req: JoinRequest) => {
-    approveReq.mutate({ leagueId, requestId: req.id }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'join-requests'] as any })
-    });
-  };
-
-  const handleReject = (req: JoinRequest) => {
-    rejectReq.mutate({ leagueId, requestId: req.id }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'join-requests'] as any })
-    });
-  };
-
-  const handleCreateInvite = () => {
-    createInvite.mutate({ leagueId, data: { max_uses: null, expires_in_hours: null } }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'invites'] as any })
-    });
-  };
-
-  const handleCopy = (token: string) => {
-    const url = `${window.location.origin}/join/${token}`;
-    navigator.clipboard.writeText(url);
-    alert('Invite link copied!');
-  };
-
-  if (isLoadingReqs || isLoadingInv) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading requests...</div>;
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '26px' }}>
-      <div>
-        <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>Pending Requests</h3>
-        {pendingRequests.length === 0 ? (
-          <div className="panel" style={{ padding: '20px', textAlign: 'center', color: 'var(--steel)' }}>
-            No pending join requests.
-          </div>
-        ) : (
-          <div className="panel">
-            <table style={{ textAlign: 'left' }}>
-              <thead>
-                <tr>
-                  <th className="l">User</th>
-                  <th className="l">Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingRequests.map(req => (
-                  <tr key={req.id}>
-                    <td className="l" style={{ fontWeight: 600 }}>{req.display_name || req.user_id}</td>
-                    <td className="l">{new Date(req.created_at).toLocaleDateString()}</td>
-                    <td style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                      <button onClick={() => handleApprove(req)} className="btn" style={{ background: '#1F7A4C', borderColor: '#1F7A4C' }}>Approve</button>
-                      <button onClick={() => handleReject(req)} className="btn ghost" style={{ color: 'var(--goal)' }}>Reject</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>Invite Links</h3>
-        <div className="panel">
-          {invites.filter(i => !i.revoked_at).map(inv => (
-            <div key={inv.id} style={{ padding: '16px', borderBottom: '1px solid var(--rule)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>
-                Uses: {inv.use_count}{inv.max_uses ? ` / ${inv.max_uses}` : ''}
-              </div>
-              <button onClick={() => handleCopy(inv.token)} className="btn ghost">Copy Link</button>
-            </div>
-          ))}
-          <div style={{ padding: '16px', textAlign: 'center' }}>
-            <button onClick={handleCreateInvite} className="btn" style={{ width: '100%' }}>Generate New Invite</button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -773,16 +679,52 @@ function mergeApplicants(signups: LeagueApplicant[], waitlist: WaitlistApplicant
   );
 }
 
-function ApplicantsTab({ leagueId }: { leagueId: string }) {
+type PlayersView = 'pending' | 'history';
+
+function PlayersTab({ leagueId }: { leagueId: string }) {
+  const [view, setView] = useState<PlayersView>('pending');
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+        <button
+          onClick={() => setView('pending')}
+          className={`btn ${view !== 'pending' ? 'ghost' : ''}`}
+          style={{ fontSize: '12px', padding: '6px 16px' }}
+        >
+          Pending
+        </button>
+        <button
+          onClick={() => setView('history')}
+          className={`btn ${view !== 'history' ? 'ghost' : ''}`}
+          style={{ fontSize: '12px', padding: '6px 16px' }}
+        >
+          History
+        </button>
+      </div>
+      {view === 'pending' ? <PendingPlayers leagueId={leagueId} /> : <PlayersHistory leagueId={leagueId} />}
+    </div>
+  );
+}
+
+function PendingPlayers({ leagueId }: { leagueId: string }) {
   const queryClient = useQueryClient();
+  const { data: reqsResponse, isLoading: isLoadingReqs } = useListJoinRequests(leagueId, { status: 'pending' });
+  const { data: invResponse, isLoading: isLoadingInv } = useListInvites(leagueId);
   const { data: signupsData, isLoading: signupsLoading } = useListLeagueSignups(leagueId);
   const { data: waitlistData, isLoading: waitlistLoading } = useListLeagueWaitlist(leagueId);
+
+  const approveReq = useApproveJoinRequest();
+  const rejectReq = useRejectJoinRequest();
+  const createInvite = useCreateInvite();
   const acceptApplicant = useAcceptApplicant();
   const declineApplicant = useDeclineApplicant();
   const reorderWaitlist = useReorderWaitlistEntry();
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [declineNote, setDeclineNote] = useState('');
 
+  const requests = reqsResponse?.data ?? [];
+  const invites = invResponse?.data ?? [];
   const signups = signupsData?.data ?? [];
   const waitlist = waitlistData?.data ?? [];
   const applicants = mergeApplicants(signups, waitlist);
@@ -790,6 +732,29 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/signups`] as any });
     queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/waitlist`] as any });
+  };
+
+  const invalidateRequests = () =>
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/join-requests`] as any });
+
+  const handleApproveRequest = (req: JoinRequest) => {
+    approveReq.mutate({ leagueId, requestId: req.id }, { onSuccess: invalidateRequests });
+  };
+
+  const handleRejectRequest = (req: JoinRequest) => {
+    rejectReq.mutate({ leagueId, requestId: req.id }, { onSuccess: invalidateRequests });
+  };
+
+  const handleCreateInvite = () => {
+    createInvite.mutate({ leagueId, data: { max_uses: null, expires_in_hours: null } }, {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/invites`] as any }),
+    });
+  };
+
+  const handleCopyInvite = (token: string) => {
+    const url = `${window.location.origin}/join/${token}`;
+    navigator.clipboard.writeText(url);
+    alert('Invite link copied!');
   };
 
   // Position among 'waiting' entries only — same domain the backend reorders in.
@@ -830,8 +795,8 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
     });
   };
 
-  if (signupsLoading || waitlistLoading) {
-    return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>Loading applicants…</div>;
+  if (isLoadingReqs || isLoadingInv || signupsLoading || waitlistLoading) {
+    return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>Loading players…</div>;
   }
 
   const cardStyle: React.CSSProperties = {
@@ -846,6 +811,58 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
 
   return (
     <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '26px', marginBottom: '28px' }}>
+        <div>
+          <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>Join Requests</h3>
+          {requests.length === 0 ? (
+            <div className="panel" style={{ padding: '20px', textAlign: 'center', color: 'var(--steel)' }}>
+              No pending join requests.
+            </div>
+          ) : (
+            <div className="panel">
+              <table style={{ textAlign: 'left' }}>
+                <thead>
+                  <tr>
+                    <th className="l">User</th>
+                    <th className="l">Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {requests.map(req => (
+                    <tr key={req.id}>
+                      <td className="l" style={{ fontWeight: 600 }}>{req.display_name || req.user_id}</td>
+                      <td className="l">{new Date(req.created_at).toLocaleDateString()}</td>
+                      <td style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => handleApproveRequest(req)} className="btn" style={{ background: '#1F7A4C', borderColor: '#1F7A4C' }}>Approve</button>
+                        <button onClick={() => handleRejectRequest(req)} className="btn ghost" style={{ color: 'var(--goal)' }}>Reject</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>Invite Links</h3>
+          <div className="panel">
+            {invites.filter(i => !i.revoked_at).map(inv => (
+              <div key={inv.id} style={{ padding: '16px', borderBottom: '1px solid var(--rule)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>
+                  Uses: {inv.use_count}{inv.max_uses ? ` / ${inv.max_uses}` : ''}
+                </div>
+                <button onClick={() => handleCopyInvite(inv.token)} className="btn ghost">Copy Link</button>
+              </div>
+            ))}
+            <div style={{ padding: '16px', textAlign: 'center' }}>
+              <button onClick={handleCreateInvite} className="btn" style={{ width: '100%' }}>Generate New Invite</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>
         Applicants
         {applicants.length > 0 && (
@@ -1025,6 +1042,129 @@ function ApplicantsTab({ leagueId }: { leagueId: string }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+type HistoryOutcome = 'approved' | 'rejected' | 'accepted' | 'declined';
+
+type HistoryEntry = {
+  id: string;
+  displayName: string | null;
+  kind: 'Join Request' | 'Sign-up' | 'Waitlist';
+  outcome: HistoryOutcome;
+  decidedByName: string | null;
+  decidedAt: string | null;
+  note: string | null;
+};
+
+const HISTORY_OUTCOME_STYLE: Record<HistoryOutcome, { bg: string; color: string }> = {
+  approved: { bg: '#1F7A4C', color: '#fff' },
+  accepted: { bg: '#1F7A4C', color: '#fff' },
+  rejected: { bg: 'var(--goal)', color: '#fff' },
+  declined: { bg: 'var(--goal)', color: '#fff' },
+};
+
+function PlayersHistory({ leagueId }: { leagueId: string }) {
+  const { data: reqsResponse, isLoading: isLoadingReqs } = useListJoinRequests(leagueId);
+  const { data: signupsResponse, isLoading: isLoadingSignups } = useListLeagueSignups(leagueId, { status: 'resolved' });
+  const { data: waitlistResponse, isLoading: isLoadingWaitlist } = useListLeagueWaitlist(leagueId, { status: 'resolved' });
+
+  if (isLoadingReqs || isLoadingSignups || isLoadingWaitlist) {
+    return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>Loading history…</div>;
+  }
+
+  const requestEntries: HistoryEntry[] = (reqsResponse?.data ?? [])
+    .filter(r => r.status !== 'pending')
+    .map(r => ({
+      id: `jr-${r.id}`,
+      displayName: r.display_name ?? null,
+      kind: 'Join Request',
+      outcome: r.status as HistoryOutcome,
+      decidedByName: r.reviewed_by_name ?? null,
+      decidedAt: r.reviewed_at ?? null,
+      note: r.note ?? null,
+    }));
+
+  const signupEntries: HistoryEntry[] = (signupsResponse?.data ?? [])
+    .filter(s => s.status === 'accepted' || s.status === 'declined')
+    .map(s => ({
+      id: `su-${s.signup_id}`,
+      displayName: s.display_name ?? null,
+      kind: 'Sign-up',
+      outcome: s.status as HistoryOutcome,
+      decidedByName: s.decided_by_name ?? null,
+      decidedAt: s.decided_at ?? null,
+      note: s.decision_note ?? null,
+    }));
+
+  // Waitlist-only decisions (no linked sign-up — those are already covered
+  // above, since a signup-backed decision's final waitlist status rides
+  // along with its signup row).
+  const waitlistEntries: HistoryEntry[] = (waitlistResponse?.data ?? [])
+    .filter(w => w.signup_id == null && (w.status === 'placed' || w.status === 'declined'))
+    .map(w => ({
+      id: `wl-${w.waitlist_entry_id}`,
+      displayName: w.display_name ?? null,
+      kind: 'Waitlist',
+      outcome: w.status === 'placed' ? 'accepted' : 'declined',
+      decidedByName: w.decided_by_name ?? null,
+      decidedAt: w.resolved_at ?? null,
+      note: w.decline_note ?? null,
+    }));
+
+  const entries = [...requestEntries, ...signupEntries, ...waitlistEntries].sort(
+    (a, b) => new Date(b.decidedAt ?? 0).getTime() - new Date(a.decidedAt ?? 0).getTime()
+  );
+
+  if (entries.length === 0) {
+    return (
+      <div className="panel" style={{ padding: '28px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
+        No decisions recorded yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel">
+      <table style={{ textAlign: 'left' }}>
+        <thead>
+          <tr>
+            <th className="l">User</th>
+            <th className="l">Type</th>
+            <th className="l">Decision</th>
+            <th className="l">By</th>
+            <th className="l">When</th>
+            <th className="l">Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(entry => (
+            <tr key={entry.id}>
+              <td className="l" style={{ fontWeight: 600 }}>{entry.displayName ?? 'Unknown user'}</td>
+              <td className="l">{entry.kind}</td>
+              <td className="l">
+                <span
+                  className="chip"
+                  style={{
+                    fontSize: '10px',
+                    textTransform: 'uppercase',
+                    background: HISTORY_OUTCOME_STYLE[entry.outcome].bg,
+                    color: HISTORY_OUTCOME_STYLE[entry.outcome].color,
+                  }}
+                >
+                  {entry.outcome}
+                </span>
+              </td>
+              <td className="l">{entry.decidedByName ?? '—'}</td>
+              <td className="l">{entry.decidedAt ? new Date(entry.decidedAt).toLocaleDateString() : '—'}</td>
+              <td className="l" style={{ maxWidth: '260px', whiteSpace: 'normal', fontStyle: entry.note ? 'italic' : undefined }}>
+                {entry.note ?? '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -1471,8 +1611,8 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   );
 }
 
-type ManageTab = 'seats'|'requests'|'rulebook'|'schedule'|'settings'|'links'|'discovery'|'applicants'|'operations';
-const MANAGE_TABS: ManageTab[] = ['seats', 'requests', 'rulebook', 'schedule', 'settings', 'links', 'discovery', 'applicants', 'operations'];
+type ManageTab = 'seats'|'players'|'rulebook'|'schedule'|'settings'|'links'|'discovery'|'operations';
+const MANAGE_TABS: ManageTab[] = ['seats', 'players', 'rulebook', 'schedule', 'settings', 'links', 'discovery', 'operations'];
 
 export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
@@ -1534,13 +1674,13 @@ export default function ManageLeague() {
           >
             Franchise Seats
           </button>
-          <button 
-            onClick={() => setActiveTab('requests')}
-            className={`btn ${activeTab !== 'requests' ? 'ghost' : ''}`}
+          <button
+            onClick={() => setActiveTab('players')}
+            className={`btn ${activeTab !== 'players' ? 'ghost' : ''}`}
           >
-            Join Requests
+            Players
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('rulebook')}
             className={`btn ${activeTab !== 'rulebook' ? 'ghost' : ''}`}
           >
@@ -1571,12 +1711,6 @@ export default function ManageLeague() {
             Discovery
           </button>
           <button
-            onClick={() => setActiveTab('applicants')}
-            className={`btn ${activeTab !== 'applicants' ? 'ghost' : ''}`}
-          >
-            Applicants
-          </button>
-          <button
             onClick={() => setActiveTab('operations')}
             className={`btn ${activeTab !== 'operations' ? 'ghost' : ''}`}
           >
@@ -1594,7 +1728,7 @@ export default function ManageLeague() {
         </div>
 
         {activeTab === 'seats' && <SeatsTab leagueId={league.id} />}
-        {activeTab === 'requests' && <JoinRequestsTab leagueId={league.id} />}
+        {activeTab === 'players' && <PlayersTab leagueId={league.id} />}
         {activeTab === 'rulebook' && <RulebookTab leagueId={league.id} />}
         {activeTab === 'schedule' && (
           <ScheduleTab leagueId={league.id} />
@@ -1605,9 +1739,6 @@ export default function ManageLeague() {
         )}
         {activeTab === 'discovery' && (
           <DiscoveryTab leagueId={league.id} />
-        )}
-        {activeTab === 'applicants' && (
-          <ApplicantsTab leagueId={league.id} />
         )}
         {activeTab === 'operations' && (
           <OperationsTab leagueId={league.id} />

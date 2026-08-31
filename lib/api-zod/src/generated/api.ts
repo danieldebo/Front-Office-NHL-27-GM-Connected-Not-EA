@@ -169,6 +169,12 @@ export const ListLeagueWaitlistParams = zod.object({
   "leagueId": zod.coerce.string()
 })
 
+export const listLeagueWaitlistQueryStatusDefault = `active`;
+
+export const ListLeagueWaitlistQueryParams = zod.object({
+  "status": zod.enum(['active', 'resolved', 'all']).default(listLeagueWaitlistQueryStatusDefault).describe('active (default, the live queue) — resolved (past decisions) — all')
+})
+
 export const ListLeagueWaitlistResponse = zod.object({
   "data": zod.array(zod.object({
   "waitlist_entry_id": zod.string(),
@@ -186,7 +192,10 @@ export const ListLeagueWaitlistResponse = zod.object({
   "platform_gamertag": zod.string().nullish(),
   "joined_at": zod.coerce.date(),
   "invited_at": zod.coerce.date().nullish(),
-  "invite_expires_at": zod.coerce.date().nullish()
+  "invite_expires_at": zod.coerce.date().nullish(),
+  "resolved_at": zod.coerce.date().nullish(),
+  "decline_note": zod.string().nullish(),
+  "decided_by_name": zod.string().nullish()
 })),
   "total": zod.number()
 })
@@ -830,6 +839,12 @@ export const ListLeagueSignupsParams = zod.object({
   "leagueId": zod.coerce.string()
 })
 
+export const listLeagueSignupsQueryStatusDefault = `pending`;
+
+export const ListLeagueSignupsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'resolved', 'all']).default(listLeagueSignupsQueryStatusDefault).describe('pending (default, the live queue) — resolved (past decisions) — all')
+})
+
 export const ListLeagueSignupsResponse = zod.object({
   "data": zod.array(zod.object({
   "signup_id": zod.string(),
@@ -850,7 +865,11 @@ export const ListLeagueSignupsResponse = zod.object({
   "preferred_club": zod.string().nullish(),
   "created_at": zod.coerce.date(),
   "waitlist_status": zod.string().nullish(),
-  "waitlist_position": zod.number().nullish()
+  "waitlist_position": zod.number().nullish(),
+  "status": zod.enum(['pending', 'accepted', 'declined']).optional(),
+  "decided_at": zod.coerce.date().nullish(),
+  "decision_note": zod.string().nullish(),
+  "decided_by_name": zod.string().nullish()
 })),
   "total": zod.number()
 })
@@ -1196,6 +1215,7 @@ export const JoinViaInviteResponse = zod.object({
   "display_name": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewed_by": zod.string().nullish(),
+  "reviewed_by_name": zod.string().nullish(),
   "reviewed_at": zod.coerce.date().nullish(),
   "note": zod.string().nullish(),
   "created_at": zod.coerce.date()
@@ -1221,6 +1241,7 @@ export const ListJoinRequestsResponse = zod.object({
   "display_name": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewed_by": zod.string().nullish(),
+  "reviewed_by_name": zod.string().nullish(),
   "reviewed_at": zod.coerce.date().nullish(),
   "note": zod.string().nullish(),
   "created_at": zod.coerce.date()
@@ -1243,6 +1264,7 @@ export const ApproveJoinRequestResponse = zod.object({
   "display_name": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewed_by": zod.string().nullish(),
+  "reviewed_by_name": zod.string().nullish(),
   "reviewed_at": zod.coerce.date().nullish(),
   "note": zod.string().nullish(),
   "created_at": zod.coerce.date()
@@ -1264,6 +1286,7 @@ export const RejectJoinRequestResponse = zod.object({
   "display_name": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "reviewed_by": zod.string().nullish(),
+  "reviewed_by_name": zod.string().nullish(),
   "reviewed_at": zod.coerce.date().nullish(),
   "note": zod.string().nullish(),
   "created_at": zod.coerce.date()
