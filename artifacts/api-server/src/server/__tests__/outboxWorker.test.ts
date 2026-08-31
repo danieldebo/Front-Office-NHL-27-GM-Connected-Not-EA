@@ -107,6 +107,35 @@ describe("drainOnce", () => {
     expect(row?.last_error).toContain("404");
   });
 
+  it("holds the row lock for the duration of the job, so a concurrent drain can't pick up the same row", async (ctx) => {
+    if (!schemaReady) return ctx.skip();
+    let releaseJob!: () => void;
+    const jobGate = new Promise<void>((resolve) => { releaseJob = resolve; });
+    let sendCallCount = 0;
+    mockSend.mockImplementation(async () => {
+      sendCallCount++;
+      await jobGate;
+    });
+    const id = await enqueue("discord.post", { webhook_url: "https://discord.example/hook", content: "slow job" });
+
+    const firstDrain = drainOnce(pool);
+    // Give the first drain time to acquire the row lock and enter handle().
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // A second poll tick running while the first is still mid-job must not
+    // see this row (FOR UPDATE SKIP LOCKED) — proving the lock is still held,
+    // not released the instant the SELECT's own statement finished.
+    await drainOnce(pool);
+    expect(sendCallCount).toBe(1);
+
+    releaseJob();
+    await firstDrain;
+
+    const [row] = (await pool.query<{ processed_at: string | null }>(`SELECT processed_at FROM outbox WHERE id = $1`, [id])).rows;
+    expect(row?.processed_at).toBeTruthy();
+    expect(sendCallCount).toBe(1);
+  });
+
   it("drops an unknown topic (marks it processed) instead of retrying forever", async (ctx) => {
     if (!schemaReady) return ctx.skip();
     const id = await enqueue("something.nobody.handles", {});

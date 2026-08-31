@@ -449,7 +449,17 @@ router.post(
       }
 
       const capPreview = await capImpactPreview(client, side_a, side_b);
-      await enqueueDiscordPost(client, league.discordWebhookUrl, `🔁 Trade proposed: ${transactionSummaryFor(capPreview)}`);
+      const franchiseNames = await client.query<{ team_season_id: string; name: string }>(
+        `SELECT ts.id AS team_season_id, f.name FROM team_season ts JOIN franchise f ON f.id = ts.franchise_id
+          WHERE ts.id = ANY($1::uuid[])`,
+        [[side_a.team_season_id, side_b.team_season_id]],
+      );
+      const nameOf = (teamSeasonId: string) =>
+        franchiseNames.rows.find(r => r.team_season_id === teamSeasonId)?.name ?? teamSeasonId;
+      await enqueueDiscordPost(
+        client, league.discordWebhookUrl,
+        `🔁 Trade proposed: ${nameOf(side_a.team_season_id)} <-> ${nameOf(side_b.team_season_id)}`,
+      );
 
       await client.query("COMMIT");
       res.status(201).json({
@@ -512,15 +522,11 @@ async function capImpactPreview(
   };
 }
 
-function transactionSummaryFor(preview: { side_a: CapPreviewSide; side_b: CapPreviewSide }): string {
-  return `${preview.side_a.team_season_id} <-> ${preview.side_b.team_season_id}`;
-}
-
 async function loadTrade(client: PoolClient, transactionId: string) {
   const { rows } = await client.query<{
-    id: string; season_id: string; status: string; league_id: string;
+    id: string; season_id: string; status: string; league_id: string; proposed_by: string | null;
   }>(
-    `SELECT te.id, te.season_id, te.status::text, s.league_id
+    `SELECT te.id, te.season_id, te.status::text, s.league_id, te.proposed_by
        FROM transaction_event te JOIN season s ON s.id = te.season_id
       WHERE te.id = $1 AND te.txn_type = 'trade'`,
     [transactionId],
@@ -537,7 +543,7 @@ async function loadTrade(client: PoolClient, transactionId: string) {
 router.post(
   "/leagues/:leagueId/trades/:id/accept",
   async (req: Request, res: Response): Promise<void> => {
-    await respondToTrade(req, res, { requireCounterparty: true, resultStatusIfAutoApprove: true });
+    await respondToTrade(req, res);
   },
 );
 
@@ -633,11 +639,7 @@ router.post(
   },
 );
 
-async function respondToTrade(
-  req: Request,
-  res: Response,
-  _opts: { requireCounterparty: boolean; resultStatusIfAutoApprove: boolean },
-): Promise<void> {
+async function respondToTrade(req: Request, res: Response): Promise<void> {
   const user = getCurrentUser(req);
   if (!user) { unauthorized(res); return; }
   const leagueId = req.params.leagueId as string;
@@ -667,6 +669,11 @@ async function respondToTrade(
     })) {
       await client.query("ROLLBACK");
       forbidden(res, "Only a GM on either side of this trade, or the commissioner, can accept it");
+      return;
+    }
+    if (appUserId === trade.proposed_by) {
+      await client.query("ROLLBACK");
+      forbidden(res, "The proposer cannot also accept their own trade — it needs the other side's co-signature");
       return;
     }
 
@@ -1069,7 +1076,7 @@ router.post(
     if (team_season_id === waiver.waived_by_team_season_id) { badRequest(res, "The waiving team cannot claim its own player"); return; }
 
     const gm = await teamGm(team_season_id);
-    if (!gm || gm.leagueId !== leagueId) { notFound(res, "Team not found"); return; }
+    if (!gm || gm.leagueId !== leagueId || gm.seasonId !== waiver.season_id) { notFound(res, "Team not found"); return; }
     const appUserId = await appUserIdFor(user.id);
     if (!appUserId) { badRequest(res, "User profile not found"); return; }
     const role = await callerRole(leagueId, appUserId);
@@ -1078,24 +1085,38 @@ router.post(
       return;
     }
 
-    const existing = await pool.query(
-      `SELECT te.id FROM transaction_event te JOIN transaction_asset ta ON ta.transaction_id = te.id
-        WHERE te.waiver_id = $1 AND ta.to_team_season_id = $2 AND te.status = 'proposed'`,
-      [waiverId, team_season_id],
-    );
-    if (existing.rows[0]) { conflict(res, "This team already has a pending claim on this waiver"); return; }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Serializes concurrent claims from the same team on the same waiver so
+      // the check-then-insert below can't race (a double-click or two tabs).
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`waiver-claim:${waiverId}:${team_season_id}`]);
 
-    const txn = await pool.query<{ id: string }>(
-      `INSERT INTO transaction_event (season_id, txn_type, status, proposed_by, waiver_id)
-       VALUES ($1, 'waiver_claim', 'proposed', $2, $3) RETURNING id`,
-      [waiver.season_id, appUserId, waiverId],
-    );
-    await pool.query(
-      `INSERT INTO transaction_asset (transaction_id, kind, player_id, to_team_season_id) VALUES ($1, 'player', $2, $3)`,
-      [txn.rows[0]!.id, waiver.player_id, team_season_id],
-    );
-    await enqueueDiscordPost(pool, league.discordWebhookUrl, `🙋 Waiver claim submitted for a player`);
-    res.status(201).json({ id: txn.rows[0]!.id, status: "proposed" });
+      const existing = await client.query(
+        `SELECT te.id FROM transaction_event te JOIN transaction_asset ta ON ta.transaction_id = te.id
+          WHERE te.waiver_id = $1 AND ta.to_team_season_id = $2 AND te.status = 'proposed'`,
+        [waiverId, team_season_id],
+      );
+      if (existing.rows[0]) { await client.query("ROLLBACK"); conflict(res, "This team already has a pending claim on this waiver"); return; }
+
+      const txn = await client.query<{ id: string }>(
+        `INSERT INTO transaction_event (season_id, txn_type, status, proposed_by, waiver_id)
+         VALUES ($1, 'waiver_claim', 'proposed', $2, $3) RETURNING id`,
+        [waiver.season_id, appUserId, waiverId],
+      );
+      await client.query(
+        `INSERT INTO transaction_asset (transaction_id, kind, player_id, to_team_season_id) VALUES ($1, 'player', $2, $3)`,
+        [txn.rows[0]!.id, waiver.player_id, team_season_id],
+      );
+      await enqueueDiscordPost(client, league.discordWebhookUrl, `🙋 Waiver claim submitted for a player`);
+      await client.query("COMMIT");
+      res.status(201).json({ id: txn.rows[0]!.id, status: "proposed" });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 );
 
