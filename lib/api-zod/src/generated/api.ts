@@ -897,10 +897,17 @@ export const DeclineApplicantResponse = zod.object({
 
 
 /**
+ * Visibility is enforced here: a public league always renders; an
+ * unlisted league renders only when `code` matches the league's
+ * public_code; a private league 404s regardless of `code`.
  * @summary Public league page — standings visible without authentication
  */
 export const GetPublicLeagueParams = zod.object({
   "slug": zod.coerce.string().describe('League URL slug')
+})
+
+export const GetPublicLeagueQueryParams = zod.object({
+  "code": zod.coerce.string().optional().describe('Required to view an unlisted league\'s public page.')
 })
 
 export const GetPublicLeagueResponse = zod.object({
@@ -947,7 +954,52 @@ export const GetPublicLeagueResponse = zod.object({
   "platform": zod.string().nullish(),
   "competitiveness": zod.string().nullish(),
   "suggested_division": zod.string().nullish()
-}),zod.null()]).optional().describe('Present when the league has an active listing entry (is_listed = true). Null when the league is not publicly recruiting.\n')
+}),zod.null()]).optional().describe('Present when the league has an active listing entry (is_listed = true). Null when the league is not publicly recruiting.\n'),
+  "schedule": zod.object({
+  "recent": zod.array(zod.object({
+  "id": zod.string(),
+  "week_number": zod.number().nullable(),
+  "status": zod.string(),
+  "window_opens_at": zod.coerce.date(),
+  "home_label": zod.string(),
+  "away_label": zod.string(),
+  "home_goals": zod.number().nullish(),
+  "away_goals": zod.number().nullish()
+})),
+  "upcoming": zod.array(zod.object({
+  "id": zod.string(),
+  "week_number": zod.number().nullable(),
+  "status": zod.string(),
+  "window_opens_at": zod.coerce.date(),
+  "home_label": zod.string(),
+  "away_label": zod.string(),
+  "home_goals": zod.number().nullish(),
+  "away_goals": zod.number().nullish()
+}))
+}).optional(),
+  "rulebook": zod.union([zod.object({
+  "version": zod.string(),
+  "body_md": zod.string(),
+  "effective_at": zod.coerce.date()
+}),zod.null()]).optional(),
+  "partners": zod.object({
+  "charities": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['charity', 'sponsor']),
+  "name": zod.string(),
+  "link": zod.string(),
+  "blurb": zod.string().nullish(),
+  "logo_url": zod.string().nullish()
+})),
+  "sponsors": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['charity', 'sponsor']),
+  "name": zod.string(),
+  "link": zod.string(),
+  "blurb": zod.string().nullish(),
+  "logo_url": zod.string().nullish()
+}))
+}).optional()
 })
 
 
@@ -979,7 +1031,9 @@ export const ListSeasonsResponse = zod.object({
   "points_ot_loss": zod.number().optional(),
   "points_reg_loss": zod.number().optional(),
   "tiebreakers": zod.array(zod.string()).optional(),
-  "is_active": zod.boolean().optional()
+  "is_active": zod.boolean().optional(),
+  "keepers_per_team": zod.number().optional().describe('Commissioner-set keeper limit for this season. 0 disables keepers.'),
+  "keeper_deadline_at": zod.coerce.date().nullish().describe('After this passes, only the commissioner can change keepers. Null means no deadline.')
 }))
 })
 
@@ -1041,7 +1095,9 @@ export const CreateSeasonResponse = zod.object({
   "points_ot_loss": zod.number().optional(),
   "points_reg_loss": zod.number().optional(),
   "tiebreakers": zod.array(zod.string()).optional(),
-  "is_active": zod.boolean().optional()
+  "is_active": zod.boolean().optional(),
+  "keepers_per_team": zod.number().optional().describe('Commissioner-set keeper limit for this season. 0 disables keepers.'),
+  "keeper_deadline_at": zod.coerce.date().nullish().describe('After this passes, only the commissioner can change keepers. Null means no deadline.')
 })
 
 
@@ -1232,6 +1288,8 @@ export const ListSeatsResponse = zod.object({
   "conference": zod.string().nullish(),
   "division": zod.string().nullish(),
   "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "vacated_at": zod.coerce.date().nullish().describe('When an open seat\'s last GM left. Null for a seat that was never filled, or that currently has a GM.'),
+  "never_filled": zod.boolean().optional().describe('True for an open seat that has never had a GM. Omitted on responses that don\'t compute assignment history (e.g. right after an assign\/revoke).'),
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
@@ -1300,6 +1358,8 @@ export const AssignGmResponse = zod.object({
   "conference": zod.string().nullish(),
   "division": zod.string().nullish(),
   "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "vacated_at": zod.coerce.date().nullish().describe('When an open seat\'s last GM left. Null for a seat that was never filled, or that currently has a GM.'),
+  "never_filled": zod.boolean().optional().describe('True for an open seat that has never had a GM. Omitted on responses that don\'t compute assignment history (e.g. right after an assign\/revoke).'),
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
@@ -1336,6 +1396,8 @@ export const RevokeGmResponse = zod.object({
   "conference": zod.string().nullish(),
   "division": zod.string().nullish(),
   "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "vacated_at": zod.coerce.date().nullish().describe('When an open seat\'s last GM left. Null for a seat that was never filled, or that currently has a GM.'),
+  "never_filled": zod.boolean().optional().describe('True for an open seat that has never had a GM. Omitted on responses that don\'t compute assignment history (e.g. right after an assign\/revoke).'),
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
@@ -2463,6 +2525,518 @@ export const SetRosterStatusBody = zod.object({
 export const SetRosterStatusResponse = zod.object({
   "id": zod.string(),
   "roster_status": zod.enum(['active', 'ir', 'minors'])
+})
+
+
+/**
+ * @summary Set the season's keeper limit and/or deadline (commissioner only)
+ */
+export const SetKeeperSettingsParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "seasonId": zod.coerce.string()
+})
+
+export const setKeeperSettingsBodyKeepersPerTeamMin = 0;
+export const setKeeperSettingsBodyKeepersPerTeamMax = 50;
+
+
+
+export const SetKeeperSettingsBody = zod.object({
+  "keepers_per_team": zod.number().min(setKeeperSettingsBodyKeepersPerTeamMin).max(setKeeperSettingsBodyKeepersPerTeamMax).optional(),
+  "keeper_deadline_at": zod.coerce.date().nullish()
+})
+
+export const SetKeeperSettingsResponse = zod.object({
+  "keepers_per_team": zod.number(),
+  "keeper_deadline_at": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Active keepers for a franchise this season, plus slot usage
+ */
+export const ListKeepersParams = zod.object({
+  "franchiseId": zod.coerce.string(),
+  "seasonId": zod.coerce.string()
+})
+
+export const ListKeepersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "player_id": zod.string(),
+  "full_name": zod.string(),
+  "position": zod.string(),
+  "is_manual": zod.boolean(),
+  "registry_matched": zod.boolean(),
+  "first_marked_at": zod.coerce.date(),
+  "designated_at": zod.coerce.date(),
+  "is_commissioner_override": zod.boolean(),
+  "seasons_kept": zod.number()
+})),
+  "slots": zod.object({
+  "allowed": zod.number(),
+  "used": zod.number(),
+  "open_slots": zod.number()
+})
+})
+
+
+/**
+ * @summary Designate a keeper (that team's GM, or the commissioner with a required note on another team)
+ */
+export const CreateKeeperParams = zod.object({
+  "franchiseId": zod.coerce.string(),
+  "seasonId": zod.coerce.string()
+})
+
+export const createKeeperBodyNoteMax = 500;
+
+
+
+export const CreateKeeperBody = zod.object({
+  "player_id": zod.string(),
+  "note": zod.string().max(createKeeperBodyNoteMax).nullish().describe('Required when the commissioner designates a keeper on another team\'s roster.')
+})
+
+export const CreateKeeperResponse = zod.object({
+  "id": zod.string(),
+  "first_marked_at": zod.coerce.date(),
+  "designated_at": zod.coerce.date(),
+  "is_commissioner_override": zod.boolean()
+})
+
+
+/**
+ * @summary Release a keeper (that team's GM, or the commissioner with a required reason on another team)
+ */
+export const ReleaseKeeperParams = zod.object({
+  "keeperId": zod.coerce.string()
+})
+
+export const ReleaseKeeperQueryParams = zod.object({
+  "reason": zod.coerce.string().optional()
+})
+
+export const ReleaseKeeperResponse = zod.void()
+
+
+/**
+ * @summary Typo-tolerant name search across the player registry
+ */
+export const SearchPlayersQueryParams = zod.object({
+  "q": zod.coerce.string()
+})
+
+export const SearchPlayersResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "full_name": zod.string(),
+  "position": zod.string(),
+  "current_team_abbrev": zod.string().nullish(),
+  "is_manual": zod.boolean(),
+  "registry_matched": zod.boolean(),
+  "score": zod.number().optional().describe('Trigram similarity score, best matches first.')
+}))
+})
+
+
+/**
+ * @summary Cached 1/3/5-year stat cards for a registry-matched player. Never blocks on the NHL API — a stale or missing card queues a background refresh and returns what's cached now.
+ */
+export const GetPlayerStatCardsParams = zod.object({
+  "playerId": zod.coerce.string()
+})
+
+export const GetPlayerStatCardsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "window_years": zod.union([zod.literal(1),zod.literal(3),zod.literal(5)]),
+  "stat_line": zod.record(zod.string(), zod.unknown()).describe('Skater keys: GP, G, A, PTS, \"+\/-\", PIM, SOG, \"S%\", \"TOI\/GP\".\nGoalie keys: GP, GS, W, L, OTL, SO, \"SV%\", GAA.\n'),
+  "season_span": zod.string().nullish(),
+  "fetched_at": zod.coerce.date(),
+  "stale_after": zod.coerce.date().optional()
+})),
+  "registry_matched": zod.boolean(),
+  "refreshing": zod.boolean().optional().describe('True when a background refresh was just queued because the cache was missing or stale.')
+})
+
+
+/**
+ * @summary Manually queue a player registry sync
+ */
+export const RunRegistrySyncNowResponse = zod.void()
+
+
+/**
+ * A CSV is parsed server-side into per-player rows; an upload shaped
+ * like a season total (a gp/season column, implausible single-game
+ * stat lines, or dozens of rows) is refused outright and never
+ * reaches the queue. A screenshot is stored as evidence only — there
+ * is no OCR service wired up, so the commissioner types the confirmed
+ * score in when reviewing it.
+ * @summary Upload a box score (CSV or screenshot) for a game
+ */
+export const UploadBoxScoreParams = zod.object({
+  "gameId": zod.coerce.string()
+})
+
+export const UploadBoxScoreBody = zod.object({
+  "kind": zod.enum(['csv', 'screenshot']),
+  "raw_payload": zod.string().describe('CSV text for kind=csv; a data URL or external image URL for kind=screenshot.')
+})
+
+export const UploadBoxScoreResponse = zod.object({
+  "id": zod.string(),
+  "game_id": zod.string(),
+  "league_id": zod.string(),
+  "kind": zod.enum(['csv', 'screenshot']),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "auto_approved": zod.boolean(),
+  "parsed_home_goals": zod.number().nullish(),
+  "parsed_away_goals": zod.number().nullish(),
+  "parsed_rows": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "rejection_reason": zod.string().nullish(),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.coerce.date().nullish(),
+  "resulting_game_result_id": zod.string().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Commissioner queue of pending box score uploads
+ */
+export const ListPendingBoxScoresParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ListPendingBoxScoresResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "game_id": zod.string(),
+  "league_id": zod.string(),
+  "kind": zod.enum(['csv', 'screenshot']),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "auto_approved": zod.boolean(),
+  "parsed_home_goals": zod.number().nullish(),
+  "parsed_away_goals": zod.number().nullish(),
+  "parsed_rows": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "rejection_reason": zod.string().nullish(),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.coerce.date().nullish(),
+  "resulting_game_result_id": zod.string().nullish(),
+  "created_at": zod.coerce.date()
+}))
+})
+
+
+/**
+ * home_goals/away_goals are required for a screenshot upload (there is
+ * no parsed score to fall back on) and optional overrides for a CSV
+ * upload (defaults to the parsed goal totals).
+ * @summary Approve a pending box score upload
+ */
+export const ApproveBoxScoreParams = zod.object({
+  "boxScoreId": zod.coerce.string()
+})
+
+export const approveBoxScoreBodyHomeGoalsMin = 0;
+
+export const approveBoxScoreBodyAwayGoalsMin = 0;
+
+
+
+export const ApproveBoxScoreBody = zod.object({
+  "home_goals": zod.number().min(approveBoxScoreBodyHomeGoalsMin).optional(),
+  "away_goals": zod.number().min(approveBoxScoreBodyAwayGoalsMin).optional()
+})
+
+export const ApproveBoxScoreResponse = zod.object({
+  "id": zod.string(),
+  "game_id": zod.string(),
+  "league_id": zod.string(),
+  "kind": zod.enum(['csv', 'screenshot']),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "auto_approved": zod.boolean(),
+  "parsed_home_goals": zod.number().nullish(),
+  "parsed_away_goals": zod.number().nullish(),
+  "parsed_rows": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "rejection_reason": zod.string().nullish(),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.coerce.date().nullish(),
+  "resulting_game_result_id": zod.string().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reject a pending box score upload
+ */
+export const RejectBoxScoreParams = zod.object({
+  "boxScoreId": zod.coerce.string()
+})
+
+export const rejectBoxScoreBodyReasonMax = 500;
+
+
+
+export const RejectBoxScoreBody = zod.object({
+  "reason": zod.string().min(1).max(rejectBoxScoreBodyReasonMax)
+})
+
+export const RejectBoxScoreResponse = zod.object({
+  "id": zod.string(),
+  "game_id": zod.string(),
+  "league_id": zod.string(),
+  "kind": zod.enum(['csv', 'screenshot']),
+  "status": zod.enum(['pending', 'approved', 'rejected']),
+  "auto_approved": zod.boolean(),
+  "parsed_home_goals": zod.number().nullish(),
+  "parsed_away_goals": zod.number().nullish(),
+  "parsed_rows": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "rejection_reason": zod.string().nullish(),
+  "reviewed_by": zod.string().nullish(),
+  "reviewed_at": zod.coerce.date().nullish(),
+  "resulting_game_result_id": zod.string().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Toggle auto-approve for CSV box score uploads
+ */
+export const UpdateBoxScoreSettingsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const UpdateBoxScoreSettingsBody = zod.object({
+  "box_score_auto_approve": zod.boolean()
+})
+
+export const UpdateBoxScoreSettingsResponse = zod.object({
+  "box_score_auto_approve": zod.boolean()
+})
+
+
+/**
+ * @summary Get (creating if needed) the caller's personal games feed
+ */
+export const GetMyCalendarFeedParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const GetMyCalendarFeedResponse = zod.object({
+  "token": zod.string(),
+  "ics_url": zod.string(),
+  "scope": zod.enum(['league', 'gm'])
+})
+
+
+/**
+ * @summary Revoke and reissue the caller's personal games feed token
+ */
+export const RevokeMyCalendarFeedParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const RevokeMyCalendarFeedResponse = zod.object({
+  "token": zod.string(),
+  "ics_url": zod.string(),
+  "scope": zod.enum(['league', 'gm'])
+})
+
+
+/**
+ * @summary Commissioner-only — get (creating if needed) the whole-league games feed
+ */
+export const GetLeagueCalendarFeedParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const GetLeagueCalendarFeedResponse = zod.object({
+  "token": zod.string(),
+  "ics_url": zod.string(),
+  "scope": zod.enum(['league', 'gm'])
+})
+
+
+/**
+ * @summary Commissioner-only — revoke and reissue the league-wide feed token
+ */
+export const RevokeLeagueCalendarFeedParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const RevokeLeagueCalendarFeedResponse = zod.object({
+  "token": zod.string(),
+  "ics_url": zod.string(),
+  "scope": zod.enum(['league', 'gm'])
+})
+
+
+/**
+ * @summary Commissioner-only — read the weekly digest settings
+ */
+export const GetDigestSettingsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const getDigestSettingsResponseDigestDayOfWeekMin = 0;
+export const getDigestSettingsResponseDigestDayOfWeekMax = 6;
+
+export const getDigestSettingsResponseDigestHourLocalMin = 0;
+export const getDigestSettingsResponseDigestHourLocalMax = 23;
+
+
+
+export const GetDigestSettingsResponse = zod.object({
+  "digest_enabled": zod.boolean(),
+  "digest_day_of_week": zod.number().min(getDigestSettingsResponseDigestDayOfWeekMin).max(getDigestSettingsResponseDigestDayOfWeekMax).describe('0 = Sunday .. 6 = Saturday, in digest_timezone.'),
+  "digest_hour_local": zod.number().min(getDigestSettingsResponseDigestHourLocalMin).max(getDigestSettingsResponseDigestHourLocalMax),
+  "digest_timezone": zod.string().describe('IANA timezone name, e.g. \"America\/New_York\".'),
+  "digest_template_md": zod.string().nullish()
+})
+
+
+/**
+ * @summary Commissioner-only — edit send day/hour/timezone and the template
+ */
+export const UpdateDigestSettingsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const updateDigestSettingsBodyDigestDayOfWeekMin = 0;
+export const updateDigestSettingsBodyDigestDayOfWeekMax = 6;
+
+export const updateDigestSettingsBodyDigestHourLocalMin = 0;
+export const updateDigestSettingsBodyDigestHourLocalMax = 23;
+
+
+
+export const UpdateDigestSettingsBody = zod.object({
+  "digest_enabled": zod.boolean().optional(),
+  "digest_day_of_week": zod.number().min(updateDigestSettingsBodyDigestDayOfWeekMin).max(updateDigestSettingsBodyDigestDayOfWeekMax).optional(),
+  "digest_hour_local": zod.number().min(updateDigestSettingsBodyDigestHourLocalMin).max(updateDigestSettingsBodyDigestHourLocalMax).optional(),
+  "digest_timezone": zod.string().optional(),
+  "digest_template_md": zod.string().optional()
+})
+
+export const updateDigestSettingsResponseDigestDayOfWeekMin = 0;
+export const updateDigestSettingsResponseDigestDayOfWeekMax = 6;
+
+export const updateDigestSettingsResponseDigestHourLocalMin = 0;
+export const updateDigestSettingsResponseDigestHourLocalMax = 23;
+
+
+
+export const UpdateDigestSettingsResponse = zod.object({
+  "digest_enabled": zod.boolean(),
+  "digest_day_of_week": zod.number().min(updateDigestSettingsResponseDigestDayOfWeekMin).max(updateDigestSettingsResponseDigestDayOfWeekMax).describe('0 = Sunday .. 6 = Saturday, in digest_timezone.'),
+  "digest_hour_local": zod.number().min(updateDigestSettingsResponseDigestHourLocalMin).max(updateDigestSettingsResponseDigestHourLocalMax),
+  "digest_timezone": zod.string().describe('IANA timezone name, e.g. \"America\/New_York\".'),
+  "digest_template_md": zod.string().nullish()
+})
+
+
+/**
+ * @summary Unsubscribe the caller from this league's weekly digest
+ */
+export const UnsubscribeFromDigestParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const UnsubscribeFromDigestResponse = zod.object({
+  "unsubscribed": zod.boolean()
+})
+
+
+/**
+ * @summary Public — charity and sponsor profile fields
+ */
+export const GetPartnersParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const GetPartnersResponse = zod.object({
+  "charities": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['charity', 'sponsor']),
+  "name": zod.string(),
+  "link": zod.string(),
+  "blurb": zod.string().nullish(),
+  "logo_url": zod.string().nullish()
+})),
+  "sponsors": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['charity', 'sponsor']),
+  "name": zod.string(),
+  "link": zod.string(),
+  "blurb": zod.string().nullish(),
+  "logo_url": zod.string().nullish()
+}))
+})
+
+
+/**
+ * @summary Commissioner-only — replace the charity/sponsor set (max 2 each)
+ */
+export const UpdatePartnersParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const updatePartnersBodyCharitiesItemNameMax = 120;
+
+export const updatePartnersBodyCharitiesItemLinkMax = 500;
+
+export const updatePartnersBodyCharitiesItemBlurbMax = 280;
+
+export const updatePartnersBodyCharitiesItemLogoUrlMax = 500;
+
+export const updatePartnersBodyCharitiesMax = 2;
+
+export const updatePartnersBodySponsorsItemNameMax = 120;
+
+export const updatePartnersBodySponsorsItemLinkMax = 500;
+
+export const updatePartnersBodySponsorsItemBlurbMax = 280;
+
+export const updatePartnersBodySponsorsItemLogoUrlMax = 500;
+
+export const updatePartnersBodySponsorsMax = 2;
+
+
+
+export const UpdatePartnersBody = zod.object({
+  "charities": zod.array(zod.object({
+  "name": zod.string().min(1).max(updatePartnersBodyCharitiesItemNameMax),
+  "link": zod.string().min(1).max(updatePartnersBodyCharitiesItemLinkMax),
+  "blurb": zod.string().max(updatePartnersBodyCharitiesItemBlurbMax).optional(),
+  "logo_url": zod.string().max(updatePartnersBodyCharitiesItemLogoUrlMax).optional()
+})).max(updatePartnersBodyCharitiesMax),
+  "sponsors": zod.array(zod.object({
+  "name": zod.string().min(1).max(updatePartnersBodySponsorsItemNameMax),
+  "link": zod.string().min(1).max(updatePartnersBodySponsorsItemLinkMax),
+  "blurb": zod.string().max(updatePartnersBodySponsorsItemBlurbMax).optional(),
+  "logo_url": zod.string().max(updatePartnersBodySponsorsItemLogoUrlMax).optional()
+})).max(updatePartnersBodySponsorsMax)
+})
+
+export const UpdatePartnersResponse = zod.object({
+  "charities": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['charity', 'sponsor']),
+  "name": zod.string(),
+  "link": zod.string(),
+  "blurb": zod.string().nullish(),
+  "logo_url": zod.string().nullish()
+})),
+  "sponsors": zod.array(zod.object({
+  "id": zod.string(),
+  "kind": zod.enum(['charity', 'sponsor']),
+  "name": zod.string(),
+  "link": zod.string(),
+  "blurb": zod.string().nullish(),
+  "logo_url": zod.string().nullish()
+}))
 })
 
 

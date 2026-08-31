@@ -75,6 +75,15 @@ export default function Header({ league }: { league?: League }) {
           )}
           {league && (
             <Link
+              href={`/leagues/${league.id}/keepers`}
+              className="nav-link"
+              aria-current={location === `/leagues/${league.id}/keepers` ? 'page' : undefined}
+            >
+              Keepers
+            </Link>
+          )}
+          {league && (
+            <Link
               href={`/leagues/${league.id}/manage`}
               className="nav-link"
               aria-current={location === `/leagues/${league.id}/manage` ? 'page' : undefined}

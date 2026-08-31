@@ -39,7 +39,7 @@ import { getCurrentUser } from "../server/auth";
 import { can } from "../server/authz";
 import { idempotencyMiddleware } from "../middlewares/idempotency";
 import { badRequest, conflict, forbidden, notFound, unauthorized } from "../server/errors";
-import { postToDiscord } from "../server/discordWebhook";
+import { enqueueDiscordPost } from "../server/discordWebhook";
 import {
   CreatePlayerBody,
   ProposeTradeBody,
@@ -233,8 +233,8 @@ router.post("/leagues/:leagueId/players", async (req: Request, res: Response): P
   const d = parsed.data;
 
   const { rows } = await pool.query(
-    `INSERT INTO player (league_id, full_name, position, shoots, birthdate, country_code)
-     VALUES ($1,$2,$3,$4,$5,$6)
+    `INSERT INTO player (league_id, full_name, position, shoots, birthdate, country_code, is_manual)
+     VALUES ($1,$2,$3,$4,$5,$6,true)
      RETURNING id, full_name, position, shoots, birthdate, country_code`,
     [leagueId, d.full_name, d.position, d.shoots ?? null, d.birthdate ?? null, d.country_code ?? null],
   );
@@ -449,9 +449,9 @@ router.post(
       }
 
       const capPreview = await capImpactPreview(client, side_a, side_b);
+      await enqueueDiscordPost(client, league.discordWebhookUrl, `🔁 Trade proposed: ${transactionSummaryFor(capPreview)}`);
 
       await client.query("COMMIT");
-      postToDiscord(league.discordWebhookUrl, `🔁 Trade proposed: ${transactionSummaryFor(capPreview)}`);
       res.status(201).json({
         id: transactionId,
         type: "trade",
@@ -569,7 +569,6 @@ router.post(
 
       const executed = await executeTrade(client, league, trade, appUserId);
       await client.query("COMMIT");
-      postToDiscord(league.discordWebhookUrl, `✅ Trade executed: ${executed.summary}`);
       res.json(executed.response);
     } catch (error) {
       await client.query("ROLLBACK");
@@ -679,7 +678,6 @@ async function respondToTrade(
     if (league.autoApproveTrades) {
       const executed = await executeTrade(client, league, trade, appUserId);
       await client.query("COMMIT");
-      postToDiscord(league.discordWebhookUrl, `✅ Trade executed: ${executed.summary}`);
       res.json(executed.response);
       return;
     }
@@ -761,9 +759,11 @@ async function executeTrade(
     `SELECT full_name FROM player WHERE id = ANY($1::uuid[])`,
     [trade.assets.map(a => a.player_id)],
   );
+  const summary = names.rows.map(r => r.full_name).join(", ");
+  await enqueueDiscordPost(client, league.discordWebhookUrl, `✅ Trade executed: ${summary}`);
   return {
     response: { id: trade.id, status: "executed" },
-    summary: names.rows.map(r => r.full_name).join(", "),
+    summary,
   };
 }
 
@@ -854,9 +854,10 @@ router.post(
         [txn.rows[0]!.id, player_id, team_season_id],
       );
 
+      const playerRow = await client.query<{ full_name: string }>(`SELECT full_name FROM player WHERE id = $1`, [player_id]);
+      await enqueueDiscordPost(client, league.discordWebhookUrl, `✍️ Signing: ${playerRow.rows[0]?.full_name ?? "A player"} signed (${(cap_hit_cents / 100).toLocaleString()}/yr)${overCap ? " — over cap" : ""}`);
+
       await client.query("COMMIT");
-      const playerRow = await pool.query<{ full_name: string }>(`SELECT full_name FROM player WHERE id = $1`, [player_id]);
-      postToDiscord(league.discordWebhookUrl, `✍️ Signing: ${playerRow.rows[0]?.full_name ?? "A player"} signed (${(cap_hit_cents / 100).toLocaleString()}/yr)${overCap ? " — over cap" : ""}`);
       res.status(201).json({ id: txn.rows[0]!.id, contract_id: contract.rows[0]!.id, status: "executed", over_cap_warning: league.capEnforcement === "warn" && overCap });
     } catch (error) {
       await client.query("ROLLBACK");
@@ -931,9 +932,10 @@ router.post(
       );
       await client.query(`UPDATE transaction_event SET waiver_id = $1 WHERE id = $2`, [waiver.rows[0]!.id, txn.rows[0]!.id]);
 
+      const playerRow = await client.query<{ full_name: string }>(`SELECT full_name FROM player WHERE id = $1`, [player_id]);
+      await enqueueDiscordPost(client, league.discordWebhookUrl, `📤 ${playerRow.rows[0]?.full_name ?? "A player"} placed on waivers`);
+
       await client.query("COMMIT");
-      const playerRow = await pool.query<{ full_name: string }>(`SELECT full_name FROM player WHERE id = $1`, [player_id]);
-      postToDiscord(league.discordWebhookUrl, `📤 ${playerRow.rows[0]?.full_name ?? "A player"} placed on waivers`);
       res.status(201).json({ transaction_id: txn.rows[0]!.id, waiver_id: waiver.rows[0]!.id, expires_at: waiver.rows[0]!.expires_at });
     } catch (error) {
       await client.query("ROLLBACK");
@@ -1092,7 +1094,7 @@ router.post(
       `INSERT INTO transaction_asset (transaction_id, kind, player_id, to_team_season_id) VALUES ($1, 'player', $2, $3)`,
       [txn.rows[0]!.id, waiver.player_id, team_season_id],
     );
-    postToDiscord(league.discordWebhookUrl, `🙋 Waiver claim submitted for a player`);
+    await enqueueDiscordPost(pool, league.discordWebhookUrl, `🙋 Waiver claim submitted for a player`);
     res.status(201).json({ id: txn.rows[0]!.id, status: "proposed" });
   },
 );

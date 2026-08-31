@@ -6,11 +6,18 @@ export * from "./generated/api";
 // that also exist as Zod consts in generated/api (e.g. ListGamesParams).
 export type { ApplicantActionResult } from "./generated/types/applicantActionResult";
 export type { ApplicantActionResultOutcome } from "./generated/types/applicantActionResultOutcome";
+// ApproveBoxScoreBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { AssignGmInput } from "./generated/types/assignGmInput";
 export type { AssignGmInputRole } from "./generated/types/assignGmInputRole";
 export type { AssignedGm } from "./generated/types/assignedGm";
 // AvailabilitySlot intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // AvailabilitySlotBlock intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { BoxScoreUpload } from "./generated/types/boxScoreUpload";
+export type { BoxScoreUploadKind } from "./generated/types/boxScoreUploadKind";
+export type { BoxScoreUploadParsedRowsItem } from "./generated/types/boxScoreUploadParsedRowsItem";
+export type { BoxScoreUploadStatus } from "./generated/types/boxScoreUploadStatus";
+export type { CalendarFeedInfo } from "./generated/types/calendarFeedInfo";
+export type { CalendarFeedInfoScope } from "./generated/types/calendarFeedInfoScope";
 export type { CapPosition } from "./generated/types/capPosition";
 export type { CapPreviewSide } from "./generated/types/capPreviewSide";
 export type { ClaimOutcome } from "./generated/types/claimOutcome";
@@ -21,6 +28,8 @@ export type { CommissionerInviteInput } from "./generated/types/commissionerInvi
 export type { CommissionerInvitePublic } from "./generated/types/commissionerInvitePublic";
 export type { ConfirmInput } from "./generated/types/confirmInput";
 export type { CreateInviteInput } from "./generated/types/createInviteInput";
+export type { CreateKeeperInput } from "./generated/types/createKeeperInput";
+export type { CreateKeeperResult } from "./generated/types/createKeeperResult";
 export type { CreateLeagueInput } from "./generated/types/createLeagueInput";
 export type { CreateLeagueInputVisibility } from "./generated/types/createLeagueInputVisibility";
 export type { CreateLeagueSettingsVersion201 } from "./generated/types/createLeagueSettingsVersion201";
@@ -34,6 +43,7 @@ export type { CreateSeasonInputPointsRegLoss } from "./generated/types/createSea
 export type { CreateSigningInput } from "./generated/types/createSigningInput";
 export type { CreateWaiverClaimInput } from "./generated/types/createWaiverClaimInput";
 export type { DeclineApplicantInput } from "./generated/types/declineApplicantInput";
+export type { DigestSettings } from "./generated/types/digestSettings";
 export type { DqFinding } from "./generated/types/dqFinding";
 export type { DqFindingSeverity } from "./generated/types/dqFindingSeverity";
 export type { DqFindingsEnvelope } from "./generated/types/dqFindingsEnvelope";
@@ -53,6 +63,7 @@ export type { GameStatus } from "./generated/types/gameStatus";
 // GenerateScheduleBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 // GenerateScheduleResult intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { GetMyLeagues200 } from "./generated/types/getMyLeagues200";
+export type { GetPublicLeagueParams } from "./generated/types/getPublicLeagueParams";
 export type { GetStandings200 } from "./generated/types/getStandings200";
 export type { HealthStatus } from "./generated/types/healthStatus";
 export type { IdempotencyKeyParameter } from "./generated/types/idempotencyKeyParameter";
@@ -60,6 +71,11 @@ export type { IfMatchParameter } from "./generated/types/ifMatchParameter";
 export type { InviteLink } from "./generated/types/inviteLink";
 export type { JoinRequest } from "./generated/types/joinRequest";
 export type { JoinRequestStatus } from "./generated/types/joinRequestStatus";
+export type { Keeper } from "./generated/types/keeper";
+export type { KeeperListResponse } from "./generated/types/keeperListResponse";
+export type { KeeperSettingsInput } from "./generated/types/keeperSettingsInput";
+export type { KeeperSettingsResult } from "./generated/types/keeperSettingsResult";
+export type { KeeperSlots } from "./generated/types/keeperSlots";
 export type { League } from "./generated/types/league";
 export type { LeagueApplicant } from "./generated/types/leagueApplicant";
 export type { LeagueHub } from "./generated/types/leagueHub";
@@ -106,6 +122,7 @@ export type { ListOpenLeaguesCompetitiveness } from "./generated/types/listOpenL
 // ListOpenLeaguesParams intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { ListOpenLeaguesPlatform } from "./generated/types/listOpenLeaguesPlatform";
 export type { ListOpenLeaguesSeatsOpen } from "./generated/types/listOpenLeaguesSeatsOpen";
+export type { ListPendingBoxScores200 } from "./generated/types/listPendingBoxScores200";
 export type { ListPlayers200 } from "./generated/types/listPlayers200";
 export type { ListPlayersParams } from "./generated/types/listPlayersParams";
 export type { ListRulebookRevisions200 } from "./generated/types/listRulebookRevisions200";
@@ -117,9 +134,18 @@ export type { ListWireTransactions200 } from "./generated/types/listWireTransact
 export type { ListWireTransactionsParams } from "./generated/types/listWireTransactionsParams";
 export type { NoLeagueSettingsYet } from "./generated/types/noLeagueSettingsYet";
 // OpenLeague intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { Partner } from "./generated/types/partner";
+export type { PartnerInput } from "./generated/types/partnerInput";
+export type { PartnerKind } from "./generated/types/partnerKind";
+export type { PartnersEnvelope } from "./generated/types/partnersEnvelope";
 export type { Player } from "./generated/types/player";
 export type { PlayerContract } from "./generated/types/playerContract";
 export type { PlayerContractRosterStatus } from "./generated/types/playerContractRosterStatus";
+export type { PlayerSearchResult } from "./generated/types/playerSearchResult";
+export type { PlayerStatCardEntry } from "./generated/types/playerStatCardEntry";
+export type { PlayerStatCardEntryStatLine } from "./generated/types/playerStatCardEntryStatLine";
+export type { PlayerStatCardEntryWindowYears } from "./generated/types/playerStatCardEntryWindowYears";
+export type { PlayerStatCardsResponse } from "./generated/types/playerStatCardsResponse";
 export type { PlayerSystem } from "./generated/types/playerSystem";
 // PostponeGameBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { Problem } from "./generated/types/problem";
@@ -130,9 +156,14 @@ export type { PublicCodeResult } from "./generated/types/publicCodeResult";
 export type { PublicLeagueEnvelope } from "./generated/types/publicLeagueEnvelope";
 export type { PublicLeagueEnvelopeLeague } from "./generated/types/publicLeagueEnvelopeLeague";
 export type { PublicLeagueEnvelopeListing } from "./generated/types/publicLeagueEnvelopeListing";
+export type { PublicLeagueEnvelopeRulebook } from "./generated/types/publicLeagueEnvelopeRulebook";
+export type { PublicLeagueEnvelopeSchedule } from "./generated/types/publicLeagueEnvelopeSchedule";
 export type { PublicLeagueEnvelopeSeason } from "./generated/types/publicLeagueEnvelopeSeason";
+export type { PublicScheduleGame } from "./generated/types/publicScheduleGame";
 export type { PublishRulebookInput } from "./generated/types/publishRulebookInput";
+// RejectBoxScoreBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { RejectTransactionInput } from "./generated/types/rejectTransactionInput";
+export type { ReleaseKeeperParams } from "./generated/types/releaseKeeperParams";
 export type { ReleaseResult } from "./generated/types/releaseResult";
 export type { ReorderWaitlistEntry200 } from "./generated/types/reorderWaitlistEntry200";
 export type { ResultInput } from "./generated/types/resultInput";
@@ -141,6 +172,8 @@ export type { RevokeGmParams } from "./generated/types/revokeGmParams";
 export type { RosterStatusResult } from "./generated/types/rosterStatusResult";
 export type { RosterStatusResultRosterStatus } from "./generated/types/rosterStatusResultRosterStatus";
 export type { RulebookRevision } from "./generated/types/rulebookRevision";
+export type { SearchPlayers200 } from "./generated/types/searchPlayers200";
+export type { SearchPlayersParams } from "./generated/types/searchPlayersParams";
 export type { Season } from "./generated/types/season";
 export type { Seat } from "./generated/types/seat";
 export type { SeatSeatStatus } from "./generated/types/seatSeatStatus";
@@ -159,11 +192,18 @@ export type { TradeSideInput } from "./generated/types/tradeSideInput";
 export type { TransactionStatusResult } from "./generated/types/transactionStatusResult";
 export type { UnassignedMember } from "./generated/types/unassignedMember";
 export type { UnassignedMemberIdentity } from "./generated/types/unassignedMemberIdentity";
+export type { UnsubscribeFromDigest200 } from "./generated/types/unsubscribeFromDigest200";
+export type { UpdateBoxScoreSettings200 } from "./generated/types/updateBoxScoreSettings200";
+// UpdateBoxScoreSettingsBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// UpdateDigestSettingsBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { UpdateLeagueInput } from "./generated/types/updateLeagueInput";
 export type { UpdateLeagueInputVisibility } from "./generated/types/updateLeagueInputVisibility";
 export type { UpdateLeagueListingInput } from "./generated/types/updateLeagueListingInput";
 export type { UpdateLeagueListingInputCompetitiveness } from "./generated/types/updateLeagueListingInputCompetitiveness";
 export type { UpdateLeagueListingInputPlatform } from "./generated/types/updateLeagueListingInputPlatform";
+// UpdatePartnersBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
+// UploadBoxScoreBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { UploadBoxScoreBodyKind } from "./generated/types/uploadBoxScoreBodyKind";
 export type { UserProfile } from "./generated/types/userProfile";
 export type { UserProfileUpdate } from "./generated/types/userProfileUpdate";
 export type { WaitlistApplicant } from "./generated/types/waitlistApplicant";

@@ -5,7 +5,7 @@
 import React, { useId, useRef, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
-import { useReportResult, ResultInputDecision } from '@workspace/api-client-react';
+import { useReportResult, useUploadBoxScore, ResultInputDecision } from '@workspace/api-client-react';
 import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
 
@@ -115,6 +115,9 @@ export default function ReportResult() {
   const [submitted, setSubmitted] = useState(false);
 
   const reportMut = useReportResult();
+  const uploadBoxScoreMut = useUploadBoxScore();
+  const [csvText, setCsvText] = useState('');
+  const [boxScoreMsg, setBoxScoreMsg] = useState<string | null>(null);
 
   const isCorrection = game?.result != null;
   const homeLabel = game?.home.club_abbrev ?? game?.home.franchise_name ?? 'Home';
@@ -296,10 +299,47 @@ export default function ReportResult() {
             </button>
             {showBoxScore && (
               <div className="panel" style={{ marginTop: '10px' }}>
-                <div style={{ padding: '14px 16px' }}>
+                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <p style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', margin: 0 }}>
-                    Box score entry coming in a future update. Submit the final score for now.
+                    Paste a CSV (header: player_name,team,goals,assists — team is "home" or "away")
+                    and the commissioner will review it. It goes to the standings once approved.
                   </p>
+                  <textarea
+                    value={csvText}
+                    onChange={(e) => setCsvText(e.target.value)}
+                    placeholder={'player_name,team,goals,assists\nSidney Crosby,home,2,1'}
+                    style={{ width: '100%', minHeight: '80px', padding: '8px 10px', fontFamily: 'var(--data)', fontSize: '11px', border: '1px solid var(--rule)', borderRadius: '2px', resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    style={{ fontSize: '11px', alignSelf: 'flex-start' }}
+                    disabled={!csvText.trim() || uploadBoxScoreMut.isPending}
+                    onClick={() => {
+                      if (!gameId) return;
+                      setBoxScoreMsg(null);
+                      uploadBoxScoreMut.mutate(
+                        { gameId, data: { kind: 'csv', raw_payload: csvText } },
+                        {
+                          onSuccess: (upload) => {
+                            setBoxScoreMsg(
+                              upload.status === 'approved'
+                                ? 'Box score auto-approved and applied.'
+                                : 'Box score submitted — awaiting commissioner review.'
+                            );
+                            setCsvText('');
+                          },
+                          onError: (err: unknown) =>
+                            setBoxScoreMsg(err instanceof Error ? err.message : 'Upload failed.'),
+                        }
+                      );
+                    }}
+                  >
+                    {uploadBoxScoreMut.isPending ? 'Uploading…' : 'Upload box score'}
+                  </button>
+                  {boxScoreMsg && (
+                    <p style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--crease)', margin: 0 }}>{boxScoreMsg}</p>
+                  )}
                 </div>
               </div>
             )}

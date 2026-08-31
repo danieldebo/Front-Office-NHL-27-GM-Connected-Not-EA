@@ -5,7 +5,7 @@
  * when the league is listed in the open-leagues directory.
  */
 import { useState, useCallback } from 'react';
-import { useParams } from 'wouter';
+import { useParams, useSearch } from 'wouter';
 import { useGetPublicLeague, StandingsRow } from '@workspace/api-client-react';
 import { StandingsTable } from '@/components/Standings';
 import SignupDrawer from '@/components/SignupDrawer';
@@ -228,10 +228,14 @@ function ShareLinkBanner({ publicCode }: { publicCode: string }) {
 export default function LeaguePublic() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug ?? '';
+  const search = useSearch();
+  const code = new URLSearchParams(search).get('code') ?? undefined;
 
-  const { data, isLoading, isError } = useGetPublicLeague(slug, {
-    query: { enabled: slug.length > 0 } as any,
-  });
+  const { data, isLoading, isError } = useGetPublicLeague(
+    slug,
+    { code },
+    { query: { enabled: slug.length > 0 } as any },
+  );
 
   if (isLoading) {
     return (
@@ -264,7 +268,7 @@ export default function LeaguePublic() {
     );
   }
 
-  const { league, season, standings, listing } = data;
+  const { league, season, standings, listing, schedule, rulebook, partners } = data;
 
   // Stat counts derived from standings rows
   const teamCount = standings.length;
@@ -353,7 +357,7 @@ export default function LeaguePublic() {
 
       {/* Standings */}
       <div className="wrap">
-        <div style={{ paddingTop: '28px', paddingBottom: '60px' }}>
+        <div style={{ paddingTop: '28px', paddingBottom: '20px' }}>
           {season ? (
             <StandingsTable rows={standings} />
           ) : (
@@ -365,6 +369,60 @@ export default function LeaguePublic() {
             </section>
           )}
         </div>
+
+        {/* Schedule */}
+        {schedule && (schedule.recent.length > 0 || schedule.upcoming.length > 0) && (
+          <section className="panel" style={{ marginBottom: '20px' }}>
+            <div className="panel-head"><h2>Schedule</h2></div>
+            <div style={{ padding: '16px', display: 'grid', gap: '20px', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+              <div>
+                <h3 style={{ fontFamily: 'var(--data)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--steel)' }}>Recent results</h3>
+                {schedule.recent.length === 0 && <p style={{ color: 'var(--steel)', fontSize: '12px' }}>No games played yet.</p>}
+                {schedule.recent.map((g) => (
+                  <div key={g.id} style={{ fontFamily: 'var(--data)', fontSize: '13px', padding: '6px 0', borderBottom: '1px solid var(--rule)' }}>
+                    {g.away_label} {g.away_goals} @ {g.home_label} {g.home_goals}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <h3 style={{ fontFamily: 'var(--data)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--steel)' }}>Upcoming games</h3>
+                {schedule.upcoming.length === 0 && <p style={{ color: 'var(--steel)', fontSize: '12px' }}>Nothing scheduled this week.</p>}
+                {schedule.upcoming.map((g) => (
+                  <div key={g.id} style={{ fontFamily: 'var(--data)', fontSize: '13px', padding: '6px 0', borderBottom: '1px solid var(--rule)' }}>
+                    {g.away_label} @ {g.home_label} — {new Date(g.window_opens_at).toDateString()}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Rulebook */}
+        {rulebook && (
+          <section className="panel" style={{ marginBottom: '20px' }}>
+            <div className="panel-head"><h2>Rulebook · v{rulebook.version}</h2></div>
+            <div style={{ padding: '16px', whiteSpace: 'pre-wrap', fontFamily: 'var(--body)', fontSize: '14px', lineHeight: 1.6 }}>
+              {rulebook.body_md}
+            </div>
+          </section>
+        )}
+
+        {/* Charity & sponsors */}
+        {partners && (partners.charities.length > 0 || partners.sponsors.length > 0) && (
+          <section className="panel" style={{ marginBottom: '60px' }}>
+            <div className="panel-head"><h2>Charity &amp; Sponsors</h2></div>
+            <div style={{ padding: '16px', display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+              {[...partners.charities, ...partners.sponsors].map((p) => (
+                <a key={p.id} href={p.link} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', color: 'var(--crease)' }}>
+                  {p.logo_url && <img src={p.logo_url} alt="" style={{ height: '28px', width: 'auto' }} />}
+                  <span style={{ fontFamily: 'var(--data)', fontSize: '13px' }}>{p.name}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+        <div style={{ paddingBottom: '20px' }} />
       </div>
     </>
   );

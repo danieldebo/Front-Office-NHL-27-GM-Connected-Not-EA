@@ -157,7 +157,30 @@ router.get(
       params
     );
 
-    res.json({ data: rows, total: rows.length });
+    const leagueIds = rows.map((r) => r.league_id as string);
+    const partnersByLeague = new Map<string, { charities: unknown[]; sponsors: unknown[] }>();
+    if (leagueIds.length > 0) {
+      const partnerRows = await pool.query<{
+        league_id: string; id: string; kind: string; name: string; link: string; blurb: string | null; logo_url: string | null;
+      }>(
+        `SELECT league_id, id, kind, name, link, blurb, logo_url FROM league_partner
+          WHERE league_id = ANY($1::uuid[]) ORDER BY league_id, kind, display_order`,
+        [leagueIds]
+      );
+      for (const p of partnerRows.rows) {
+        const entry = partnersByLeague.get(p.league_id) ?? { charities: [], sponsors: [] };
+        (p.kind === "charity" ? entry.charities : entry.sponsors).push({
+          id: p.id, name: p.name, link: p.link, blurb: p.blurb, logo_url: p.logo_url,
+        });
+        partnersByLeague.set(p.league_id, entry);
+      }
+    }
+    const data = rows.map((r) => ({
+      ...r,
+      partners: partnersByLeague.get(r.league_id as string) ?? { charities: [], sponsors: [] },
+    }));
+
+    res.json({ data, total: data.length });
   }
 );
 

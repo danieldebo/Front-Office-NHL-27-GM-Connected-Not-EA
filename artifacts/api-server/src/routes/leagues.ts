@@ -282,7 +282,7 @@ router.get(
               starts_on, ends_on, salary_cap_cents,
               roster_min, roster_max, games_per_matchup,
               points_win, points_ot_loss, points_reg_loss,
-              tiebreakers, is_active
+              tiebreakers, is_active, keepers_per_team, keeper_deadline_at
          FROM season
         WHERE league_id = $1
         ORDER BY ordinal ASC`,
@@ -309,6 +309,14 @@ router.get(
     if (!leagueRow.rows[0]) { notFound(res, "League not found"); return; }
     const league = leagueRow.rows[0];
 
+    // Visibility gate: public always renders; unlisted renders only with a
+    // matching ?code=; private never has a public page at all.
+    const code = typeof req.query.code === "string" ? req.query.code : null;
+    const visible =
+      league.visibility === "public" ||
+      (league.visibility === "unlisted" && !!league.public_code && code === league.public_code);
+    if (!visible) { notFound(res, "League not found"); return; }
+
     // Listing (recruiting) info — included regardless of season state
     const listingRow = await pool.query<{
       is_listed: boolean;
@@ -328,6 +336,27 @@ router.get(
     );
     const listing = listingRow.rows[0] ?? null;
 
+    // Latest published rulebook revision, if any
+    const rulebookRow = await pool.query<{ version: string; body_md: string; effective_at: Date }>(
+      `SELECT version, body_md, effective_at FROM rulebook_revision
+        WHERE league_id = $1 ORDER BY effective_at DESC LIMIT 1`,
+      [league.id]
+    );
+    const rulebook = rulebookRow.rows[0] ?? null;
+
+    // Charity/sponsor profile fields
+    const partnersRows = await pool.query<{
+      id: string; kind: string; name: string; link: string; blurb: string | null; logo_url: string | null;
+    }>(
+      `SELECT id, kind, name, link, blurb, logo_url FROM league_partner
+        WHERE league_id = $1 ORDER BY kind, display_order`,
+      [league.id]
+    );
+    const partners = {
+      charities: partnersRows.rows.filter((p) => p.kind === "charity"),
+      sponsors: partnersRows.rows.filter((p) => p.kind === "sponsor"),
+    };
+
     // Active season
     const seasonRow = await pool.query<{ id: string; label: string }>(
       `SELECT id, label FROM season WHERE league_id = $1 AND is_active = TRUE LIMIT 1`,
@@ -336,9 +365,37 @@ router.get(
     const season = seasonRow.rows[0] ?? null;
 
     if (!season) {
-      res.json({ league, season: null, standings: [], listing });
+      res.json({ league, season: null, standings: [], listing, rulebook, partners, schedule: { recent: [], upcoming: [] } });
       return;
     }
+
+    // Schedule slices for the public page — last 5 confirmed results, next 5 scheduled games
+    const scheduleRows = await pool.query<{
+      id: string; week_number: number | null; status: string; window_opens_at: Date;
+      home_label: string; away_label: string; home_goals: number | null; away_goals: number | null;
+    }>(
+      `SELECT g.id, g.week_number, g.status, g.window_opens_at,
+              hf.name AS home_label, af.name AS away_label,
+              gr.home_goals, gr.away_goals
+         FROM game g
+         JOIN team_season hts ON hts.id = g.home_team_season_id
+         JOIN team_season ats ON ats.id = g.away_team_season_id
+         JOIN franchise hf ON hf.id = hts.franchise_id
+         JOIN franchise af ON af.id = ats.franchise_id
+         LEFT JOIN game_result gr ON gr.game_id = g.id AND gr.superseded_by IS NULL
+        WHERE g.season_id = $1
+        ORDER BY g.window_opens_at ASC`,
+      [season.id]
+    );
+    const now = Date.now();
+    const recent = scheduleRows.rows
+      .filter((g) => g.status === "confirmed" && new Date(g.window_opens_at).getTime() <= now)
+      .slice(-5)
+      .reverse();
+    const upcoming = scheduleRows.rows
+      .filter((g) => g.status === "scheduled" && new Date(g.window_opens_at).getTime() > now)
+      .slice(0, 5);
+    const schedule = { recent, upcoming };
 
     // Standings rows from view
     const standingsRows = await pool.query(
@@ -444,7 +501,7 @@ router.get(
       };
     });
 
-    res.json({ league, season, standings, listing });
+    res.json({ league, season, standings, listing, rulebook, partners, schedule });
   }
 );
 

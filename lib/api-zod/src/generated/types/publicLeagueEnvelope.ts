@@ -5,8 +5,11 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { PartnersEnvelope } from './partnersEnvelope';
 import type { PublicLeagueEnvelopeLeague } from './publicLeagueEnvelopeLeague';
 import type { PublicLeagueEnvelopeListing } from './publicLeagueEnvelopeListing';
+import type { PublicLeagueEnvelopeRulebook } from './publicLeagueEnvelopeRulebook';
+import type { PublicLeagueEnvelopeSchedule } from './publicLeagueEnvelopeSchedule';
 import type { PublicLeagueEnvelopeSeason } from './publicLeagueEnvelopeSeason';
 import type { StandingsRow } from './standingsRow';
 
@@ -16,4 +19,7 @@ export interface PublicLeagueEnvelope {
   standings: StandingsRow[];
   /** Present when the league has an active listing entry (is_listed = true). Null when the league is not publicly recruiting. */
   listing?: PublicLeagueEnvelopeListing;
+  schedule?: PublicLeagueEnvelopeSchedule;
+  rulebook?: PublicLeagueEnvelopeRulebook;
+  partners?: PartnersEnvelope;
 }

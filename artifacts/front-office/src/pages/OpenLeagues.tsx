@@ -29,6 +29,10 @@ interface OpenLeague {
   waitlist_length: number;
   games_confirmed: number | null;
   active_gms: number | null;
+  partners?: {
+    charities: Array<{ id: string; name: string; link: string; logo_url: string | null }>;
+    sponsors: Array<{ id: string; name: string; link: string; logo_url: string | null }>;
+  };
 }
 
 interface SignupDraft {
@@ -364,6 +368,24 @@ export default function OpenLeagues() {
                 </div>
                 {league.blurb && (
                   <div className="lblurb">{league.blurb}</div>
+                )}
+                {league.partners && (league.partners.charities.length > 0 || league.partners.sponsors.length > 0) && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                    {[...league.partners.charities, ...league.partners.sponsors].map((p) => (
+                      <span
+                        key={p.id}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          fontFamily: 'var(--data)', fontSize: '10px', letterSpacing: '.04em',
+                          border: '1px solid var(--rule)', borderRadius: '2px', padding: '2px 6px',
+                          color: 'var(--steel)',
+                        }}
+                      >
+                        {p.logo_url && <img src={p.logo_url} alt="" style={{ height: '12px', width: 'auto' }} />}
+                        {p.name}
+                      </span>
+                    ))}
+                  </div>
                 )}
                 <div className="lstats">
                   <div className="lstat">

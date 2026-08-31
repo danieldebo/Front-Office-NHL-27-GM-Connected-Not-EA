@@ -23,5 +23,12 @@ export interface Seat {
   /** @nullable */
   division?: string | null;
   seat_status: SeatSeatStatus;
+  /**
+     * When an open seat's last GM left. Null for a seat that was never filled, or that currently has a GM.
+     * @nullable
+     */
+  vacated_at?: Date | null;
+  /** True for an open seat that has never had a GM. Omitted on responses that don't compute assignment history (e.g. right after an assign/revoke). */
+  never_filled?: boolean;
   gm?: AssignedGm | null;
 }

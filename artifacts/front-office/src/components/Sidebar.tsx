@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Link } from 'wouter';
 import {
   useListSeats,
   useGetMyProfile,
   useGetCapPosition,
   useListWireTransactions,
+  useGetMyCalendarFeed,
 } from '@workspace/api-client-react';
 
 function money(cents: number | null | undefined): string {
@@ -30,6 +32,11 @@ export default function Sidebar({ leagueId }: { leagueId?: string }) {
   const wire = wireResponse?.data ?? [];
 
   const capPct = cap?.salary_cap_cents ? Math.min(100, Math.round((cap.cap_used_cents / cap.salary_cap_cents) * 100)) : 0;
+
+  const [wantsFeed, setWantsFeed] = useState(false);
+  const { data: myFeed } = useGetMyCalendarFeed(leagueId ?? '', {
+    query: { enabled: Boolean(leagueId) && wantsFeed } as any,
+  });
 
   return (
     <aside>
@@ -97,6 +104,29 @@ export default function Sidebar({ leagueId }: { leagueId?: string }) {
           ))
         )}
       </section>
+
+      {/* CALENDAR */}
+      {leagueId && (
+        <section className="panel">
+          <div className="panel-head"><h2>My Calendar</h2></div>
+          <div style={{ padding: '14px 16px' }}>
+            {!wantsFeed ? (
+              <button className="btn ghost" style={{ fontSize: '11px' }} onClick={() => setWantsFeed(true)}>
+                Get my calendar feed
+              </button>
+            ) : myFeed ? (
+              <input
+                readOnly
+                value={myFeed.ics_url}
+                onFocus={(e) => e.target.select()}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1px solid var(--rule)', borderRadius: '3px', fontFamily: 'var(--data)', fontSize: '11px' }}
+              />
+            ) : (
+              <span style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>Loading…</span>
+            )}
+          </div>
+        </section>
+      )}
     </aside>
   );
 }

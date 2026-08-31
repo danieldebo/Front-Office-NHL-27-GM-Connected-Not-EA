@@ -34,4 +34,11 @@ export interface Season {
   points_reg_loss?: number;
   tiebreakers?: string[];
   is_active?: boolean;
+  /** Commissioner-set keeper limit for this season. 0 disables keepers. */
+  keepers_per_team?: number;
+  /**
+     * After this passes, only the commissioner can change keepers. Null means no deadline.
+     * @nullable
+     */
+  keeper_deadline_at?: Date | null;
 }
