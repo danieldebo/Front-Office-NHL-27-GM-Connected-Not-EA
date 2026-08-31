@@ -11,6 +11,8 @@ const editableFields = [
   "psn_online_id",
   "systems_played",
   "primary_identity",
+  "first_nhl_game",
+  "profile_image_url",
 ] as const;
 
 type Identity = "xbox" | "playstation";
@@ -22,7 +24,13 @@ type Profile = {
   psn_online_id: string | null;
   systems_played: Identity[];
   primary_identity: Identity | null;
+  first_nhl_game: string | null;
+  profile_image_url: string | null;
 };
+
+// Cosmetic, self-reported — not fetched or verified, so only bounded and
+// (for the URL) restricted to http(s) so it can't carry a javascript: URL.
+const HTTP_URL_PATTERN = /^https?:\/\/\S+$/i;
 
 function validTimezone(value: string): boolean {
   try {
@@ -81,12 +89,27 @@ export function validateProfilePatch(body: unknown): { values?: Record<string, u
     }
     values.primary_identity = input.primary_identity;
   }
+  if ("first_nhl_game" in input) {
+    const value = input.first_nhl_game;
+    if (value !== null && (typeof value !== "string" || !value.trim() || value.trim().length > 60)) {
+      return { error: "first_nhl_game must be null or between 1 and 60 characters" };
+    }
+    values.first_nhl_game = typeof value === "string" ? value.trim() : null;
+  }
+  if ("profile_image_url" in input) {
+    const value = input.profile_image_url;
+    if (value !== null
+        && (typeof value !== "string" || !value.trim() || value.trim().length > 500 || !HTTP_URL_PATTERN.test(value.trim()))) {
+      return { error: "profile_image_url must be null or a valid http(s) URL of 500 characters or fewer" };
+    }
+    values.profile_image_url = typeof value === "string" ? value.trim() : null;
+  }
   return { values };
 }
 
 function profileSelect(): string {
   return `id, display_name, timezone, xbox_gamertag, psn_online_id,
-          systems_played, primary_identity`;
+          systems_played, primary_identity, first_nhl_game, profile_image_url`;
 }
 
 router.get("/users/me", async (req: Request, res: Response): Promise<void> => {
@@ -152,23 +175,26 @@ router.patch("/users/me", async (req: Request, res: Response): Promise<void> => 
     const updatedResult = await client.query<Profile>(
       `UPDATE app_user SET
          display_name = $2, timezone = $3, xbox_gamertag = $4,
-         psn_online_id = $5, systems_played = $6, primary_identity = $7
+         psn_online_id = $5, systems_played = $6, primary_identity = $7,
+         first_nhl_game = $8, profile_image_url = $9
        WHERE id = $1
        RETURNING ${profileSelect()}`,
       [
         user.appUserId, next.display_name, next.timezone, next.xbox_gamertag,
         next.psn_online_id, next.systems_played, next.primary_identity,
+        next.first_nhl_game, next.profile_image_url,
       ],
     );
     const updated = updatedResult.rows[0]!;
     await client.query(
       `INSERT INTO app_user_profile_history
          (user_id, display_name, timezone, xbox_gamertag, psn_online_id,
-          systems_played, primary_identity, changed_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $1)`,
+          systems_played, primary_identity, first_nhl_game, profile_image_url, changed_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $1)`,
       [
         user.appUserId, updated.display_name, updated.timezone, updated.xbox_gamertag,
         updated.psn_online_id, updated.systems_played, updated.primary_identity,
+        updated.first_nhl_game, updated.profile_image_url,
       ],
     );
     await client.query(

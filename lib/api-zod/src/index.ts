@@ -65,6 +65,7 @@ export type { GameStatus } from "./generated/types/gameStatus";
 export type { GetMyLeagues200 } from "./generated/types/getMyLeagues200";
 export type { GetPublicLeagueParams } from "./generated/types/getPublicLeagueParams";
 export type { GetStandings200 } from "./generated/types/getStandings200";
+export type { GmRecord } from "./generated/types/gmRecord";
 export type { HealthStatus } from "./generated/types/healthStatus";
 export type { IdempotencyKeyParameter } from "./generated/types/idempotencyKeyParameter";
 export type { IfMatchParameter } from "./generated/types/ifMatchParameter";

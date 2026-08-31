@@ -67,6 +67,7 @@ export * from './generateScheduleResult';
 export * from './getMyLeagues200';
 export * from './getPublicLeagueParams';
 export * from './getStandings200';
+export * from './gmRecord';
 export * from './healthStatus';
 export * from './idempotencyKeyParameter';
 export * from './ifMatchParameter';

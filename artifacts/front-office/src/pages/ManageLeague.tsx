@@ -50,12 +50,63 @@ import SetupChecklist from '@/components/SetupChecklist';
 import OperationsTab from '@/components/OperationsTab';
 
 // Helper components
+
+/** "12-8-2" once OT/SO losses exist, else the plain "12-8" most leagues expect. */
+function formatGmRecord(record?: { w: number; l: number; otl: number } | null): string | null {
+  if (!record) return null;
+  if (record.w === 0 && record.l === 0 && record.otl === 0) return null;
+  return record.otl > 0 ? `${record.w}-${record.l}-${record.otl}` : `${record.w}-${record.l}`;
+}
+
 export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) {
   const identity = gmIdentityLabel(gm);
+  const name = gm.display_name || 'Unknown GM';
+  const leagueRecord = formatGmRecord(gm.league_record);
+  const siteRecord = formatGmRecord(gm.site_record);
+  const hasFacts = Boolean(gm.first_nhl_game || leagueRecord || siteRecord);
+
   return (
-    <div style={{ fontFamily: 'var(--data)', fontSize: '12px' }} data-testid={`text-seat-gm-${seatId}`}>
-      GM: <strong style={{ color: 'var(--ink)' }}>{gm.display_name || gm.user_id}</strong>
-      {identity && <span style={{ color: 'var(--steel)' }}> · {identity}</span>}
+    <div className="gm-card" data-testid={`text-seat-gm-${seatId}`}>
+      <span className="gm-card-avatar" aria-hidden="true">
+        {gm.profile_image_url ? (
+          <img
+            src={gm.profile_image_url}
+            alt=""
+            loading="lazy"
+            onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
+          />
+        ) : (
+          <span className="gm-card-avatar-fallback">{name.charAt(0).toUpperCase()}</span>
+        )}
+      </span>
+      <div className="gm-card-body">
+        <div className="gm-card-pills">
+          <span className="gm-card-pill gm-card-pill-name">{name}</span>
+          {identity && <span className="gm-card-pill gm-card-pill-tag">{identity}</span>}
+        </div>
+        {hasFacts && (
+          <dl className="gm-card-facts">
+            {gm.first_nhl_game && (
+              <div className="gm-card-fact">
+                <dt>First game</dt>
+                <dd>{gm.first_nhl_game}</dd>
+              </div>
+            )}
+            {leagueRecord && (
+              <div className="gm-card-fact">
+                <dt>League</dt>
+                <dd>{leagueRecord}</dd>
+              </div>
+            )}
+            {siteRecord && (
+              <div className="gm-card-fact">
+                <dt>Site</dt>
+                <dd>{siteRecord}</dd>
+              </div>
+            )}
+          </dl>
+        )}
+      </div>
     </div>
   );
 }

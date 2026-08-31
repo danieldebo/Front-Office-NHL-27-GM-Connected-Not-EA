@@ -28,7 +28,9 @@ export const GetMyProfileResponse = zod.object({
   "psn_online_id": zod.string().nullable(),
   "systems_played": zod.array(zod.enum(['xbox', 'playstation'])),
   "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]),
-  "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.')
+  "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.'),
+  "first_nhl_game": zod.string().nullish().describe('Self-reported, e.g. \"NHL 94\" — not verified.'),
+  "profile_image_url": zod.string().nullish().describe('Self-reported public image URL used as an avatar. Not verified or fetched server-side.')
 })
 
 
@@ -43,6 +45,10 @@ export const updateMyProfileBodyXboxGamertagMax = 100;
 
 export const updateMyProfileBodyPsnOnlineIdMax = 100;
 
+export const updateMyProfileBodyFirstNhlGameMax = 60;
+
+export const updateMyProfileBodyProfileImageUrlMax = 500;
+
 
 
 export const UpdateMyProfileBody = zod.object({
@@ -51,7 +57,9 @@ export const UpdateMyProfileBody = zod.object({
   "xbox_gamertag": zod.string().min(1).max(updateMyProfileBodyXboxGamertagMax).nullish(),
   "psn_online_id": zod.string().min(1).max(updateMyProfileBodyPsnOnlineIdMax).nullish(),
   "systems_played": zod.array(zod.enum(['xbox', 'playstation'])).optional(),
-  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional()
+  "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "first_nhl_game": zod.string().min(1).max(updateMyProfileBodyFirstNhlGameMax).nullish(),
+  "profile_image_url": zod.string().min(1).max(updateMyProfileBodyProfileImageUrlMax).nullish()
 })
 
 export const UpdateMyProfileResponse = zod.object({
@@ -62,7 +70,9 @@ export const UpdateMyProfileResponse = zod.object({
   "psn_online_id": zod.string().nullable(),
   "systems_played": zod.array(zod.enum(['xbox', 'playstation'])),
   "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]),
-  "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.')
+  "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.'),
+  "first_nhl_game": zod.string().nullish().describe('Self-reported, e.g. \"NHL 94\" — not verified.'),
+  "profile_image_url": zod.string().nullish().describe('Self-reported public image URL used as an avatar. Not verified or fetched server-side.')
 })
 
 
@@ -1323,7 +1333,19 @@ export const ListSeatsResponse = zod.object({
   "gm_xbox_gamertag": zod.string().nullish(),
   "gm_psn_online_id": zod.string().nullish(),
   "started_at": zod.coerce.date().optional(),
-  "role": zod.string().optional()
+  "role": zod.string().optional(),
+  "first_nhl_game": zod.string().nullish(),
+  "profile_image_url": zod.string().nullish(),
+  "league_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.'),
+  "site_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.')
 }),zod.null()]).optional()
 }))
 })
@@ -1393,7 +1415,19 @@ export const AssignGmResponse = zod.object({
   "gm_xbox_gamertag": zod.string().nullish(),
   "gm_psn_online_id": zod.string().nullish(),
   "started_at": zod.coerce.date().optional(),
-  "role": zod.string().optional()
+  "role": zod.string().optional(),
+  "first_nhl_game": zod.string().nullish(),
+  "profile_image_url": zod.string().nullish(),
+  "league_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.'),
+  "site_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.')
 }),zod.null()]).optional()
 })
 
@@ -1431,7 +1465,19 @@ export const RevokeGmResponse = zod.object({
   "gm_xbox_gamertag": zod.string().nullish(),
   "gm_psn_online_id": zod.string().nullish(),
   "started_at": zod.coerce.date().optional(),
-  "role": zod.string().optional()
+  "role": zod.string().optional(),
+  "first_nhl_game": zod.string().nullish(),
+  "profile_image_url": zod.string().nullish(),
+  "league_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.'),
+  "site_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.')
 }),zod.null()]).optional()
 })
 

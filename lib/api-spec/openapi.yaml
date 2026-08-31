@@ -3891,6 +3891,26 @@ components:
           format: date-time
         role:
           type: string
+        first_nhl_game:
+          type: ["string", "null"]
+        profile_image_url:
+          type: ["string", "null"]
+        league_record:
+          $ref: '#/components/schemas/GmRecord'
+        site_record:
+          $ref: '#/components/schemas/GmRecord'
+
+    GmRecord:
+      type: object
+      required: [w, l, otl]
+      description: Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.
+      properties:
+        w:
+          type: integer
+        l:
+          type: integer
+        otl:
+          type: integer
 
     UnassignedMember:
       type: object
@@ -4478,6 +4498,12 @@ components:
         xbox_verified:
           type: boolean
           description: True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.
+        first_nhl_game:
+          type: ["string", "null"]
+          description: Self-reported, e.g. "NHL 94" — not verified.
+        profile_image_url:
+          type: ["string", "null"]
+          description: Self-reported public image URL used as an avatar. Not verified or fetched server-side.
 
     XboxLinkStatus:
       type: object
@@ -4526,6 +4552,14 @@ components:
           oneOf:
             - $ref: '#/components/schemas/PlayerSystem'
             - type: 'null'
+        first_nhl_game:
+          type: ["string", "null"]
+          minLength: 1
+          maxLength: 60
+        profile_image_url:
+          type: ["string", "null"]
+          minLength: 1
+          maxLength: 500
 
     WaitlistPositionInput:
       type: object

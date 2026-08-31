@@ -19,4 +19,14 @@ export interface UserProfile {
   primary_identity: PlayerSystem | null;
   /** True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported. */
   xbox_verified?: boolean;
+  /**
+     * Self-reported, e.g. "NHL 94" — not verified.
+     * @nullable
+     */
+  first_nhl_game?: string | null;
+  /**
+     * Self-reported public image URL used as an avatar. Not verified or fetched server-side.
+     * @nullable
+     */
+  profile_image_url?: string | null;
 }

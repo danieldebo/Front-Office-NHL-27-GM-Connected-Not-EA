@@ -69,6 +69,8 @@ async function loadSeat(teamSeasonId: string) {
        to_jsonb(au)->>'psn_online_id' AS gm_psn_online_id,
        au.platform::text AS gm_legacy_platform,
        au.platform_gamertag AS gm_legacy_gamertag,
+       au.first_nhl_game AS gm_first_nhl_game,
+       au.profile_image_url AS gm_profile_image_url,
        ga.started_at AS gm_started_at,
        ga.role AS gm_role
      FROM team_season ts
@@ -82,7 +84,77 @@ async function loadSeat(teamSeasonId: string) {
   return rows[0] ?? null;
 }
 
-function formatSeat(r: Record<string, unknown>) {
+type GmRecord = { w: number; l: number; otl: number };
+const ZERO_GM_RECORD: GmRecord = { w: 0, l: 0, otl: 0 };
+
+// Batched so the seats list (up to ~32 GMs) costs one query, not one per row.
+// "Combined record" sums every completed, standings-counting game across
+// every team_season this user has ever held a gm_assignment for — league-
+// scoped and site-wide. A user who has managed two teams that played each
+// other correctly gets a win credited to one seat and a loss to the other.
+async function getGmCareerRecords(
+  userIds: string[],
+  leagueId: string
+): Promise<Map<string, { league: GmRecord; site: GmRecord }>> {
+  const map = new Map<string, { league: GmRecord; site: GmRecord }>();
+  const uniqueIds = [...new Set(userIds)];
+  if (uniqueIds.length === 0) return map;
+
+  const { rows } = await pool.query<{
+    user_id: string;
+    site_w: string; site_l: string; site_otl: string;
+    league_w: string; league_l: string; league_otl: string;
+  }>(
+    `WITH my_seats AS (
+       SELECT DISTINCT ga.user_id, ga.team_season_id
+         FROM gm_assignment ga
+        WHERE ga.user_id = ANY($1::uuid[])
+     ),
+     games AS (
+       SELECT
+         ms.user_id,
+         (s.league_id = $2) AS in_league,
+         CASE WHEN g.home_team_season_id = ms.team_season_id THEN gr.home_goals ELSE gr.away_goals END AS goals_for,
+         CASE WHEN g.home_team_season_id = ms.team_season_id THEN gr.away_goals ELSE gr.home_goals END AS goals_against,
+         gr.decision
+         FROM my_seats ms
+         JOIN team_season ts ON ts.id = ms.team_season_id
+         JOIN season s ON s.id = ts.season_id
+         JOIN game g ON g.home_team_season_id = ms.team_season_id OR g.away_team_season_id = ms.team_season_id
+         JOIN game_result gr ON gr.game_id = g.id
+        WHERE gr.superseded_by IS NULL
+          AND g.status IN ('confirmed', 'forfeited', 'simulated')
+          AND gr.counts_toward_standings = TRUE
+     )
+     SELECT
+       user_id,
+       COUNT(*) FILTER (WHERE goals_for > goals_against)                                AS site_w,
+       COUNT(*) FILTER (WHERE goals_for < goals_against AND decision = 'regulation')     AS site_l,
+       COUNT(*) FILTER (WHERE goals_for < goals_against AND decision <> 'regulation')    AS site_otl,
+       COUNT(*) FILTER (WHERE in_league AND goals_for > goals_against)                   AS league_w,
+       COUNT(*) FILTER (WHERE in_league AND goals_for < goals_against
+                          AND decision = 'regulation')                                   AS league_l,
+       COUNT(*) FILTER (WHERE in_league AND goals_for < goals_against
+                          AND decision <> 'regulation')                                  AS league_otl
+     FROM games
+     GROUP BY user_id`,
+    [uniqueIds, leagueId]
+  );
+
+  for (const row of rows) {
+    map.set(row.user_id, {
+      site: { w: Number(row.site_w), l: Number(row.site_l), otl: Number(row.site_otl) },
+      league: { w: Number(row.league_w), l: Number(row.league_l), otl: Number(row.league_otl) },
+    });
+  }
+  return map;
+}
+
+function formatSeat(
+  r: Record<string, unknown>,
+  records?: Map<string, { league: GmRecord; site: GmRecord }>
+) {
+  const record = r.gm_user_id ? records?.get(r.gm_user_id as string) : undefined;
   return {
     team_season_id: r.team_season_id,
     franchise_id: r.franchise_id,
@@ -114,6 +186,10 @@ function formatSeat(r: Record<string, unknown>) {
            }),
           started_at: r.gm_started_at,
           role: r.gm_role,
+          first_nhl_game: r.gm_first_nhl_game ?? null,
+          profile_image_url: r.gm_profile_image_url ?? null,
+          league_record: record?.league ?? ZERO_GM_RECORD,
+          site_record: record?.site ?? ZERO_GM_RECORD,
         }
       : null,
   };
@@ -586,6 +662,8 @@ router.get(
          to_jsonb(au)->>'psn_online_id' AS gm_psn_online_id,
          au.platform::text AS gm_legacy_platform,
          au.platform_gamertag AS gm_legacy_gamertag,
+         au.first_nhl_game AS gm_first_nhl_game,
+         au.profile_image_url AS gm_profile_image_url,
          ga.started_at AS gm_started_at,
          ga.role AS gm_role,
          hist.ever_assigned,
@@ -604,7 +682,12 @@ router.get(
       [seasonRow.rows[0].id]
     );
 
-    res.json({ data: rows.map(formatSeat) });
+    const gmUserIds = rows
+      .map((r) => r.gm_user_id as string | null)
+      .filter((id): id is string => Boolean(id));
+    const records = await getGmCareerRecords(gmUserIds, leagueId);
+
+    res.json({ data: rows.map((r) => formatSeat(r, records)) });
   }
 );
 
@@ -697,7 +780,8 @@ router.put(
     }
 
     const seat = await loadSeat(teamSeasonId);
-    res.json(formatSeat(seat as Record<string, unknown>));
+    const records = await getGmCareerRecords([targetUserId], leagueId);
+    res.json(formatSeat(seat as Record<string, unknown>, records));
   }
 );
 
