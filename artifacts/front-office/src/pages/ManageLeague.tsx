@@ -10,6 +10,8 @@ import {
   useReplaceTeamClub,
   useRemoveTeam,
   useApproveAllSeats,
+  useUpdateLeague,
+  type League,
   useListJoinRequests,
   useApproveJoinRequest,
   useRejectJoinRequest,
@@ -53,6 +55,8 @@ import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
 import SetupChecklist from '@/components/SetupChecklist';
 import OperationsTab from '@/components/OperationsTab';
 import TeamPicker from '@/components/TeamPicker';
+import LeagueLogoPicker from '@/components/LeagueLogoPicker';
+import { DEFAULT_PROFILE_ICON } from '@/components/profileIcons';
 import { toast } from '@/hooks/use-toast';
 
 // Helper components
@@ -77,16 +81,12 @@ export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) 
   return (
     <div className="gm-card" data-testid={`text-seat-gm-${seatId}`}>
       <span className="gm-card-avatar" aria-hidden="true">
-        {gm.profile_image_url ? (
-          <img
-            src={gm.profile_image_url}
-            alt=""
-            loading="lazy"
-            onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-          />
-        ) : (
-          <span className="gm-card-avatar-fallback">{name.charAt(0).toUpperCase()}</span>
-        )}
+        <img
+          src={gm.profile_image_url || DEFAULT_PROFILE_ICON}
+          alt=""
+          loading="lazy"
+          onError={(event) => { if (event.currentTarget.src !== DEFAULT_PROFILE_ICON) event.currentTarget.src = DEFAULT_PROFILE_ICON; }}
+        />
       </span>
       <div className="gm-card-body">
         <div className="gm-card-pills">
@@ -327,6 +327,46 @@ function ReplaceClubControl({ seat, existingClubIds, onDone }: {
         {replaceClub.isPending ? 'Saving…' : 'Save'}
       </button>
       <button className="btn ghost" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={onDone}>Cancel</button>
+    </div>
+  );
+}
+
+function BrandingPanel({ league }: { league: League }) {
+  const [logoUrl, setLogoUrl] = useState(league.logo_url ?? '');
+  const updateLeague = useUpdateLeague();
+  const queryClient = useQueryClient();
+  const dirty = logoUrl !== (league.logo_url ?? '');
+
+  const handleSave = () => {
+    updateLeague.mutate({ leagueId: league.id, data: { logo_url: logoUrl || null } }, {
+      onSuccess: () => {
+        toast({ title: 'League logo updated' });
+        queryClient.invalidateQueries({ queryKey: [`/api/leagues/${league.id}`] as any });
+        queryClient.invalidateQueries({ queryKey: [`/api/leagues/open`] as any });
+      },
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to update logo'),
+    });
+  };
+
+  return (
+    <div className="panel" style={{ marginBottom: '16px' }}>
+      <div className="panel-head">
+        <h2>League Logo</h2>
+        <div className="note">Shown on the public league page and Open Leagues card</div>
+      </div>
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <LeagueLogoPicker value={logoUrl} onChange={setLogoUrl} />
+        <div>
+          <button
+            className="btn"
+            style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}
+            disabled={!dirty || updateLeague.isPending}
+            onClick={handleSave}
+          >
+            {updateLeague.isPending ? 'Saving…' : 'Save Logo'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -731,12 +771,14 @@ function PlayersTab({ leagueId, leagueSlug }: { leagueId: string; leagueSlug: st
           History
         </button>
       </div>
-      {view === 'pending' ? <PendingPlayers leagueId={leagueId} leagueSlug={leagueSlug} /> : <PlayersHistory leagueId={leagueId} />}
+      {view === 'pending'
+        ? <PendingPlayers leagueId={leagueId} leagueSlug={leagueSlug} onViewHistory={() => setView('history')} />
+        : <PlayersHistory leagueId={leagueId} />}
     </div>
   );
 }
 
-function PendingPlayers({ leagueId, leagueSlug }: { leagueId: string; leagueSlug: string }) {
+function PendingPlayers({ leagueId, leagueSlug, onViewHistory }: { leagueId: string; leagueSlug: string; onViewHistory: () => void }) {
   const queryClient = useQueryClient();
   const { data: reqsResponse, isLoading: isLoadingReqs } = useListJoinRequests(leagueId, { status: 'pending' });
   const { data: invResponse, isLoading: isLoadingInv } = useListInvites(leagueId);
@@ -1139,18 +1181,36 @@ function PendingPlayers({ leagueId, leagueSlug }: { leagueId: string; leagueSlug
         </div>
       </div>
 
-      <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>
-        Applicants
-        {applicants.length > 0 && (
-          <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', fontWeight: 400, marginLeft: '10px', textTransform: 'none' }}>
-            {applicants.length} pending
-          </span>
-        )}
+      <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span>
+          Applicants
+          {applicants.length > 0 && (
+            <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', fontWeight: 400, marginLeft: '10px', textTransform: 'none' }}>
+              {applicants.length} pending
+            </span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={onViewHistory}
+          className="btn ghost"
+          style={{ fontSize: '11px', padding: '4px 10px', textTransform: 'none', marginLeft: 'auto' }}
+        >
+          View decision history
+        </button>
       </h3>
 
       {applicants.length === 0 ? (
         <div className="panel" style={{ padding: '28px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
-          No sign-ups or waitlist entries yet.
+          No pending sign-ups or waitlist entries. Already decided on someone? Check{' '}
+          <button
+            type="button"
+            onClick={onViewHistory}
+            style={{ color: 'var(--crease)', background: 'none', border: 'none', padding: 0, font: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+          >
+            decision history
+          </button>
+          {' '}for who's already been approved or declined.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -2006,7 +2066,12 @@ export default function ManageLeague() {
         {activeTab === 'schedule' && (
           <ScheduleTab leagueId={league.id} />
         )}
-        {activeTab === 'settings' && <LeagueSettings leagueId={league.id} editable />}
+        {activeTab === 'settings' && (
+          <>
+            <BrandingPanel league={league} />
+            <LeagueSettings leagueId={league.id} editable />
+          </>
+        )}
         {activeTab === 'discovery' && (
           <DiscoveryTab leagueId={league.id} />
         )}

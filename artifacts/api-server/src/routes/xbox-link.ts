@@ -57,9 +57,25 @@ router.get("/xbox/link/start", rateLimiter(), (req: Request, res: Response): voi
   const user = getCurrentUser(req);
   if (!user?.appUserId) { unauthorized(res, "Authentication required"); return; }
 
-  const { verifier, challenge } = pkcePair();
-  const state = signToken({ uid: user.appUserId, verifier } satisfies LinkState, STATE_ENV, STATE_TTL_SECONDS);
-  res.redirect(buildAuthorizeUrl(state, challenge));
+  // buildAuthorizeUrl/signToken throw a plain Error when XBOX_CLIENT_ID,
+  // CALLBACK_BASE_URL, or XBOX_STATE_SECRET aren't set in this environment —
+  // an unhandled 500 with no explanation. Fail into the same error-banner
+  // path the OAuth callback already uses instead, so a misconfigured
+  // deployment (rather than a real Xbox Live failure) is visible and
+  // actionable instead of a raw crash page.
+  try {
+    const { verifier, challenge } = pkcePair();
+    const state = signToken({ uid: user.appUserId, verifier } satisfies LinkState, STATE_ENV, STATE_TTL_SECONDS);
+    res.redirect(buildAuthorizeUrl(state, challenge));
+  } catch (err) {
+    const base = frontendBase();
+    if (!base) {
+      // Can't even build a redirect target — CALLBACK_BASE_URL itself is
+      // unset, so there's nowhere safe to send the user back to.
+      throw err;
+    }
+    res.redirect(`${base}/profile?xbox=error&reason=xbox_not_configured`);
+  }
 });
 
 router.get("/xbox/link/callback", async (req: Request, res: Response): Promise<void> => {
