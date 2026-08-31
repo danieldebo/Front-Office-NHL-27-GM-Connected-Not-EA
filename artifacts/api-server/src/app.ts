@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "fs";
 import path from "path";
-import express, { type Express } from "express";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -9,6 +9,7 @@ import { pool } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { clerkIdentityMiddleware } from "./server/auth/clerkIdentityMiddleware";
 import { injectOgTags } from "./server/ogInject";
+import { problem } from "./server/errors";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
@@ -115,5 +116,33 @@ if (FRONTEND_DIST_DIR && existsSync(path.join(FRONTEND_DIST_DIR, "index.html")))
     res.sendFile(indexPath);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Global error handler — MUST be last, and MUST take exactly 4 params for
+// Express to recognize it as an error handler (not a regular middleware).
+//
+// Without this, an unhandled route error fell through to Express's own
+// default handler: a generic "Internal Server Error" HTML page, AND — this
+// is the part that actually cost real debugging time — pino-http's request
+// logging only records a synthesized "failed with status code 500" message
+// in that case, never the real thrown error. The actual exception was
+// effectively going nowhere. This logs the real error (with stack) through
+// the request-scoped logger so it shows up in deployment logs, and returns
+// the same RFC 9457 problem+json shape every other error path in this API
+// already uses, with a trace_id a client can hand back for correlation —
+// never the raw error message/stack, which could leak internal details
+// (table/column names, query fragments) to the response body.
+// ---------------------------------------------------------------------------
+app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+  req.log?.error({ err }, "unhandled error");
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+  problem(res, 500, "Internal Server Error", {
+    detail: "Something went wrong on our end. If this keeps happening, contact support with this trace ID.",
+    trace_id: req.id as string | undefined,
+  });
+});
 
 export default app;
