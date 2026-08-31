@@ -2,6 +2,7 @@ import { pool } from "@workspace/db";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startOutboxWorker } from "./server/outboxWorker";
+import { startDigestScheduler } from "./server/jobs/digestScheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -27,3 +28,4 @@ app.listen(port, (err) => {
 });
 
 startOutboxWorker(pool);
+startDigestScheduler(pool);

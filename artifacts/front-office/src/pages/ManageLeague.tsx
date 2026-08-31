@@ -47,6 +47,7 @@ import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
 import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
 import SetupChecklist from '@/components/SetupChecklist';
+import OperationsTab from '@/components/OperationsTab';
 
 // Helper components
 export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) {
@@ -1470,8 +1471,8 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   );
 }
 
-type ManageTab = 'seats'|'requests'|'rulebook'|'schedule'|'settings'|'links'|'discovery'|'applicants';
-const MANAGE_TABS: ManageTab[] = ['seats', 'requests', 'rulebook', 'schedule', 'settings', 'links', 'discovery', 'applicants'];
+type ManageTab = 'seats'|'requests'|'rulebook'|'schedule'|'settings'|'links'|'discovery'|'applicants'|'operations';
+const MANAGE_TABS: ManageTab[] = ['seats', 'requests', 'rulebook', 'schedule', 'settings', 'links', 'discovery', 'applicants', 'operations'];
 
 export default function ManageLeague() {
   const { id } = useParams<{ id: string }>();
@@ -1569,13 +1570,19 @@ export default function ManageLeague() {
           >
             Discovery
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('applicants')}
             className={`btn ${activeTab !== 'applicants' ? 'ghost' : ''}`}
           >
             Applicants
           </button>
-          
+          <button
+            onClick={() => setActiveTab('operations')}
+            className={`btn ${activeTab !== 'operations' ? 'ghost' : ''}`}
+          >
+            Operations
+          </button>
+
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
             <Link href={`/leagues/${league.id}/dq`} className="btn ghost" style={{ borderColor: 'var(--steel)', fontSize: '12px' }}>
               DQ
@@ -1601,6 +1608,9 @@ export default function ManageLeague() {
         )}
         {activeTab === 'applicants' && (
           <ApplicantsTab leagueId={league.id} />
+        )}
+        {activeTab === 'operations' && (
+          <OperationsTab leagueId={league.id} />
         )}
       </div>
     </>

@@ -16,6 +16,10 @@ import leagueSettingsRouter from "./league-settings";
 import xboxLinkRouter from "./xbox-link";
 import transactionsRouter from "./transactions";
 import keepersRouter from "./keepers";
+import boxScoresRouter from "./box-scores";
+import digestRouter from "./digest";
+import calendarFeedRouter from "./calendar-feed";
+import partnersRouter from "./partners";
 
 const router: IRouter = Router();
 
@@ -36,5 +40,9 @@ router.use(dqRouter);
 router.use(xboxLinkRouter);
 router.use(transactionsRouter);
 router.use(keepersRouter);
+router.use(boxScoresRouter);
+router.use(digestRouter);
+router.use(calendarFeedRouter);
+router.use(partnersRouter);
 
 export default router;

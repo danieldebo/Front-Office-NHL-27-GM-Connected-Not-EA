@@ -600,6 +600,31 @@ export type PublicLeagueEnvelopeListing = {
   suggested_division?: string | null;
 } | null;
 
+export interface PublicScheduleGame {
+  id: string;
+  /** @nullable */
+  week_number: number | null;
+  status: string;
+  window_opens_at: string;
+  home_label: string;
+  away_label: string;
+  /** @nullable */
+  home_goals?: number | null;
+  /** @nullable */
+  away_goals?: number | null;
+}
+
+export type PublicLeagueEnvelopeSchedule = {
+  recent: PublicScheduleGame[];
+  upcoming: PublicScheduleGame[];
+};
+
+export type PublicLeagueEnvelopeRulebook = {
+  version: string;
+  body_md: string;
+  effective_at: string;
+} | null;
+
 /**
  * Worst provenance across this team's games this season.
  * 'dispute' = has at least one disputed game.
@@ -661,12 +686,39 @@ export interface StandingsRow {
   provenance?: StandingsRowProvenance;
 }
 
+export type PartnerKind = typeof PartnerKind[keyof typeof PartnerKind];
+
+
+export const PartnerKind = {
+  charity: 'charity',
+  sponsor: 'sponsor',
+} as const;
+
+export interface Partner {
+  id: string;
+  kind: PartnerKind;
+  name: string;
+  link: string;
+  /** @nullable */
+  blurb?: string | null;
+  /** @nullable */
+  logo_url?: string | null;
+}
+
+export interface PartnersEnvelope {
+  charities: Partner[];
+  sponsors: Partner[];
+}
+
 export interface PublicLeagueEnvelope {
   league: PublicLeagueEnvelopeLeague;
   season?: PublicLeagueEnvelopeSeason;
   standings: StandingsRow[];
   /** Present when the league has an active listing entry (is_listed = true). Null when the league is not publicly recruiting. */
   listing?: PublicLeagueEnvelopeListing;
+  schedule?: PublicLeagueEnvelopeSchedule;
+  rulebook?: PublicLeagueEnvelopeRulebook;
+  partners?: PartnersEnvelope;
 }
 
 export interface Season {
@@ -1842,6 +1894,154 @@ export interface PlayerStatCardsResponse {
   refreshing?: boolean;
 }
 
+export type UploadBoxScoreBodyKind = typeof UploadBoxScoreBodyKind[keyof typeof UploadBoxScoreBodyKind];
+
+
+export const UploadBoxScoreBodyKind = {
+  csv: 'csv',
+  screenshot: 'screenshot',
+} as const;
+
+export interface UploadBoxScoreBody {
+  kind: UploadBoxScoreBodyKind;
+  /** CSV text for kind=csv; a data URL or external image URL for kind=screenshot. */
+  raw_payload: string;
+}
+
+export interface ApproveBoxScoreBody {
+  /** @minimum 0 */
+  home_goals?: number;
+  /** @minimum 0 */
+  away_goals?: number;
+}
+
+export interface RejectBoxScoreBody {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+export interface UpdateBoxScoreSettingsBody {
+  box_score_auto_approve: boolean;
+}
+
+export type BoxScoreUploadKind = typeof BoxScoreUploadKind[keyof typeof BoxScoreUploadKind];
+
+
+export const BoxScoreUploadKind = {
+  csv: 'csv',
+  screenshot: 'screenshot',
+} as const;
+
+export type BoxScoreUploadStatus = typeof BoxScoreUploadStatus[keyof typeof BoxScoreUploadStatus];
+
+
+export const BoxScoreUploadStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+} as const;
+
+export type BoxScoreUploadParsedRowsItem = { [key: string]: unknown };
+
+export interface BoxScoreUpload {
+  id: string;
+  game_id: string;
+  league_id: string;
+  kind: BoxScoreUploadKind;
+  status: BoxScoreUploadStatus;
+  auto_approved: boolean;
+  /** @nullable */
+  parsed_home_goals?: number | null;
+  /** @nullable */
+  parsed_away_goals?: number | null;
+  parsed_rows?: BoxScoreUploadParsedRowsItem[];
+  /** @nullable */
+  rejection_reason?: string | null;
+  /** @nullable */
+  reviewed_by?: string | null;
+  /** @nullable */
+  reviewed_at?: string | null;
+  /** @nullable */
+  resulting_game_result_id?: string | null;
+  created_at: string;
+}
+
+export type CalendarFeedInfoScope = typeof CalendarFeedInfoScope[keyof typeof CalendarFeedInfoScope];
+
+
+export const CalendarFeedInfoScope = {
+  league: 'league',
+  gm: 'gm',
+} as const;
+
+export interface CalendarFeedInfo {
+  token: string;
+  ics_url: string;
+  scope: CalendarFeedInfoScope;
+}
+
+export interface DigestSettings {
+  digest_enabled: boolean;
+  /**
+     * 0 = Sunday .. 6 = Saturday, in digest_timezone.
+     * @minimum 0
+     * @maximum 6
+     */
+  digest_day_of_week: number;
+  /**
+     * @minimum 0
+     * @maximum 23
+     */
+  digest_hour_local: number;
+  /** IANA timezone name, e.g. "America/New_York". */
+  digest_timezone: string;
+  /** @nullable */
+  digest_template_md?: string | null;
+}
+
+export interface UpdateDigestSettingsBody {
+  digest_enabled?: boolean;
+  /**
+     * @minimum 0
+     * @maximum 6
+     */
+  digest_day_of_week?: number;
+  /**
+     * @minimum 0
+     * @maximum 23
+     */
+  digest_hour_local?: number;
+  digest_timezone?: string;
+  digest_template_md?: string;
+}
+
+export interface PartnerInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  link: string;
+  /** @maxLength 280 */
+  blurb?: string;
+  /** @maxLength 500 */
+  logo_url?: string;
+}
+
+export interface UpdatePartnersBody {
+  /** @maxItems 2 */
+  charities: PartnerInput[];
+  /** @maxItems 2 */
+  sponsors: PartnerInput[];
+}
+
 export type IdempotencyKeyParameter = string;
 
 export type IfMatchParameter = string;
@@ -1914,6 +2114,13 @@ export type CreateLeagueSettingsVersion201 = LeagueSettingsVersion & ({
 export type ListLeagueSignups200 = {
   data: LeagueApplicant[];
   total: number;
+};
+
+export type GetPublicLeagueParams = {
+/**
+ * Required to view an unlisted league's public page.
+ */
+code?: string;
 };
 
 export type ListSeasons200 = {
@@ -2037,5 +2244,17 @@ q: string;
 
 export type SearchPlayers200 = {
   data: PlayerSearchResult[];
+};
+
+export type ListPendingBoxScores200 = {
+  data: BoxScoreUpload[];
+};
+
+export type UpdateBoxScoreSettings200 = {
+  box_score_auto_approve: boolean;
+};
+
+export type UnsubscribeFromDigest200 = {
+  unsubscribed: boolean;
 };
 

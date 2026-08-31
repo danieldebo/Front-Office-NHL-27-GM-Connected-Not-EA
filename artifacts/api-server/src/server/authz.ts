@@ -24,7 +24,11 @@ export type Action =
   | "rulebook:write"         // publish a new revision
   | "transaction:act"        // GM acting on their own team's side of a transaction, or commissioner acting for any team
   | "transaction:approve"    // commissioner-only: approve/reject a trade, resolve a waiver
-  | "keeper:write";          // GM designating/releasing a keeper on their own team, or commissioner on any team (override)
+  | "keeper:write"           // GM designating/releasing a keeper on their own team, or commissioner on any team (override)
+  | "boxscore:review"        // commissioner-only: approve/reject an uploaded box score, toggle auto-approve
+  | "calendar:manage"        // commissioner-only: mint/revoke the league-wide calendar feed token
+  | "partners:write"         // commissioner-only: edit charity/sponsor profile fields
+  | "digest:manage";         // commissioner-only: edit the weekly email digest settings
 
 export interface LeagueResource {
   kind: "league";
@@ -87,7 +91,11 @@ export function can(
     case "schedule:generate":
     case "seat:manage":
     case "invite:manage":
-    case "rulebook:write": {
+    case "rulebook:write":
+    case "boxscore:review":
+    case "calendar:manage":
+    case "partners:write":
+    case "digest:manage": {
       if (resource.kind !== "league") return false;
       return resource.ownerId === domainUserId ||
         (resource.commissionerIds?.includes(domainUserId) ?? false);

@@ -32,6 +32,14 @@ tags:
     description: Trades, signings, releases, waivers, and roster status.
   - name: Keepers
     description: Keeper designations, the NHL player registry, and stat cards.
+  - name: Box Scores
+    description: Box score uploads and the commissioner review queue.
+  - name: Calendar
+    description: Read-only iCal feeds of scheduled games.
+  - name: Digest
+    description: Weekly commissioner email digest settings.
+  - name: Partners
+    description: Charity and sponsor profile fields on the league page.
 
 paths:
   /healthz:
@@ -896,6 +904,17 @@ paths:
       tags: [Leagues]
       operationId: getPublicLeague
       summary: Public league page — standings visible without authentication
+      description: |
+        Visibility is enforced here: a public league always renders; an
+        unlisted league renders only when `code` matches the league's
+        public_code; a private league 404s regardless of `code`.
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Required to view an unlisted league's public page.
       responses:
         '200':
           description: League + active season standings.
@@ -2621,6 +2640,398 @@ paths:
         '409':
           description: A sync is already pending.
 
+  # ------------------------------------------------------------------ Box Scores
+
+  /games/{gameId}/box-score:
+    parameters:
+      - $ref: '#/components/parameters/GameId'
+    post:
+      tags: [Box Scores]
+      operationId: uploadBoxScore
+      summary: Upload a box score (CSV or screenshot) for a game
+      description: |
+        A CSV is parsed server-side into per-player rows; an upload shaped
+        like a season total (a gp/season column, implausible single-game
+        stat lines, or dozens of rows) is refused outright and never
+        reaches the queue. A screenshot is stored as evidence only — there
+        is no OCR service wired up, so the commissioner types the confirmed
+        score in when reviewing it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadBoxScoreBody'
+      responses:
+        '201':
+          description: Box score queued (or auto-applied if the league allows it).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoxScoreUpload'
+        '400':
+          description: Bad request — includes season-total-shaped rejections.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/box-scores/pending:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Box Scores]
+      operationId: listPendingBoxScores
+      summary: Commissioner queue of pending box score uploads
+      responses:
+        '200':
+          description: Pending uploads.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BoxScoreUpload'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /box-scores/{boxScoreId}/approve:
+    parameters:
+      - name: boxScoreId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Box Scores]
+      operationId: approveBoxScore
+      summary: Approve a pending box score upload
+      description: |
+        home_goals/away_goals are required for a screenshot upload (there is
+        no parsed score to fall back on) and optional overrides for a CSV
+        upload (defaults to the parsed goal totals).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveBoxScoreBody'
+      responses:
+        '200':
+          description: Approved and applied as the game's result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoxScoreUpload'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Already reviewed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /box-scores/{boxScoreId}/reject:
+    parameters:
+      - name: boxScoreId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Box Scores]
+      operationId: rejectBoxScore
+      summary: Reject a pending box score upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectBoxScoreBody'
+      responses:
+        '200':
+          description: Rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoxScoreUpload'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Already reviewed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/box-score-settings:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    patch:
+      tags: [Box Scores]
+      operationId: updateBoxScoreSettings
+      summary: Toggle auto-approve for CSV box score uploads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBoxScoreSettingsBody'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [box_score_auto_approve]
+                properties:
+                  box_score_auto_approve:
+                    type: boolean
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Calendar
+
+  /leagues/{leagueId}/calendar-feed/mine:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Calendar]
+      operationId: getMyCalendarFeed
+      summary: Get (creating if needed) the caller's personal games feed
+      responses:
+        '200':
+          description: Feed info.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarFeedInfo'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/calendar-feed/mine/revoke:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Calendar]
+      operationId: revokeMyCalendarFeed
+      summary: Revoke and reissue the caller's personal games feed token
+      responses:
+        '200':
+          description: Reissued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarFeedInfo'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/calendar-feed/league:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Calendar]
+      operationId: getLeagueCalendarFeed
+      summary: Commissioner-only — get (creating if needed) the whole-league games feed
+      responses:
+        '200':
+          description: Feed info.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarFeedInfo'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/calendar-feed/league/revoke:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Calendar]
+      operationId: revokeLeagueCalendarFeed
+      summary: Commissioner-only — revoke and reissue the league-wide feed token
+      responses:
+        '200':
+          description: Reissued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarFeedInfo'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Digest
+
+  /leagues/{leagueId}/digest-settings:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Digest]
+      operationId: getDigestSettings
+      summary: Commissioner-only — read the weekly digest settings
+      responses:
+        '200':
+          description: Settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DigestSettings'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      tags: [Digest]
+      operationId: updateDigestSettings
+      summary: Commissioner-only — edit send day/hour/timezone and the template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDigestSettingsBody'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DigestSettings'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/digest-unsubscribe:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Digest]
+      operationId: unsubscribeFromDigest
+      summary: Unsubscribe the caller from this league's weekly digest
+      responses:
+        '200':
+          description: Unsubscribed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [unsubscribed]
+                properties:
+                  unsubscribed:
+                    type: boolean
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Partners
+
+  /leagues/{leagueId}/partners:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Partners]
+      operationId: getPartners
+      summary: Public — charity and sponsor profile fields
+      responses:
+        '200':
+          description: Partners.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnersEnvelope'
+    put:
+      tags: [Partners]
+      operationId: updatePartners
+      summary: Commissioner-only — replace the charity/sponsor set (max 2 each)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePartnersBody'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnersEnvelope'
+        '400':
+          description: Bad request — more than 2 of a kind, or invalid fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
 components:
 
   parameters:
@@ -3232,6 +3643,55 @@ components:
                 suggested_division:
                   type: ["string", "null"]
             - type: 'null'
+        schedule:
+          type: object
+          required: [recent, upcoming]
+          properties:
+            recent:
+              type: array
+              items:
+                $ref: '#/components/schemas/PublicScheduleGame'
+            upcoming:
+              type: array
+              items:
+                $ref: '#/components/schemas/PublicScheduleGame'
+        rulebook:
+          oneOf:
+            - type: object
+              required: [version, body_md, effective_at]
+              properties:
+                version:
+                  type: string
+                body_md:
+                  type: string
+                effective_at:
+                  type: string
+                  format: date-time
+            - type: 'null'
+        partners:
+          $ref: '#/components/schemas/PartnersEnvelope'
+
+    PublicScheduleGame:
+      type: object
+      required: [id, week_number, status, window_opens_at, home_label, away_label]
+      properties:
+        id:
+          type: string
+        week_number:
+          type: ["integer", "null"]
+        status:
+          type: string
+        window_opens_at:
+          type: string
+          format: date-time
+        home_label:
+          type: string
+        away_label:
+          type: string
+        home_goals:
+          type: ["integer", "null"]
+        away_goals:
+          type: ["integer", "null"]
 
     Season:
       type: object
@@ -4810,3 +5270,211 @@ components:
         refreshing:
           type: boolean
           description: True when a background refresh was just queued because the cache was missing or stale.
+
+    # ---------------------------------------------------------------- Box Scores
+
+    UploadBoxScoreBody:
+      type: object
+      required: [kind, raw_payload]
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [csv, screenshot]
+        raw_payload:
+          type: string
+          description: CSV text for kind=csv; a data URL or external image URL for kind=screenshot.
+
+    ApproveBoxScoreBody:
+      type: object
+      additionalProperties: false
+      properties:
+        home_goals:
+          type: integer
+          minimum: 0
+        away_goals:
+          type: integer
+          minimum: 0
+
+    RejectBoxScoreBody:
+      type: object
+      required: [reason]
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    UpdateBoxScoreSettingsBody:
+      type: object
+      required: [box_score_auto_approve]
+      additionalProperties: false
+      properties:
+        box_score_auto_approve:
+          type: boolean
+
+    BoxScoreUpload:
+      type: object
+      required: [id, game_id, league_id, kind, status, auto_approved, created_at]
+      properties:
+        id:
+          type: string
+        game_id:
+          type: string
+        league_id:
+          type: string
+        kind:
+          type: string
+          enum: [csv, screenshot]
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        auto_approved:
+          type: boolean
+        parsed_home_goals:
+          type: ["integer", "null"]
+        parsed_away_goals:
+          type: ["integer", "null"]
+        parsed_rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        rejection_reason:
+          type: ["string", "null"]
+        reviewed_by:
+          type: ["string", "null"]
+        reviewed_at:
+          type: ["string", "null"]
+          format: date-time
+        resulting_game_result_id:
+          type: ["string", "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    # ---------------------------------------------------------------- Calendar
+
+    CalendarFeedInfo:
+      type: object
+      required: [token, ics_url, scope]
+      properties:
+        token:
+          type: string
+        ics_url:
+          type: string
+        scope:
+          type: string
+          enum: [league, gm]
+
+    # ---------------------------------------------------------------- Digest
+
+    DigestSettings:
+      type: object
+      required: [digest_enabled, digest_day_of_week, digest_hour_local, digest_timezone]
+      properties:
+        digest_enabled:
+          type: boolean
+        digest_day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 0 = Sunday .. 6 = Saturday, in digest_timezone.
+        digest_hour_local:
+          type: integer
+          minimum: 0
+          maximum: 23
+        digest_timezone:
+          type: string
+          description: IANA timezone name, e.g. "America/New_York".
+        digest_template_md:
+          type: ["string", "null"]
+
+    UpdateDigestSettingsBody:
+      type: object
+      additionalProperties: false
+      properties:
+        digest_enabled:
+          type: boolean
+        digest_day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+        digest_hour_local:
+          type: integer
+          minimum: 0
+          maximum: 23
+        digest_timezone:
+          type: string
+        digest_template_md:
+          type: string
+
+    # ---------------------------------------------------------------- Partners
+
+    Partner:
+      type: object
+      required: [id, kind, name, link]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [charity, sponsor]
+        name:
+          type: string
+        link:
+          type: string
+        blurb:
+          type: ["string", "null"]
+        logo_url:
+          type: ["string", "null"]
+
+    PartnerInput:
+      type: object
+      required: [name, link]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        link:
+          type: string
+          minLength: 1
+          maxLength: 500
+        blurb:
+          type: string
+          maxLength: 280
+        logo_url:
+          type: string
+          maxLength: 500
+
+    PartnersEnvelope:
+      type: object
+      required: [charities, sponsors]
+      properties:
+        charities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Partner'
+        sponsors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Partner'
+
+    UpdatePartnersBody:
+      type: object
+      required: [charities, sponsors]
+      additionalProperties: false
+      properties:
+        charities:
+          type: array
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/PartnerInput'
+        sponsors:
+          type: array
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/PartnerInput'

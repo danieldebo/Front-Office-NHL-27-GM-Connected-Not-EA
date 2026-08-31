@@ -13,6 +13,7 @@ import type { Pool } from "pg";
 import { sendDiscordMessage, PermanentDeliveryError } from "./discordWebhook";
 import { runRegistrySync } from "./jobs/registrySync";
 import { refreshStatCards } from "./jobs/statCardRefresh";
+import { sendEmail } from "./emailSender";
 import { logger } from "../lib/logger";
 
 interface OutboxRow {
@@ -39,6 +40,11 @@ async function handle(pool: Pool, row: OutboxRow): Promise<void> {
     case "statcard.refresh.requested": {
       const { player_id } = row.payload as { player_id: string };
       await refreshStatCards(pool, player_id);
+      return;
+    }
+    case "email.digest": {
+      const { to, subject, text } = row.payload as { to: string; subject: string; text: string };
+      await sendEmail({ to, subject, text });
       return;
     }
     default:
