@@ -187,6 +187,9 @@ apply schema-waitlist-decided-by.sql 2.14.0
 apply schema-join-requests.sql 2.15.0
 apply schema-gm-card-profile.sql 2.16.0
 apply schema-league-limits.sql 2.17.0
+apply schema-open-league-season-start.sql 2.18.0
+apply schema-club-catalog-leagues.sql 2.19.0
+apply schema-favorite-team.sql 2.20.0
 
 echo
 echo "== Done. Current schema_version: =="

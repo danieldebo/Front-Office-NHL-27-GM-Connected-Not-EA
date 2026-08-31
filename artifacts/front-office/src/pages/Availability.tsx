@@ -130,7 +130,7 @@ export default function Availability() {
       {
         onSuccess: () => {
           setSaved2(true);
-          qc.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'availability', 'me'] as any });
+          qc.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/availability/me`] as any });
         },
         onError: (err: unknown) => {
           setError(err instanceof Error ? err.message : 'Failed to save availability');

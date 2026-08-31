@@ -6,6 +6,12 @@ import {
   useListUnassignedMembers,
   useAssignGm,
   useRevokeGm,
+  useAddTeam,
+  useReplaceTeamClub,
+  useRemoveTeam,
+  useApproveAllSeats,
+  useUpdateLeague,
+  type League,
   useListJoinRequests,
   useApproveJoinRequest,
   useRejectJoinRequest,
@@ -48,6 +54,10 @@ import { gmIdentityLabel } from '@/components/gmIdentity';
 import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
 import SetupChecklist from '@/components/SetupChecklist';
 import OperationsTab from '@/components/OperationsTab';
+import TeamPicker from '@/components/TeamPicker';
+import LeagueLogoPicker from '@/components/LeagueLogoPicker';
+import { DEFAULT_PROFILE_ICON } from '@/components/profileIcons';
+import { toast } from '@/hooks/use-toast';
 
 // Helper components
 
@@ -60,24 +70,23 @@ function formatGmRecord(record?: { w: number; l: number; otl: number } | null): 
 
 export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) {
   const identity = gmIdentityLabel(gm);
-  const name = gm.display_name || 'Unknown GM';
+  const name = gm.gm_display_name || 'Unknown GM';
   const leagueRecord = formatGmRecord(gm.league_record);
   const siteRecord = formatGmRecord(gm.site_record);
-  const hasFacts = Boolean(gm.first_nhl_game || leagueRecord || siteRecord);
+  const cardDisplay = gm.gm_card_display ?? 'first_game';
+  const showFirstGame = Boolean(gm.first_nhl_game) && (cardDisplay === 'first_game' || cardDisplay === 'both');
+  const showFavoriteTeam = Boolean(gm.favorite_club) && (cardDisplay === 'favorite_team' || cardDisplay === 'both');
+  const hasFacts = Boolean(showFirstGame || showFavoriteTeam || leagueRecord || siteRecord);
 
   return (
     <div className="gm-card" data-testid={`text-seat-gm-${seatId}`}>
       <span className="gm-card-avatar" aria-hidden="true">
-        {gm.profile_image_url ? (
-          <img
-            src={gm.profile_image_url}
-            alt=""
-            loading="lazy"
-            onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-          />
-        ) : (
-          <span className="gm-card-avatar-fallback">{name.charAt(0).toUpperCase()}</span>
-        )}
+        <img
+          src={gm.profile_image_url || DEFAULT_PROFILE_ICON}
+          alt=""
+          loading="lazy"
+          onError={(event) => { if (event.currentTarget.src !== DEFAULT_PROFILE_ICON) event.currentTarget.src = DEFAULT_PROFILE_ICON; }}
+        />
       </span>
       <div className="gm-card-body">
         <div className="gm-card-pills">
@@ -86,10 +95,16 @@ export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) 
         </div>
         {hasFacts && (
           <dl className="gm-card-facts">
-            {gm.first_nhl_game && (
+            {showFirstGame && (
               <div className="gm-card-fact">
                 <dt>First game</dt>
                 <dd>{gm.first_nhl_game}</dd>
+              </div>
+            )}
+            {showFavoriteTeam && gm.favorite_club && (
+              <div className="gm-card-fact">
+                <dt>Favorite team</dt>
+                <dd>{gm.favorite_club.abbrev} — {gm.favorite_club.name}</dd>
               </div>
             )}
             {leagueRecord && (
@@ -174,15 +189,203 @@ function AssignGmPicker({
   );
 }
 
+const APPROVE_ALL_OPTIONS: { value: 'queue' | 'members' | 'none'; label: string; description: string }[] = [
+  {
+    value: 'queue',
+    label: 'Fill from signups & waitlist',
+    description: 'Pulls candidates from this league\'s signup/waitlist queue, oldest first, until every open seat is filled or the queue runs out — then randomly pairs each filled seat to its new GM.',
+  },
+  {
+    value: 'members',
+    label: 'Fill from any un-seated member',
+    description: 'Broader pool — any accepted league member without a seat, not just people who signed up or waitlisted.',
+  },
+  {
+    value: 'none',
+    label: 'Just reshuffle current GMs',
+    description: "Doesn't add anyone new — randomly reassigns which seat each already-assigned GM occupies. Useful for reseeding a full league.",
+  },
+];
+
+function ApproveAllPanel({ leagueId, onDone }: { leagueId: string; onDone: () => void }) {
+  const [fillSource, setFillSource] = useState<'queue' | 'members' | 'none'>('queue');
+  const approveAll = useApproveAllSeats();
+
+  const handleApprove = () => {
+    const chosen = APPROVE_ALL_OPTIONS.find(o => o.value === fillSource)!;
+    if (!confirm(`Approve All & Randomize Teams?\n\n${chosen.label}\n${chosen.description}\n\nThis cannot be undone.`)) return;
+    approveAll.mutate({ leagueId, data: { fill_source: fillSource } }, {
+      onSuccess: (result) => {
+        toast({
+          title: 'Approve All complete',
+          description: `${result.filled} seat${result.filled === 1 ? '' : 's'} filled, ${result.randomized} reassigned.`,
+        });
+        onDone();
+      },
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Approve All failed'),
+    });
+  };
+
+  return (
+    <div className="panel" style={{ marginBottom: '16px' }}>
+      <div className="panel-head">
+        <h2>Approve All &amp; Randomize Teams</h2>
+        <div className="note">Commissioner quick-start</div>
+      </div>
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <p style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', margin: 0 }}>
+          A one-click template for standing up a full league fast: autofills every open seat and randomizes who lands on which team.
+        </p>
+        {APPROVE_ALL_OPTIONS.map(opt => (
+          <label key={opt.value} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
+            <input
+              type="radio"
+              name="approve-all-fill-source"
+              checked={fillSource === opt.value}
+              onChange={() => setFillSource(opt.value)}
+              style={{ marginTop: '3px' }}
+            />
+            <span>
+              <div style={{ fontWeight: 600, fontSize: '13px' }}>{opt.label}</div>
+              <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>{opt.description}</div>
+            </span>
+          </label>
+        ))}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+          <button
+            className="btn"
+            style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}
+            disabled={approveAll.isPending}
+            onClick={handleApprove}
+          >
+            {approveAll.isPending ? 'Working…' : 'Approve All & Randomize Teams'}
+          </button>
+          <button className="btn ghost" onClick={onDone} disabled={approveAll.isPending}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddTeamPanel({ leagueId, seasonId, existingClubIds, onDone }: {
+  leagueId: string; seasonId: string; existingClubIds: string[]; onDone: () => void;
+}) {
+  const [clubId, setClubId] = useState<string | null>(null);
+  const addTeam = useAddTeam();
+
+  return (
+    <div className="panel" style={{ marginBottom: '16px' }}>
+      <div className="panel-head"><h2>Add a Team</h2></div>
+      <div style={{ padding: '16px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <TeamPicker value={clubId} onChange={setClubId} disabledClubIds={existingClubIds} aria-label="Club to add" />
+        <button
+          className="btn"
+          style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}
+          disabled={!clubId || addTeam.isPending}
+          onClick={() => {
+            if (!clubId) return;
+            addTeam.mutate({ leagueId, seasonId, data: { nhl_club_id: clubId } }, {
+              onSuccess: () => { setClubId(null); onDone(); },
+              onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to add team'),
+            });
+          }}
+        >
+          {addTeam.isPending ? 'Adding…' : 'Add Team'}
+        </button>
+        <button className="btn ghost" onClick={onDone}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function ReplaceClubControl({ seat, existingClubIds, onDone }: {
+  seat: Seat; existingClubIds: string[]; onDone: () => void;
+}) {
+  const [clubId, setClubId] = useState<string | null>(seat.nhl_club_id ?? null);
+  const replaceClub = useReplaceTeamClub();
+
+  return (
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
+      <TeamPicker
+        value={clubId}
+        onChange={setClubId}
+        disabledClubIds={existingClubIds.filter(id => id !== seat.nhl_club_id)}
+        aria-label="Replace with club"
+      />
+      <button
+        className="btn"
+        style={{ padding: '6px 12px', fontSize: '12px' }}
+        disabled={!clubId || clubId === seat.nhl_club_id || replaceClub.isPending}
+        onClick={() => {
+          if (!clubId) return;
+          replaceClub.mutate({ teamSeasonId: seat.team_season_id, data: { nhl_club_id: clubId } }, {
+            onSuccess: onDone,
+            onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to replace team'),
+          });
+        }}
+      >
+        {replaceClub.isPending ? 'Saving…' : 'Save'}
+      </button>
+      <button className="btn ghost" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={onDone}>Cancel</button>
+    </div>
+  );
+}
+
+function BrandingPanel({ league }: { league: League }) {
+  const [logoUrl, setLogoUrl] = useState(league.logo_url ?? '');
+  const updateLeague = useUpdateLeague();
+  const queryClient = useQueryClient();
+  const dirty = logoUrl !== (league.logo_url ?? '');
+
+  const handleSave = () => {
+    updateLeague.mutate({ leagueId: league.id, data: { logo_url: logoUrl || null } }, {
+      onSuccess: () => {
+        toast({ title: 'League logo updated' });
+        queryClient.invalidateQueries({ queryKey: [`/api/leagues/${league.id}`] as any });
+        queryClient.invalidateQueries({ queryKey: [`/api/leagues/open`] as any });
+      },
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to update logo'),
+    });
+  };
+
+  return (
+    <div className="panel" style={{ marginBottom: '16px' }}>
+      <div className="panel-head">
+        <h2>League Logo</h2>
+        <div className="note">Shown on the public league page and Open Leagues card</div>
+      </div>
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <LeagueLogoPicker value={logoUrl} onChange={setLogoUrl} />
+        <div>
+          <button
+            className="btn"
+            style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}
+            disabled={!dirty || updateLeague.isPending}
+            onClick={handleSave}
+          >
+            {updateLeague.isPending ? 'Saving…' : 'Save Logo'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SeatsTab({ leagueId }: { leagueId: string }) {
   const { data: seatsResponse, isLoading } = useListSeats(leagueId);
   const seats = seatsResponse?.data || [];
   const { data: membersResponse } = useListUnassignedMembers(leagueId);
   const members = membersResponse?.data || [];
+  const { data: seasonsResponse } = useListSeasons(leagueId);
+  const activeSeasonId = seasonsResponse?.data.find(s => s.is_active)?.id ?? null;
   const assignGm = useAssignGm();
   const revokeGm = useRevokeGm();
+  const removeTeam = useRemoveTeam();
   const queryClient = useQueryClient();
   const [assigningSeatId, setAssigningSeatId] = useState<string | null>(null);
+  const [renamingSeatId, setRenamingSeatId] = useState<string | null>(null);
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [showApproveAll, setShowApproveAll] = useState(false);
 
   if (isLoading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading seats...</div>;
 
@@ -201,8 +404,10 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
   }
 
   const invalidateSeatData = () => {
-    queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'seats'] as any });
-    queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'members', 'unassigned'] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/seats`] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/members/unassigned`] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/signups`] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/waitlist`] as any });
   };
 
   const handleRevoke = (seat: Seat) => {
@@ -226,49 +431,111 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
     });
   };
 
+  const handleRemoveTeam = (seat: Seat) => {
+    if (!confirm(`Remove ${seat.franchise_name} from this season? This cannot be undone.`)) return;
+    removeTeam.mutate({ teamSeasonId: seat.team_season_id }, {
+      onSuccess: invalidateSeatData,
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to remove team — an open seat only'),
+    });
+  };
+
+  const existingClubIds = seats.map(s => s.nhl_club_id).filter((id): id is string => Boolean(id));
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-      {seats.map(seat => (
-        <div key={seat.team_season_id} className="panel" style={{ marginBottom: 0 }}>
-          <div className="panel-head" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div className="crest" style={{ width: '28px', height: '28px', fontSize: '12px' }}>
-              {seat.club_abbrev || seat.franchise_name?.substring(0, 2).toUpperCase()}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: '14px' }}>{seat.franchise_name}</div>
-              <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', textTransform: 'uppercase' }}>
-                {seat.division}
+    <div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <button className="btn" style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }} onClick={() => setShowApproveAll(v => !v)}>
+          {showApproveAll ? 'Hide Approve All' : 'Approve All & Randomize Teams'}
+        </button>
+        {activeSeasonId && (
+          <button className="btn ghost" onClick={() => setShowAddTeam(v => !v)}>
+            {showAddTeam ? 'Hide Add Team' : '+ Add Team'}
+          </button>
+        )}
+      </div>
+      {showApproveAll && (
+        <ApproveAllPanel leagueId={leagueId} onDone={() => setShowApproveAll(false)} />
+      )}
+      {showAddTeam && activeSeasonId && (
+        <AddTeamPanel
+          leagueId={leagueId}
+          seasonId={activeSeasonId}
+          existingClubIds={existingClubIds}
+          onDone={() => { setShowAddTeam(false); invalidateSeatData(); }}
+        />
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+        {seats.map(seat => (
+          <div key={seat.team_season_id} className="panel" style={{ marginBottom: 0 }}>
+            <div className="panel-head" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="crest" style={{ width: '28px', height: '28px', fontSize: '12px' }}>
+                {seat.club_abbrev || seat.franchise_name?.substring(0, 2).toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>{seat.franchise_name}</div>
+                <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', textTransform: 'uppercase' }}>
+                  {seat.division}
+                </div>
+              </div>
+              <div className={`chip ${seat.seat_status === 'open' ? 'ea' : seat.seat_status === 'pending' ? 'ocr' : 'conf'}`}>
+                {seat.seat_status}
               </div>
             </div>
-            <div className={`chip ${seat.seat_status === 'open' ? 'ea' : seat.seat_status === 'pending' ? 'ocr' : 'conf'}`}>
-              {seat.seat_status}
+            {renamingSeatId === seat.team_season_id ? (
+              <div style={{ padding: '16px' }}>
+                <ReplaceClubControl
+                  seat={seat}
+                  existingClubIds={existingClubIds}
+                  onDone={() => { setRenamingSeatId(null); invalidateSeatData(); }}
+                />
+              </div>
+            ) : (
+              <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                {seat.gm ? (
+                  <>
+                    <SeatGmLabel gm={seat.gm} seatId={seat.team_season_id} />
+                    <button onClick={() => handleRevoke(seat)} className="btn ghost" style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}>Revoke</button>
+                  </>
+                ) : assigningSeatId === seat.team_season_id ? (
+                  <AssignGmPicker
+                    seat={seat}
+                    members={members}
+                    isPending={assignGm.isPending}
+                    onCancel={() => setAssigningSeatId(null)}
+                    onAssign={userId => handleAssign(seat, userId)}
+                  />
+                ) : (
+                  <>
+                    <div style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)' }}>
+                      No GM assigned
+                    </div>
+                    <button onClick={() => setAssigningSeatId(seat.team_season_id)} className="btn" style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}>Assign GM</button>
+                  </>
+                )}
+              </div>
+            )}
+            <div style={{ padding: '0 16px 16px', display: 'flex', gap: '8px' }}>
+              <button
+                className="btn ghost"
+                style={{ padding: '4px 10px', fontSize: '11px' }}
+                onClick={() => setRenamingSeatId(renamingSeatId === seat.team_season_id ? null : seat.team_season_id)}
+              >
+                {renamingSeatId === seat.team_season_id ? 'Cancel' : 'Rename / Replace'}
+              </button>
+              {seat.seat_status === 'open' && (
+                <button
+                  className="btn ghost"
+                  style={{ padding: '4px 10px', fontSize: '11px', color: 'var(--goal)', borderColor: 'var(--goal)' }}
+                  disabled={removeTeam.isPending}
+                  onClick={() => handleRemoveTeam(seat)}
+                >
+                  Remove
+                </button>
+              )}
             </div>
           </div>
-          <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            {seat.gm ? (
-              <>
-                <SeatGmLabel gm={seat.gm} seatId={seat.team_season_id} />
-                <button onClick={() => handleRevoke(seat)} className="btn ghost" style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}>Revoke</button>
-              </>
-            ) : assigningSeatId === seat.team_season_id ? (
-              <AssignGmPicker
-                seat={seat}
-                members={members}
-                isPending={assignGm.isPending}
-                onCancel={() => setAssigningSeatId(null)}
-                onAssign={userId => handleAssign(seat, userId)}
-              />
-            ) : (
-              <>
-                <div style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)' }}>
-                  No GM assigned
-                </div>
-                <button onClick={() => setAssigningSeatId(seat.team_season_id)} className="btn" style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}>Assign GM</button>
-              </>
-            )}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -294,9 +561,9 @@ function RulebookTab({ leagueId }: { leagueId: string }) {
     publish.mutate({ leagueId, data: { body_md: bodyMd, change_note: changeNote || null } }, {
       onSuccess: () => {
         setChangeNote('');
-        queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'rulebook'] as any });
-        queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'rulebook', 'revisions'] as any });
-        alert('Rulebook published!');
+        queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/rulebook`] as any });
+        queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/rulebook/revisions`] as any });
+        toast({ title: 'Rulebook published', description: changeNote || undefined });
       }
     });
   };
@@ -504,12 +771,14 @@ function PlayersTab({ leagueId, leagueSlug }: { leagueId: string; leagueSlug: st
           History
         </button>
       </div>
-      {view === 'pending' ? <PendingPlayers leagueId={leagueId} leagueSlug={leagueSlug} /> : <PlayersHistory leagueId={leagueId} />}
+      {view === 'pending'
+        ? <PendingPlayers leagueId={leagueId} leagueSlug={leagueSlug} onViewHistory={() => setView('history')} />
+        : <PlayersHistory leagueId={leagueId} />}
     </div>
   );
 }
 
-function PendingPlayers({ leagueId, leagueSlug }: { leagueId: string; leagueSlug: string }) {
+function PendingPlayers({ leagueId, leagueSlug, onViewHistory }: { leagueId: string; leagueSlug: string; onViewHistory: () => void }) {
   const queryClient = useQueryClient();
   const { data: reqsResponse, isLoading: isLoadingReqs } = useListJoinRequests(leagueId, { status: 'pending' });
   const { data: invResponse, isLoading: isLoadingInv } = useListInvites(leagueId);
@@ -540,7 +809,7 @@ function PendingPlayers({ leagueId, leagueSlug }: { leagueId: string; leagueSlug
   const [capEditing, setCapEditing] = useState(false);
 
   const invalidateCommissionerInvite = () =>
-    queryClient.invalidateQueries({ queryKey: ['/api/leagues', leagueId, 'commissioner-invite'] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/commissioner-invite`] as any });
 
   React.useEffect(() => {
     if (commInviteData?.public_code && !publicCodeEditing) {
@@ -912,18 +1181,36 @@ function PendingPlayers({ leagueId, leagueSlug }: { leagueId: string; leagueSlug
         </div>
       </div>
 
-      <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px' }}>
-        Applicants
-        {applicants.length > 0 && (
-          <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', fontWeight: 400, marginLeft: '10px', textTransform: 'none' }}>
-            {applicants.length} pending
-          </span>
-        )}
+      <h3 style={{ fontFamily: 'var(--display)', fontSize: '20px', textTransform: 'uppercase', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span>
+          Applicants
+          {applicants.length > 0 && (
+            <span style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', fontWeight: 400, marginLeft: '10px', textTransform: 'none' }}>
+              {applicants.length} pending
+            </span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={onViewHistory}
+          className="btn ghost"
+          style={{ fontSize: '11px', padding: '4px 10px', textTransform: 'none', marginLeft: 'auto' }}
+        >
+          View decision history
+        </button>
       </h3>
 
       {applicants.length === 0 ? (
         <div className="panel" style={{ padding: '28px', textAlign: 'center', color: 'var(--steel)', fontFamily: 'var(--data)', fontSize: '12px' }}>
-          No sign-ups or waitlist entries yet.
+          No pending sign-ups or waitlist entries. Already decided on someone? Check{' '}
+          <button
+            type="button"
+            onClick={onViewHistory}
+            style={{ color: 'var(--crease)', background: 'none', border: 'none', padding: 0, font: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+          >
+            decision history
+          </button>
+          {' '}for who's already been approved or declined.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1544,7 +1831,7 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
     generate.mutate(
       { seasonId: activeSeason.id, data: { start_date: startDate } },
       {
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['/api/seasons', activeSeason.id, 'weeks'] as any }),
+        onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/seasons/${activeSeason.id}/weeks`] as any }),
         onError: (err: unknown) => setGenError(err instanceof Error ? err.message : 'Failed'),
       }
     );
@@ -1781,7 +2068,10 @@ export default function ManageLeague() {
         )}
         {activeTab === 'settings' && <LeagueSettings leagueId={league.id} editable />}
         {activeTab === 'discovery' && (
-          <DiscoveryTab leagueId={league.id} />
+          <>
+            <BrandingPanel league={league} />
+            <DiscoveryTab leagueId={league.id} />
+          </>
         )}
         {activeTab === 'operations' && (
           <OperationsTab leagueId={league.id} />

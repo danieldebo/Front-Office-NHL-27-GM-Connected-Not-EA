@@ -47,6 +47,11 @@ export default function Footer() {
             </a>
           </div>
         </div>
+        <div className="wrap" style={{ padding: '0 20px 12px', textAlign: 'center' }}>
+          <span style={{ fontFamily: 'var(--data)', fontSize: '9.5px', color: '#4A5760', letterSpacing: '.01em' }}>
+            This website is for personal use only and is not affiliated with EA Sports, the NHL, or any hockey league.
+          </span>
+        </div>
       </footer>
 
       {modalOpen && <FeatureRequestModal onClose={() => setModalOpen(false)} />}

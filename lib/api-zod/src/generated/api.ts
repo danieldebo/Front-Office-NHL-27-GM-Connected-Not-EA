@@ -20,6 +20,8 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Get the authenticated player's saved profile
  */
+export const getMyProfileResponseGmCardDisplayDefault = `first_game`;
+
 export const GetMyProfileResponse = zod.object({
   "id": zod.string(),
   "display_name": zod.string(),
@@ -30,7 +32,16 @@ export const GetMyProfileResponse = zod.object({
   "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]),
   "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.'),
   "first_nhl_game": zod.string().nullish().describe('Self-reported, e.g. \"NHL 94\" — not verified.'),
-  "profile_image_url": zod.string().nullish().describe('Self-reported public image URL used as an avatar. Not verified or fetched server-side.')
+  "profile_image_url": zod.string().nullish().describe('Self-reported public image URL used as an avatar. Not verified or fetched server-side.'),
+  "favorite_club": zod.union([zod.object({
+  "id": zod.string(),
+  "abbrev": zod.string(),
+  "name": zod.string(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).describe('NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA\n(Finland) and ECHL are a small curated set of well-known, long-\nstanding clubs from those leagues — not a live or exhaustive roster.\n')
+}),zod.null()]).optional(),
+  "gm_card_display": zod.enum(['first_game', 'favorite_team', 'both']).default(getMyProfileResponseGmCardDisplayDefault).describe('Which of first_nhl_game \/ favorite_club this user wants shown on their GM seat card.')
 })
 
 
@@ -49,7 +60,7 @@ export const updateMyProfileBodyFirstNhlGameMax = 60;
 
 export const updateMyProfileBodyProfileImageUrlMax = 500;
 
-
+export const updateMyProfileBodyGmCardDisplayDefault = `first_game`;
 
 export const UpdateMyProfileBody = zod.object({
   "display_name": zod.string().min(1).max(updateMyProfileBodyDisplayNameMax).optional(),
@@ -59,8 +70,12 @@ export const UpdateMyProfileBody = zod.object({
   "systems_played": zod.array(zod.enum(['xbox', 'playstation'])).optional(),
   "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "first_nhl_game": zod.string().min(1).max(updateMyProfileBodyFirstNhlGameMax).nullish(),
-  "profile_image_url": zod.string().min(1).max(updateMyProfileBodyProfileImageUrlMax).nullish()
+  "profile_image_url": zod.string().min(1).max(updateMyProfileBodyProfileImageUrlMax).nullish(),
+  "favorite_club_id": zod.string().nullish().describe('A Club.id from the \/clubs catalog — any league. Null clears it.'),
+  "gm_card_display": zod.enum(['first_game', 'favorite_team', 'both']).default(updateMyProfileBodyGmCardDisplayDefault).describe('Which of first_nhl_game \/ favorite_club this user wants shown on their GM seat card.')
 })
+
+export const updateMyProfileResponseGmCardDisplayDefault = `first_game`;
 
 export const UpdateMyProfileResponse = zod.object({
   "id": zod.string(),
@@ -72,7 +87,16 @@ export const UpdateMyProfileResponse = zod.object({
   "primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]),
   "xbox_verified": zod.boolean().optional().describe('True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported.'),
   "first_nhl_game": zod.string().nullish().describe('Self-reported, e.g. \"NHL 94\" — not verified.'),
-  "profile_image_url": zod.string().nullish().describe('Self-reported public image URL used as an avatar. Not verified or fetched server-side.')
+  "profile_image_url": zod.string().nullish().describe('Self-reported public image URL used as an avatar. Not verified or fetched server-side.'),
+  "favorite_club": zod.union([zod.object({
+  "id": zod.string(),
+  "abbrev": zod.string(),
+  "name": zod.string(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).describe('NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA\n(Finland) and ECHL are a small curated set of well-known, long-\nstanding clubs from those leagues — not a live or exhaustive roster.\n')
+}),zod.null()]).optional(),
+  "gm_card_display": zod.enum(['first_game', 'favorite_team', 'both']).default(updateMyProfileResponseGmCardDisplayDefault).describe('Which of first_nhl_game \/ favorite_club this user wants shown on their GM seat card.')
 })
 
 
@@ -117,6 +141,7 @@ export const ListOpenLeaguesResponse = zod.object({
   "accepting_signups": zod.boolean(),
   "accepting_waitlist": zod.boolean(),
   "active_season_id": zod.string().nullish(),
+  "season_starts_on": zod.coerce.date().nullish().describe('Start date of the active season, if one exists.'),
   "max_seats": zod.number(),
   "seats_filled": zod.number(),
   "seats_open": zod.number(),
@@ -288,6 +313,8 @@ export const createLeagueBodyTeamCountDefault = 32;
 export const createLeagueBodyTeamCountMin = 3;
 export const createLeagueBodyTeamCountMax = 32;
 
+export const createLeagueBodyLogoUrlMax = 4000;
+
 
 
 export const CreateLeagueBody = zod.object({
@@ -299,7 +326,7 @@ export const CreateLeagueBody = zod.object({
   "settings_template_id": zod.string().optional().describe('Which league-settings template to seed version 1 from. Defaults to balanced_standard.'),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
-  "logo_url": zod.string().nullish()
+  "logo_url": zod.string().max(createLeagueBodyLogoUrlMax).nullish().describe('An http(s) URL, or a data:image\/svg+xml URI (the generated\npreset badges are inline SVG, comfortably under this bound —\na few hundred to ~1.3k characters each).\n')
 })
 
 export const CreateLeagueResponse = zod.object({
@@ -365,6 +392,8 @@ export const UpdateLeagueParams = zod.object({
 
 export const updateLeagueBodyNameMax = 100;
 
+export const updateLeagueBodyLogoUrlMax = 4000;
+
 
 
 export const UpdateLeagueBody = zod.object({
@@ -372,7 +401,7 @@ export const UpdateLeagueBody = zod.object({
   "visibility": zod.enum(['public', 'unlisted', 'private']).optional(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
-  "logo_url": zod.string().nullish()
+  "logo_url": zod.string().max(updateLeagueBodyLogoUrlMax).nullish().describe('An http(s) URL, or a data:image\/svg+xml URI (the generated\npreset badges are inline SVG, comfortably under this bound —\na few hundred to ~1.3k characters each).\n')
 })
 
 export const UpdateLeagueResponse = zod.object({
@@ -1351,6 +1380,8 @@ export const ListSeatsParams = zod.object({
   "leagueId": zod.coerce.string()
 })
 
+export const listSeatsResponseDataItemGmOneGmCardDisplayDefault = `first_game`;
+
 export const ListSeatsResponse = zod.object({
   "data": zod.array(zod.object({
   "team_season_id": zod.string(),
@@ -1367,7 +1398,7 @@ export const ListSeatsResponse = zod.object({
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
-  "display_name": zod.string().nullish(),
+  "gm_display_name": zod.string().nullish().describe('Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.'),
   "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_gamertag": zod.string().nullish(),
@@ -1377,6 +1408,15 @@ export const ListSeatsResponse = zod.object({
   "role": zod.string().optional(),
   "first_nhl_game": zod.string().nullish(),
   "profile_image_url": zod.string().nullish(),
+  "favorite_club": zod.union([zod.object({
+  "id": zod.string(),
+  "abbrev": zod.string(),
+  "name": zod.string(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).describe('NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA\n(Finland) and ECHL are a small curated set of well-known, long-\nstanding clubs from those leagues — not a live or exhaustive roster.\n')
+}),zod.null()]).optional(),
+  "gm_card_display": zod.enum(['first_game', 'favorite_team', 'both']).default(listSeatsResponseDataItemGmOneGmCardDisplayDefault).describe('Which of first_nhl_game \/ favorite_club this user wants shown on their GM seat card.'),
   "league_record": zod.object({
   "w": zod.number(),
   "l": zod.number(),
@@ -1434,6 +1474,8 @@ export const AssignGmBody = zod.object({
   "end_reason": zod.string().nullish().describe('Reason for closing the previous GM assignment (if any).')
 })
 
+export const assignGmResponseGmOneGmCardDisplayDefault = `first_game`;
+
 export const AssignGmResponse = zod.object({
   "team_season_id": zod.string(),
   "franchise_id": zod.string(),
@@ -1449,7 +1491,7 @@ export const AssignGmResponse = zod.object({
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
-  "display_name": zod.string().nullish(),
+  "gm_display_name": zod.string().nullish().describe('Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.'),
   "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_gamertag": zod.string().nullish(),
@@ -1459,6 +1501,15 @@ export const AssignGmResponse = zod.object({
   "role": zod.string().optional(),
   "first_nhl_game": zod.string().nullish(),
   "profile_image_url": zod.string().nullish(),
+  "favorite_club": zod.union([zod.object({
+  "id": zod.string(),
+  "abbrev": zod.string(),
+  "name": zod.string(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).describe('NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA\n(Finland) and ECHL are a small curated set of well-known, long-\nstanding clubs from those leagues — not a live or exhaustive roster.\n')
+}),zod.null()]).optional(),
+  "gm_card_display": zod.enum(['first_game', 'favorite_team', 'both']).default(assignGmResponseGmOneGmCardDisplayDefault).describe('Which of first_nhl_game \/ favorite_club this user wants shown on their GM seat card.'),
   "league_record": zod.object({
   "w": zod.number(),
   "l": zod.number(),
@@ -1484,6 +1535,8 @@ export const RevokeGmQueryParams = zod.object({
   "reason": zod.coerce.string().optional()
 })
 
+export const revokeGmResponseGmOneGmCardDisplayDefault = `first_game`;
+
 export const RevokeGmResponse = zod.object({
   "team_season_id": zod.string(),
   "franchise_id": zod.string(),
@@ -1499,7 +1552,7 @@ export const RevokeGmResponse = zod.object({
   "gm": zod.union([zod.object({
   "assignment_id": zod.string(),
   "user_id": zod.string(),
-  "display_name": zod.string().nullish(),
+  "gm_display_name": zod.string().nullish().describe('Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.'),
   "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
   "gm_gamertag": zod.string().nullish(),
@@ -1509,6 +1562,15 @@ export const RevokeGmResponse = zod.object({
   "role": zod.string().optional(),
   "first_nhl_game": zod.string().nullish(),
   "profile_image_url": zod.string().nullish(),
+  "favorite_club": zod.union([zod.object({
+  "id": zod.string(),
+  "abbrev": zod.string(),
+  "name": zod.string(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).describe('NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA\n(Finland) and ECHL are a small curated set of well-known, long-\nstanding clubs from those leagues — not a live or exhaustive roster.\n')
+}),zod.null()]).optional(),
+  "gm_card_display": zod.enum(['first_game', 'favorite_team', 'both']).default(revokeGmResponseGmOneGmCardDisplayDefault).describe('Which of first_nhl_game \/ favorite_club this user wants shown on their GM seat card.'),
   "league_record": zod.object({
   "w": zod.number(),
   "l": zod.number(),
@@ -1520,6 +1582,233 @@ export const RevokeGmResponse = zod.object({
   "otl": zod.number()
 }).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.')
 }),zod.null()]).optional()
+})
+
+
+/**
+ * The full set of teams a commissioner can assign to a franchise seat —
+ * the 32 current NHL clubs plus a curated set of well-known clubs from
+ * SHL, DEL, Liiga and the ECHL. Static reference data, not league-scoped.
+ * @summary List the club catalog (NHL + curated alternate leagues)
+ */
+export const ListClubsQueryParams = zod.object({
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).optional()
+})
+
+export const ListClubsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "id": zod.string(),
+  "abbrev": zod.string(),
+  "name": zod.string(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).describe('NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA\n(Finland) and ECHL are a small curated set of well-known, long-\nstanding clubs from those leagues — not a live or exhaustive roster.\n')
+}))
+})
+
+
+/**
+ * @summary Add a new franchise seat to a season from the club catalog (commissioner only)
+ */
+export const AddTeamParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "seasonId": zod.coerce.string()
+})
+
+export const AddTeamBody = zod.object({
+  "nhl_club_id": zod.string().describe('A Club.id from the \/clubs catalog — any league.')
+})
+
+export const addTeamResponseGmOneGmCardDisplayDefault = `first_game`;
+
+export const AddTeamResponse = zod.object({
+  "team_season_id": zod.string(),
+  "franchise_id": zod.string(),
+  "franchise_name": zod.string().optional(),
+  "nhl_club_id": zod.string().nullish(),
+  "club_abbrev": zod.string().nullish(),
+  "club_name": zod.string().nullish(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "vacated_at": zod.coerce.date().nullish().describe('When an open seat\'s last GM left. Null for a seat that was never filled, or that currently has a GM.'),
+  "never_filled": zod.boolean().optional().describe('True for an open seat that has never had a GM. Omitted on responses that don\'t compute assignment history (e.g. right after an assign\/revoke).'),
+  "gm": zod.union([zod.object({
+  "assignment_id": zod.string(),
+  "user_id": zod.string(),
+  "gm_display_name": zod.string().nullish().describe('Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.'),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish(),
+  "started_at": zod.coerce.date().optional(),
+  "role": zod.string().optional(),
+  "first_nhl_game": zod.string().nullish(),
+  "profile_image_url": zod.string().nullish(),
+  "favorite_club": zod.union([zod.object({
+  "id": zod.string(),
+  "abbrev": zod.string(),
+  "name": zod.string(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).describe('NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA\n(Finland) and ECHL are a small curated set of well-known, long-\nstanding clubs from those leagues — not a live or exhaustive roster.\n')
+}),zod.null()]).optional(),
+  "gm_card_display": zod.enum(['first_game', 'favorite_team', 'both']).default(addTeamResponseGmOneGmCardDisplayDefault).describe('Which of first_nhl_game \/ favorite_club this user wants shown on their GM seat card.'),
+  "league_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.'),
+  "site_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.')
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Rename/replace a franchise seat's club with another catalog club (commissioner only)
+ */
+export const ReplaceTeamClubParams = zod.object({
+  "teamSeasonId": zod.coerce.string()
+})
+
+export const ReplaceTeamClubBody = zod.object({
+  "nhl_club_id": zod.string().describe('A Club.id from the \/clubs catalog — any league.')
+})
+
+export const replaceTeamClubResponseGmOneGmCardDisplayDefault = `first_game`;
+
+export const ReplaceTeamClubResponse = zod.object({
+  "team_season_id": zod.string(),
+  "franchise_id": zod.string(),
+  "franchise_name": zod.string().optional(),
+  "nhl_club_id": zod.string().nullish(),
+  "club_abbrev": zod.string().nullish(),
+  "club_name": zod.string().nullish(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "vacated_at": zod.coerce.date().nullish().describe('When an open seat\'s last GM left. Null for a seat that was never filled, or that currently has a GM.'),
+  "never_filled": zod.boolean().optional().describe('True for an open seat that has never had a GM. Omitted on responses that don\'t compute assignment history (e.g. right after an assign\/revoke).'),
+  "gm": zod.union([zod.object({
+  "assignment_id": zod.string(),
+  "user_id": zod.string(),
+  "gm_display_name": zod.string().nullish().describe('Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.'),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish(),
+  "started_at": zod.coerce.date().optional(),
+  "role": zod.string().optional(),
+  "first_nhl_game": zod.string().nullish(),
+  "profile_image_url": zod.string().nullish(),
+  "favorite_club": zod.union([zod.object({
+  "id": zod.string(),
+  "abbrev": zod.string(),
+  "name": zod.string(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).describe('NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA\n(Finland) and ECHL are a small curated set of well-known, long-\nstanding clubs from those leagues — not a live or exhaustive roster.\n')
+}),zod.null()]).optional(),
+  "gm_card_display": zod.enum(['first_game', 'favorite_team', 'both']).default(replaceTeamClubResponseGmOneGmCardDisplayDefault).describe('Which of first_nhl_game \/ favorite_club this user wants shown on their GM seat card.'),
+  "league_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.'),
+  "site_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.')
+}),zod.null()]).optional()
+})
+
+
+/**
+ * Only an open seat (no active GM) can be removed — revoke the GM first.
+ * @summary Remove a franchise seat from the season (commissioner only)
+ */
+export const RemoveTeamParams = zod.object({
+  "teamSeasonId": zod.coerce.string()
+})
+
+export const RemoveTeamResponse = zod.void()
+
+
+/**
+ * A one-click "quick-start" template action for a commissioner. Fills
+ * every open seat in the active season from the chosen candidate pool
+ * (paired to seats in random order — this is the "randomize team
+ * designation" step), then, when fill_source is "none", instead
+ * randomly reshuffles which already-filled seat's club each currently
+ * assigned GM has.
+ * @summary Autofill every open seat and randomize team designation (commissioner only)
+ */
+export const ApproveAllSeatsParams = zod.object({
+  "leagueId": zod.coerce.string()
+})
+
+export const ApproveAllSeatsBody = zod.object({
+  "fill_source": zod.enum(['queue', 'members', 'none']).describe('queue = pull from this league\'s signups\/waitlist, oldest first.\nmembers = any league member with no seat. none = don\'t autofill,\nonly randomize the GM<->seat pairing on already-filled seats.\n')
+})
+
+export const approveAllSeatsResponseDataItemGmOneGmCardDisplayDefault = `first_game`;
+
+export const ApproveAllSeatsResponse = zod.object({
+  "data": zod.array(zod.object({
+  "team_season_id": zod.string(),
+  "franchise_id": zod.string(),
+  "franchise_name": zod.string().optional(),
+  "nhl_club_id": zod.string().nullish(),
+  "club_abbrev": zod.string().nullish(),
+  "club_name": zod.string().nullish(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "seat_status": zod.enum(['open', 'pending', 'filled', 'suspended', 'vacated']),
+  "vacated_at": zod.coerce.date().nullish().describe('When an open seat\'s last GM left. Null for a seat that was never filled, or that currently has a GM.'),
+  "never_filled": zod.boolean().optional().describe('True for an open seat that has never had a GM. Omitted on responses that don\'t compute assignment history (e.g. right after an assign\/revoke).'),
+  "gm": zod.union([zod.object({
+  "assignment_id": zod.string(),
+  "user_id": zod.string(),
+  "gm_display_name": zod.string().nullish().describe('Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.'),
+  "gm_platform": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_primary_identity": zod.union([zod.enum(['xbox', 'playstation']),zod.null()]).optional(),
+  "gm_gamertag": zod.string().nullish(),
+  "gm_xbox_gamertag": zod.string().nullish(),
+  "gm_psn_online_id": zod.string().nullish(),
+  "started_at": zod.coerce.date().optional(),
+  "role": zod.string().optional(),
+  "first_nhl_game": zod.string().nullish(),
+  "profile_image_url": zod.string().nullish(),
+  "favorite_club": zod.union([zod.object({
+  "id": zod.string(),
+  "abbrev": zod.string(),
+  "name": zod.string(),
+  "conference": zod.string().nullish(),
+  "division": zod.string().nullish(),
+  "league_source": zod.enum(['NHL', 'SHL', 'DEL', 'LIIGA', 'ECHL']).describe('NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA\n(Finland) and ECHL are a small curated set of well-known, long-\nstanding clubs from those leagues — not a live or exhaustive roster.\n')
+}),zod.null()]).optional(),
+  "gm_card_display": zod.enum(['first_game', 'favorite_team', 'both']).default(approveAllSeatsResponseDataItemGmOneGmCardDisplayDefault).describe('Which of first_nhl_game \/ favorite_club this user wants shown on their GM seat card.'),
+  "league_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.'),
+  "site_record": zod.object({
+  "w": zod.number(),
+  "l": zod.number(),
+  "otl": zod.number()
+}).optional().describe('Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.')
+}),zod.null()]).optional()
+})),
+  "filled": zod.number().describe('Number of previously-open seats that were filled.'),
+  "randomized": zod.number().describe('Number of GM assignments moved to a different seat.')
 })
 
 

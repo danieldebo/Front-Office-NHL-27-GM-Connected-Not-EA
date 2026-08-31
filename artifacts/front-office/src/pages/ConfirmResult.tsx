@@ -93,8 +93,17 @@ export default function ConfirmResult() {
       {
         onSuccess: () => {
           setDone('confirmed');
-          qc.invalidateQueries({ queryKey: ['/api/seasons'] });
-          qc.invalidateQueries({ queryKey: ['/api/leagues'] });
+          // Every generated query key here is a single concatenated URL
+          // string (e.g. `/api/leagues/{id}/hub`), never a bare '/api/seasons'
+          // or '/api/leagues' — so a predicate is what actually busts the
+          // hub/standings caches from here, where we don't know the
+          // specific league/season id this game belongs to.
+          qc.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey[0];
+              return typeof key === 'string' && (key.includes('/leagues/') || key.includes('/seasons/'));
+            },
+          });
           setTimeout(() => navigate('/'), 1400);
         },
         onError: (err: unknown) => {
@@ -118,8 +127,17 @@ export default function ConfirmResult() {
       {
         onSuccess: () => {
           setDone('disputed');
-          qc.invalidateQueries({ queryKey: ['/api/seasons'] });
-          qc.invalidateQueries({ queryKey: ['/api/leagues'] });
+          // Every generated query key here is a single concatenated URL
+          // string (e.g. `/api/leagues/{id}/hub`), never a bare '/api/seasons'
+          // or '/api/leagues' — so a predicate is what actually busts the
+          // hub/standings caches from here, where we don't know the
+          // specific league/season id this game belongs to.
+          qc.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey[0];
+              return typeof key === 'string' && (key.includes('/leagues/') || key.includes('/seasons/'));
+            },
+          });
           setTimeout(() => navigate('/'), 1400);
         },
         onError: (err: unknown) => {

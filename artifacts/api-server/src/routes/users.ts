@@ -13,9 +13,13 @@ const editableFields = [
   "primary_identity",
   "first_nhl_game",
   "profile_image_url",
+  "favorite_club_id",
+  "gm_card_display",
 ] as const;
 
 type Identity = "xbox" | "playstation";
+type GmCardDisplay = "first_game" | "favorite_team" | "both";
+const GM_CARD_DISPLAY_VALUES: GmCardDisplay[] = ["first_game", "favorite_team", "both"];
 type Profile = {
   id: string;
   display_name: string;
@@ -26,11 +30,14 @@ type Profile = {
   primary_identity: Identity | null;
   first_nhl_game: string | null;
   profile_image_url: string | null;
+  favorite_club_id: string | null;
+  gm_card_display: GmCardDisplay;
 };
 
 // Cosmetic, self-reported — not fetched or verified, so only bounded and
 // (for the URL) restricted to http(s) so it can't carry a javascript: URL.
 const HTTP_URL_PATTERN = /^https?:\/\/\S+$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function validTimezone(value: string): boolean {
   try {
@@ -104,12 +111,36 @@ export function validateProfilePatch(body: unknown): { values?: Record<string, u
     }
     values.profile_image_url = typeof value === "string" ? value.trim() : null;
   }
+  if ("favorite_club_id" in input) {
+    const value = input.favorite_club_id;
+    if (value !== null && (typeof value !== "string" || !UUID_PATTERN.test(value))) {
+      return { error: "favorite_club_id must be null or a valid club id" };
+    }
+    values.favorite_club_id = value;
+  }
+  if ("gm_card_display" in input) {
+    const value = input.gm_card_display;
+    if (typeof value !== "string" || !GM_CARD_DISPLAY_VALUES.includes(value as GmCardDisplay)) {
+      return { error: `gm_card_display must be one of: ${GM_CARD_DISPLAY_VALUES.join(", ")}` };
+    }
+    values.gm_card_display = value;
+  }
   return { values };
 }
 
 function profileSelect(): string {
   return `id, display_name, timezone, xbox_gamertag, psn_online_id,
-          systems_played, primary_identity, first_nhl_game, profile_image_url`;
+          systems_played, primary_identity, first_nhl_game, profile_image_url,
+          favorite_club_id, gm_card_display`;
+}
+
+async function loadFavoriteClub(clubId: string | null) {
+  if (!clubId) return null;
+  const { rows } = await pool.query(
+    `SELECT id, abbrev, name, conference, division, league_source FROM nhl_club WHERE id = $1`,
+    [clubId],
+  );
+  return rows[0] ?? null;
 }
 
 router.get("/users/me", async (req: Request, res: Response): Promise<void> => {
@@ -129,7 +160,9 @@ router.get("/users/me", async (req: Request, res: Response): Promise<void> => {
     unauthorized(res, "User not found");
     return;
   }
-  res.json(result.rows[0]);
+  const profile = result.rows[0];
+  const favorite_club = await loadFavoriteClub(profile.favorite_club_id);
+  res.json({ ...profile, favorite_club });
 });
 
 router.patch("/users/me", async (req: Request, res: Response): Promise<void> => {
@@ -171,30 +204,42 @@ router.patch("/users/me", async (req: Request, res: Response): Promise<void> => 
       badRequest(res, "PlayStation primary identity requires a PSN online ID and PlayStation system");
       return;
     }
+    if (next.favorite_club_id) {
+      const clubExists = await client.query(`SELECT 1 FROM nhl_club WHERE id = $1`, [next.favorite_club_id]);
+      if (!clubExists.rows[0]) {
+        await client.query("ROLLBACK");
+        badRequest(res, "favorite_club_id does not match a known club");
+        return;
+      }
+    }
 
     const updatedResult = await client.query<Profile>(
       `UPDATE app_user SET
          display_name = $2, timezone = $3, xbox_gamertag = $4,
          psn_online_id = $5, systems_played = $6, primary_identity = $7,
-         first_nhl_game = $8, profile_image_url = $9
+         first_nhl_game = $8, profile_image_url = $9, favorite_club_id = $10,
+         gm_card_display = $11
        WHERE id = $1
        RETURNING ${profileSelect()}`,
       [
         user.appUserId, next.display_name, next.timezone, next.xbox_gamertag,
         next.psn_online_id, next.systems_played, next.primary_identity,
-        next.first_nhl_game, next.profile_image_url,
+        next.first_nhl_game, next.profile_image_url, next.favorite_club_id,
+        next.gm_card_display,
       ],
     );
     const updated = updatedResult.rows[0]!;
     await client.query(
       `INSERT INTO app_user_profile_history
          (user_id, display_name, timezone, xbox_gamertag, psn_online_id,
-          systems_played, primary_identity, first_nhl_game, profile_image_url, changed_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $1)`,
+          systems_played, primary_identity, first_nhl_game, profile_image_url,
+          favorite_club_id, gm_card_display, changed_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $1)`,
       [
         user.appUserId, updated.display_name, updated.timezone, updated.xbox_gamertag,
         updated.psn_online_id, updated.systems_played, updated.primary_identity,
-        updated.first_nhl_game, updated.profile_image_url,
+        updated.first_nhl_game, updated.profile_image_url, updated.favorite_club_id,
+        updated.gm_card_display,
       ],
     );
     await client.query(
@@ -204,7 +249,8 @@ router.patch("/users/me", async (req: Request, res: Response): Promise<void> => 
       [user.appUserId, JSON.stringify(current), JSON.stringify(updated)],
     );
     await client.query("COMMIT");
-    res.json(updated);
+    const favorite_club = await loadFavoriteClub(updated.favorite_club_id);
+    res.json({ ...updated, favorite_club });
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

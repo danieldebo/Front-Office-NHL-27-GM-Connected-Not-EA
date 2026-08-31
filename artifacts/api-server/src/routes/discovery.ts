@@ -146,6 +146,7 @@ router.get(
           accepting_signups,
           accepting_waitlist,
           active_season_id,
+          season_starts_on,
           max_seats,
           seats_filled,
           seats_open,

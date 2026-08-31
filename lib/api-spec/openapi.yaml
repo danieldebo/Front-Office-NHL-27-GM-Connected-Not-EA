@@ -1412,6 +1412,203 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /clubs:
+    get:
+      tags: [Seats]
+      operationId: listClubs
+      summary: List the club catalog (NHL + curated alternate leagues)
+      description: |
+        The full set of teams a commissioner can assign to a franchise seat —
+        the 32 current NHL clubs plus a curated set of well-known clubs from
+        SHL, DEL, Liiga and the ECHL. Static reference data, not league-scoped.
+      parameters:
+        - name: league_source
+          in: query
+          schema:
+            $ref: '#/components/schemas/ClubLeagueSource'
+      responses:
+        '200':
+          description: The club catalog.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Club'
+
+  /leagues/{leagueId}/seasons/{seasonId}/teams:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - $ref: '#/components/parameters/SeasonId'
+    post:
+      tags: [Seats]
+      operationId: addTeam
+      summary: Add a new franchise seat to a season from the club catalog (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddTeamInput'
+      responses:
+        '201':
+          description: Seat added.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seat'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League, season, or club not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: That club is already used by a seat in this season.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /team-seasons/{teamSeasonId}/club:
+    parameters:
+      - $ref: '#/components/parameters/TeamSeasonId'
+    patch:
+      tags: [Seats]
+      operationId: replaceTeamClub
+      summary: Rename/replace a franchise seat's club with another catalog club (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceClubInput'
+      responses:
+        '200':
+          description: Seat now represents the new club.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seat'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Team season or club not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: That club is already used by another seat in this season.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    delete:
+      tags: [Seats]
+      operationId: removeTeam
+      summary: Remove a franchise seat from the season (commissioner only)
+      description: Only an open seat (no active GM) can be removed — revoke the GM first.
+      responses:
+        '204':
+          description: Seat removed.
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Seat has an active GM — revoke them first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/seats/approve-all:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Seats]
+      operationId: approveAllSeats
+      summary: Autofill every open seat and randomize team designation (commissioner only)
+      description: |
+        A one-click "quick-start" template action for a commissioner. Fills
+        every open seat in the active season from the chosen candidate pool
+        (paired to seats in random order — this is the "randomize team
+        designation" step), then, when fill_source is "none", instead
+        randomly reshuffles which already-filled seat's club each currently
+        assigned GM has.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveAllInput'
+      responses:
+        '200':
+          description: Updated seats for the active season.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, filled, randomized]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Seat'
+                  filled:
+                    type: integer
+                    description: Number of previously-open seats that were filled.
+                  randomized:
+                    type: integer
+                    description: Number of GM assignments moved to a different seat.
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League or active season not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
   # ------------------------------------------------------------------ Rulebook
 
   /leagues/{leagueId}/rulebook:
@@ -3325,6 +3522,11 @@ components:
           type: ["string", "null"]
         logo_url:
           type: ["string", "null"]
+          maxLength: 4000
+          description: |
+            An http(s) URL, or a data:image/svg+xml URI (the generated
+            preset badges are inline SVG, comfortably under this bound —
+            a few hundred to ~1.3k characters each).
 
     UpdateLeagueInput:
       type: object
@@ -3342,6 +3544,11 @@ components:
           type: ["string", "null"]
         logo_url:
           type: ["string", "null"]
+          maxLength: 4000
+          description: |
+            An http(s) URL, or a data:image/svg+xml URI (the generated
+            preset badges are inline SVG, comfortably under this bound —
+            a few hundred to ~1.3k characters each).
 
     LeagueSettingsInput:
       type: object
@@ -3932,8 +4139,9 @@ components:
           type: string
         user_id:
           type: string
-        display_name:
+        gm_display_name:
           type: ["string", "null"]
+          description: Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.
         gm_platform:
           oneOf:
             - $ref: '#/components/schemas/PlayerSystem'
@@ -3957,6 +4165,12 @@ components:
           type: ["string", "null"]
         profile_image_url:
           type: ["string", "null"]
+        favorite_club:
+          oneOf:
+            - $ref: '#/components/schemas/Club'
+            - type: 'null'
+        gm_card_display:
+          $ref: '#/components/schemas/GmCardDisplay'
         league_record:
           $ref: '#/components/schemas/GmRecord'
         site_record:
@@ -4015,6 +4229,59 @@ components:
         end_reason:
           type: ["string", "null"]
           description: Reason for closing the previous GM assignment (if any).
+
+    ClubLeagueSource:
+      type: string
+      enum: [NHL, SHL, DEL, LIIGA, ECHL]
+      description: |
+        NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA
+        (Finland) and ECHL are a small curated set of well-known, long-
+        standing clubs from those leagues — not a live or exhaustive roster.
+
+    Club:
+      type: object
+      required: [id, abbrev, name, league_source]
+      properties:
+        id:
+          type: string
+        abbrev:
+          type: string
+        name:
+          type: string
+        conference:
+          type: ["string", "null"]
+        division:
+          type: ["string", "null"]
+        league_source:
+          $ref: '#/components/schemas/ClubLeagueSource'
+
+    AddTeamInput:
+      type: object
+      required: [nhl_club_id]
+      properties:
+        nhl_club_id:
+          type: string
+          description: A Club.id from the /clubs catalog — any league.
+
+    ReplaceClubInput:
+      type: object
+      required: [nhl_club_id]
+      properties:
+        nhl_club_id:
+          type: string
+          description: A Club.id from the /clubs catalog — any league.
+
+    ApproveAllInput:
+      type: object
+      required: [fill_source]
+      properties:
+        fill_source:
+          type: string
+          enum: [queue, members, none]
+          description: |
+            queue = pull from this league's signups/waitlist, oldest first.
+            members = any league member with no seat. none = don't autofill,
+            only randomize the GM<->seat pairing on already-filled seats.
 
     # ------------------------------------------------------------------ Rulebook
 
@@ -4464,6 +4731,10 @@ components:
           type: boolean
         active_season_id:
           type: ["string", "null"]
+        season_starts_on:
+          type: ["string", "null"]
+          format: date
+          description: Start date of the active season, if one exists.
         max_seats:
           type: integer
         seats_filled:
@@ -4566,6 +4837,18 @@ components:
         profile_image_url:
           type: ["string", "null"]
           description: Self-reported public image URL used as an avatar. Not verified or fetched server-side.
+        favorite_club:
+          oneOf:
+            - $ref: '#/components/schemas/Club'
+            - type: 'null'
+        gm_card_display:
+          $ref: '#/components/schemas/GmCardDisplay'
+
+    GmCardDisplay:
+      type: string
+      enum: [first_game, favorite_team, both]
+      default: first_game
+      description: Which of first_nhl_game / favorite_club this user wants shown on their GM seat card.
 
     XboxLinkStatus:
       type: object
@@ -4622,6 +4905,11 @@ components:
           type: ["string", "null"]
           minLength: 1
           maxLength: 500
+        favorite_club_id:
+          type: ["string", "null"]
+          description: A Club.id from the /clubs catalog — any league. Null clears it.
+        gm_card_display:
+          $ref: '#/components/schemas/GmCardDisplay'
 
     WaitlistPositionInput:
       type: object

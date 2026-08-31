@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useCreateLeague, useListLeagueSettingsTemplates } from '@workspace/api-client-react';
 import Header from '@/components/Header';
+import LeagueLogoPicker from '@/components/LeagueLogoPicker';
 
 const DEFAULT_TEMPLATE_ID = 'balanced_standard';
 
@@ -196,14 +197,8 @@ export default function CreateLeague() {
           </div>
 
           <div>
-            <label style={labelStyle}>Logo URL (Optional)</label>
-            <input 
-              type="url" 
-              value={logoUrl} 
-              onChange={e => setLogoUrl(e.target.value)}
-              style={inputStyle}
-              placeholder="https://..."
-            />
+            <label style={labelStyle}>League logo (Optional)</label>
+            <LeagueLogoPicker value={logoUrl} onChange={setLogoUrl} />
           </div>
 
           <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>

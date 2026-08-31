@@ -2,11 +2,12 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AssignedGm } from '@workspace/api-client-react';
 import { SeatGmLabel } from './ManageLeague';
+import { DEFAULT_PROFILE_ICON } from '@/components/profileIcons';
 
 const gm: AssignedGm = {
   assignment_id: 'assignment-1',
   user_id: 'user-1',
-  display_name: 'Commissioner Coach',
+  gm_display_name: 'Commissioner Coach',
   gm_platform: 'xbox',
   gm_primary_identity: 'playstation',
   gm_gamertag: 'CoachPSN',
@@ -22,15 +23,15 @@ describe('SeatGmLabel', () => {
     expect(within(card).getByText('PSN · CoachPSN')).toBeTruthy();
   });
 
-  it('keeps an assigned GM readable without identity fields, falling back to initials in the avatar', () => {
+  it('keeps an assigned GM readable without identity fields, falling back to the default icon in the avatar', () => {
     render(<SeatGmLabel gm={{ ...gm, gm_primary_identity: null, gm_platform: null, gm_gamertag: null }} seatId="seat-2" />);
     const card = screen.getByTestId('text-seat-gm-seat-2');
     expect(within(card).getByText('Commissioner Coach')).toBeTruthy();
-    expect(within(card).getByText('C')).toBeTruthy();
+    expect((card.querySelector('img') as HTMLImageElement).src).toBe(DEFAULT_PROFILE_ICON);
   });
 
   it('falls back to "Unknown GM" instead of a raw user id when display_name is missing', () => {
-    render(<SeatGmLabel gm={{ ...gm, display_name: null }} seatId="seat-3" />);
+    render(<SeatGmLabel gm={{ ...gm, gm_display_name: null }} seatId="seat-3" />);
     const card = screen.getByTestId('text-seat-gm-seat-3');
     expect(within(card).getByText('Unknown GM')).toBeTruthy();
     expect(card.textContent).not.toContain('user-1');

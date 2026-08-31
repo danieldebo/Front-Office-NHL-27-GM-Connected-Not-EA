@@ -28,6 +28,9 @@ function stubFetch(overrides: { onPatch?: (body: unknown) => unknown } = {}) {
     if (url === '/api/xbox/link') {
       return { ok: true, json: async () => ({ linked: false }) };
     }
+    if (url.startsWith('/api/clubs')) {
+      return { ok: true, json: async () => ({ data: [] }) };
+    }
     if (url === '/api/users/me' && init?.method === 'PATCH') {
       const body = JSON.parse(String(init.body));
       return { ok: true, json: async () => (overrides.onPatch ? overrides.onPatch(body) : { ...profile, ...body }) };
@@ -91,6 +94,8 @@ describe('Profile', () => {
       primary_identity: 'xbox',
       first_nhl_game: null,
       profile_image_url: null,
+      favorite_club_id: null,
+      gm_card_display: 'first_game',
     });
     expect((await screen.findByTestId('status-profile-saved')).textContent).toBe('Profile saved.');
   });

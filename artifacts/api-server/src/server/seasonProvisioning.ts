@@ -37,6 +37,46 @@ const CLUBS = [
 ] as const;
 const CLUB_ABBREVS = CLUBS.map(([abbrev]) => abbrev);
 
+// A small curated set of well-known, long-standing clubs from four other
+// real leagues — not a live or exhaustive roster — that a commissioner can
+// swap a franchise seat's club to via the team catalog (see routes/clubs.ts,
+// PATCH /team-seasons/:id/club). Season provisioning itself (below) only
+// ever draws from CLUBS (NHL) — that invariant is unaffected by this list.
+const ALT_CLUBS = [
+  ["FHC", "Frölunda HC", "SHL"],
+  ["DIF", "Djurgårdens IF", "SHL"],
+  ["FBK", "Färjestad BK", "SHL"],
+  ["HV71", "HV71", "SHL"],
+  ["LHF", "Luleå HF", "SHL"],
+  ["SAIK", "Skellefteå AIK", "SHL"],
+  ["BIF", "Brynäs IF", "SHL"],
+  ["LHC", "Linköping HC", "SHL"],
+  ["EBB", "Eisbären Berlin", "DEL"],
+  ["MAN", "Adler Mannheim", "DEL"],
+  ["KEC", "Kölner Haie", "DEL"],
+  ["ERC", "ERC Ingolstadt", "DEL"],
+  ["WOB", "Grizzlys Wolfsburg", "DEL"],
+  ["STR", "Straubing Tigers", "DEL"],
+  ["NIT", "Nürnberg Ice Tigers", "DEL"],
+  ["DEG", "Düsseldorfer EG", "DEL"],
+  ["TAP", "Tappara", "LIIGA"],
+  ["KAR", "Kärpät Oulu", "LIIGA"],
+  ["HIFK", "HIFK", "LIIGA"],
+  ["JYP", "JYP Jyväskylä", "LIIGA"],
+  ["ILV", "Ilves Tampere", "LIIGA"],
+  ["TPS", "TPS Turku", "LIIGA"],
+  ["LUK", "Lukko Rauma", "LIIGA"],
+  ["PEL", "Pelicans Lahti", "LIIGA"],
+  ["TOL", "Toledo Walleye", "ECHL"],
+  ["WHL", "Wheeling Nailers", "ECHL"],
+  ["FLE", "Florida Everblades", "ECHL"],
+  ["CIN", "Cincinnati Cyclones", "ECHL"],
+  ["NFL", "Newfoundland Growlers", "ECHL"],
+  ["IDH", "Idaho Steelheads", "ECHL"],
+  ["KAL", "Kalamazoo Wings", "ECHL"],
+  ["NOR", "Norfolk Admirals", "ECHL"],
+] as const;
+
 export async function ensureClubCatalog(client: PoolClient): Promise<void> {
   const values = CLUBS.flat();
   const placeholders = CLUBS.map((_, index) => {
@@ -52,6 +92,21 @@ export async function ensureClubCatalog(client: PoolClient): Promise<void> {
            conference = EXCLUDED.conference,
            division = EXCLUDED.division`,
     values,
+  );
+
+  const altValues = ALT_CLUBS.flat();
+  const altPlaceholders = ALT_CLUBS.map((_, index) => {
+    const offset = index * 3;
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3})`;
+  }).join(", ");
+
+  await client.query(
+    `INSERT INTO nhl_club (abbrev, name, league_source)
+     VALUES ${altPlaceholders}
+     ON CONFLICT (abbrev) DO UPDATE
+       SET name = EXCLUDED.name,
+           league_source = EXCLUDED.league_source`,
+    altValues,
   );
 }
 

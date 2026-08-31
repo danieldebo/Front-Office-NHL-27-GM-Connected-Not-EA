@@ -162,9 +162,17 @@ export default function ReportResult() {
       {
         onSuccess: () => {
           setSubmitted(true);
-          // Bust the games cache so standings + hub refresh
-          qc.invalidateQueries({ queryKey: ['/api/seasons'] });
-          qc.invalidateQueries({ queryKey: ['/api/leagues'] });
+          // Bust the games cache so standings + hub refresh. Every generated
+          // query key is a single concatenated URL string, never a bare
+          // '/api/seasons' or '/api/leagues' — a predicate is what actually
+          // matches anything from here, where we don't know the specific
+          // league/season id this game belongs to.
+          qc.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey[0];
+              return typeof key === 'string' && (key.includes('/leagues/') || key.includes('/seasons/'));
+            },
+          });
           // Short delay, then go back home
           setTimeout(() => navigate('/'), 1200);
         },

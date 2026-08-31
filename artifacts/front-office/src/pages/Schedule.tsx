@@ -154,11 +154,14 @@ function WeekRow({ week, isCommissioner, leagueId }: {
 // ─────────────────────────────────────── Generate schedule form
 function GenerateScheduleForm({
   seasonId,
+  seasonStartsOn,
   settings,
   onSuccess,
-}: { seasonId: string; settings: LeagueSettingsVersion; onSuccess: () => void }) {
+}: { seasonId: string; seasonStartsOn?: string | null; settings: LeagueSettingsVersion; onSuccess: () => void }) {
   const [startDate, setStartDate] = useState(
-    new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+    seasonStartsOn
+      ? seasonStartsOn.slice(0, 10)
+      : new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10)
   );
   const [weekDurationDays, setWeekDurationDays] = useState(
     Number(settings.schedule_settings.week_duration_days ?? 7)
@@ -405,9 +408,10 @@ function ScheduleContent({
       {noSchedule && isCommissioner && activeSeason && seasonSettings && (
         <GenerateScheduleForm
           seasonId={activeSeason.id}
+          seasonStartsOn={activeSeason.starts_on}
           settings={seasonSettings}
           onSuccess={() => {
-            qc.invalidateQueries({ queryKey: ['/api/seasons', activeSeason.id, 'weeks'] as any });
+            qc.invalidateQueries({ queryKey: [`/api/seasons/${activeSeason.id}/weeks`] as any });
             qc.invalidateQueries({ queryKey: [`/api/seasons/${activeSeason.id}/games`] });
           }}
         />

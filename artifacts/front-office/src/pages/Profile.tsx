@@ -6,6 +6,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useGetXboxLink, useUnlinkXbox } from '@workspace/api-client-react';
 import Header from '@/components/Header';
 import { Form } from '@/components/ui/form';
+import TeamPicker from '@/components/TeamPicker';
+import { DEFAULT_PROFILE_ICON, PROFILE_ICON_OPTIONS } from '@/components/profileIcons';
+
+const GM_CARD_DISPLAY_OPTIONS: { value: 'first_game' | 'favorite_team' | 'both'; label: string }[] = [
+  { value: 'first_game', label: 'First NHL game' },
+  { value: 'favorite_team', label: 'Favorite team' },
+  { value: 'both', label: 'Both' },
+];
 
 const SYSTEMS = [
   { value: 'xbox', label: 'Xbox' },
@@ -31,6 +39,8 @@ const profileSchema = z.object({
     (value) => !value || /^https?:\/\/\S+$/i.test(value),
     'Enter a full http(s) image URL',
   ),
+  favorite_club_id: z.string().nullable(),
+  gm_card_display: z.enum(['first_game', 'favorite_team', 'both']),
 }).superRefine((values, context) => {
   if (values.primary_identity && !values.systems_played.includes(values.primary_identity)) {
     context.addIssue({
@@ -53,6 +63,13 @@ const profileSchema = z.object({
       message: 'PSN Online ID is required for a PlayStation primary identity',
     });
   }
+  if ((values.gm_card_display === 'favorite_team' || values.gm_card_display === 'both') && !values.favorite_club_id) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['favorite_club_id'],
+      message: 'Pick a favorite team to show it on your GM card',
+    });
+  }
 });
 
 type ProfileValues = z.infer<typeof profileSchema>;
@@ -70,6 +87,8 @@ const EMPTY_PROFILE: ProfileValues = {
   primary_identity: '',
   first_nhl_game: '',
   profile_image_url: '',
+  favorite_club_id: null,
+  gm_card_display: 'first_game',
 };
 
 function errorDetail(value: unknown, fallback: string): string {
@@ -90,6 +109,7 @@ const XBOX_ERROR_MESSAGES: Record<string, string> = {
   child_account: 'Child Microsoft accounts cannot be linked here — an adult account is required.',
   no_gamertag: "Xbox Live didn't return a gamertag for this account.",
   xbox_account_already_linked: 'That Xbox account is already linked to a different Front Office profile.',
+  xbox_not_configured: 'Xbox verification is not set up on this deployment yet — the site owner needs to configure it.',
 };
 
 function XboxVerificationPanel() {
@@ -205,6 +225,8 @@ export default function Profile() {
               : '',
           first_nhl_game: profile.first_nhl_game ?? '',
           profile_image_url: profile.profile_image_url ?? '',
+          favorite_club_id: profile.favorite_club_id ?? null,
+          gm_card_display: profile.gm_card_display ?? 'first_game',
         });
         setLoadError('');
       })
@@ -250,6 +272,8 @@ export default function Profile() {
         primary_identity: profile.primary_identity ?? '',
         first_nhl_game: profile.first_nhl_game ?? '',
         profile_image_url: profile.profile_image_url ?? '',
+        favorite_club_id: profile.favorite_club_id ?? null,
+        gm_card_display: profile.gm_card_display ?? values.gm_card_display,
       });
       setSaved(true);
     } catch {
@@ -260,7 +284,7 @@ export default function Profile() {
   const errors = form.formState.errors;
   const selectedSystems = form.watch('systems_played');
   const profileImageUrl = form.watch('profile_image_url');
-  const previewUrl = !errors.profile_image_url && profileImageUrl ? profileImageUrl : null;
+  const previewUrl = (!errors.profile_image_url && profileImageUrl) || DEFAULT_PROFILE_ICON;
 
   return (
     <>
@@ -378,12 +402,14 @@ export default function Profile() {
                   {errors.first_nhl_game && <span className="field-error">{errors.first_nhl_game.message}</span>}
                 </div>
                 <div className="field full">
-                  <label htmlFor="profile-image-url">Profile image URL</label>
+                  <label htmlFor="profile-image-url">Profile image</label>
                   <div className="profile-avatar-row">
                     <span className="profile-avatar-preview" aria-hidden="true">
-                      {previewUrl
-                        ? <img src={previewUrl} alt="" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
-                        : <span className="profile-avatar-fallback">{(form.getValues('display_name') || '?').charAt(0).toUpperCase()}</span>}
+                      <img
+                        src={previewUrl}
+                        alt=""
+                        onError={(e) => { if (e.currentTarget.src !== DEFAULT_PROFILE_ICON) e.currentTarget.src = DEFAULT_PROFILE_ICON; }}
+                      />
                     </span>
                     <input
                       id="profile-image-url"
@@ -395,8 +421,61 @@ export default function Profile() {
                       {...form.register('profile_image_url')}
                     />
                   </div>
-                  <span className="field-help">A public link to an image — shown as your avatar wherever you're a GM.</span>
+                  <div className="profile-icon-grid" role="group" aria-label="Choose a default icon" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
+                    {PROFILE_ICON_OPTIONS.map((icon) => {
+                      const selected = profileImageUrl === icon;
+                      return (
+                        <button
+                          key={icon}
+                          type="button"
+                          onClick={() => form.setValue('profile_image_url', icon, { shouldDirty: true, shouldValidate: true })}
+                          aria-pressed={selected}
+                          aria-label="Use this icon"
+                          data-testid={`button-profile-icon-${icon.split('/').pop()}`}
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            padding: '4px',
+                            borderRadius: '50%',
+                            border: selected ? '2px solid var(--crease)' : '1px solid var(--rule)',
+                            background: '#fff',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <img src={icon} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="field-help">Pick one of these, or paste your own public image URL above. Defaults to the first icon if you don't set one.</span>
                   {errors.profile_image_url && <span className="field-error">{errors.profile_image_url.message}</span>}
+                </div>
+                <div className="field">
+                  <label htmlFor="profile-favorite-club">Favorite team</label>
+                  <TeamPicker
+                    id="profile-favorite-club"
+                    aria-label="Favorite team"
+                    allowNone
+                    value={form.watch('favorite_club_id')}
+                    onChange={(clubId) => form.setValue('favorite_club_id', clubId, { shouldDirty: true, shouldValidate: true })}
+                  />
+                  {errors.favorite_club_id && <span className="field-error">{errors.favorite_club_id.message}</span>}
+                </div>
+                <div className="field">
+                  <label htmlFor="profile-card-display">Show on GM seat card</label>
+                  <select
+                    id="profile-card-display"
+                    aria-invalid={!!errors.gm_card_display}
+                    data-testid="select-gm-card-display"
+                    {...form.register('gm_card_display')}
+                  >
+                    {GM_CARD_DISPLAY_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </select>
+                  <span className="field-help">Which of these shows on your franchise seat card — pick Favorite team or Both once you've set one above.</span>
+                  {errors.gm_card_display && <span className="field-error">{errors.gm_card_display.message}</span>}
                 </div>
                 <div className="profile-actions">
                   <div aria-live="polite">

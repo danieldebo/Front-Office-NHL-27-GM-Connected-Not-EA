@@ -28,6 +28,7 @@ import JoinByCode from '@/pages/JoinByCode';
 import OpenLeagues from '@/pages/OpenLeagues';
 import Profile from '@/pages/Profile';
 import Footer from '@/components/Footer';
+import { Toaster } from '@/components/ui/toaster';
 
 const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -237,6 +238,7 @@ function ClerkProviderWithRoutes() {
           </div>
           <Footer />
         </div>
+        <Toaster />
       </QueryClientProvider>
     </ClerkProvider>
   );

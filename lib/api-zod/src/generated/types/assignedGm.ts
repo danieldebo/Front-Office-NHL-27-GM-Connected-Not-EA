@@ -5,14 +5,19 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { Club } from './club';
+import type { GmCardDisplay } from './gmCardDisplay';
 import type { GmRecord } from './gmRecord';
 import type { PlayerSystem } from './playerSystem';
 
 export interface AssignedGm {
   assignment_id: string;
   user_id: string;
-  /** @nullable */
-  display_name?: string | null;
+  /**
+     * Matches the gm_display_name convention used everywhere else a GM identity is embedded (GameSide, etc.) — the wire payload has always used this name, never the unprefixed display_name this schema used to (mis)declare.
+     * @nullable
+     */
+  gm_display_name?: string | null;
   gm_platform?: PlayerSystem | null;
   gm_primary_identity?: PlayerSystem | null;
   /** @nullable */
@@ -27,6 +32,8 @@ export interface AssignedGm {
   first_nhl_game?: string | null;
   /** @nullable */
   profile_image_url?: string | null;
+  favorite_club?: Club | null;
+  gm_card_display?: GmCardDisplay;
   league_record?: GmRecord;
   site_record?: GmRecord;
 }
