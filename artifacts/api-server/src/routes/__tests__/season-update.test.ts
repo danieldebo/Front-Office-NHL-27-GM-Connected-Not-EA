@@ -146,4 +146,67 @@ describe("PATCH /api/leagues/:leagueId/seasons/:seasonId", () => {
     );
     expect(unchanged[0]!.starts_on).toBe("2026-10-01");
   });
+
+  it("shifts every already-generated game window by the same delta when starts_on changes", async (ctx) => {
+    if (!schemaReady) return ctx.skip();
+    const { replitId, appUserId, leagueId, seasonId, teamA, teamB } = await makeCommissionerWithLeague("reschedule");
+    authAs(replitId, appUserId);
+
+    // Seed an initial starts_on and a two-week schedule anchored to it.
+    const seeded = await request(app)
+      .patch(`/api/leagues/${leagueId}/seasons/${seasonId}`)
+      .send({ starts_on: "2026-10-01" });
+    expect(seeded.status).toBe(200);
+
+    const [week1, week2] = await sql<{ id: string }>(
+      `INSERT INTO game (season_id, week_number, home_team_season_id, away_team_season_id, window_opens_at, window_closes_at)
+       VALUES
+         ($1, 1, $2, $3, '2026-10-01T00:00:00Z', '2026-10-08T00:00:00Z'),
+         ($1, 2, $3, $2, '2026-10-08T00:00:00Z', '2026-10-15T00:00:00Z')
+       RETURNING id`,
+      [seasonId, teamA, teamB],
+    );
+    expect(week1).toBeDefined();
+    expect(week2).toBeDefined();
+
+    // Push the start date out by 7 days.
+    const moved = await request(app)
+      .patch(`/api/leagues/${leagueId}/seasons/${seasonId}`)
+      .send({ starts_on: "2026-10-08" });
+    expect(moved.status).toBe(200);
+
+    const games = await sql<{ week_number: number; window_opens_at: string; window_closes_at: string }>(
+      `SELECT week_number, window_opens_at, window_closes_at FROM game WHERE season_id = $1 ORDER BY week_number`,
+      [seasonId],
+    );
+    expect(games).toHaveLength(2);
+    expect(new Date(games[0]!.window_opens_at).toISOString()).toBe("2026-10-08T00:00:00.000Z");
+    expect(new Date(games[0]!.window_closes_at).toISOString()).toBe("2026-10-15T00:00:00.000Z");
+    expect(new Date(games[1]!.window_opens_at).toISOString()).toBe("2026-10-15T00:00:00.000Z");
+    expect(new Date(games[1]!.window_closes_at).toISOString()).toBe("2026-10-22T00:00:00.000Z");
+  });
+
+  it("does not touch game windows when starts_on is set for the first time (nothing to shift from)", async (ctx) => {
+    if (!schemaReady) return ctx.skip();
+    const { replitId, appUserId, leagueId, seasonId, teamA, teamB } = await makeCommissionerWithLeague("first-set");
+    authAs(replitId, appUserId);
+
+    // No starts_on yet — insert a game window before ever setting one.
+    await sql(
+      `INSERT INTO game (season_id, week_number, home_team_season_id, away_team_season_id, window_opens_at, window_closes_at)
+       VALUES ($1, 1, $2, $3, '2026-10-01T00:00:00Z', '2026-10-08T00:00:00Z')`,
+      [seasonId, teamA, teamB],
+    );
+
+    const first = await request(app)
+      .patch(`/api/leagues/${leagueId}/seasons/${seasonId}`)
+      .send({ starts_on: "2026-11-01" });
+    expect(first.status).toBe(200);
+
+    const games = await sql<{ window_opens_at: string }>(
+      `SELECT window_opens_at FROM game WHERE season_id = $1`,
+      [seasonId],
+    );
+    expect(new Date(games[0]!.window_opens_at).toISOString()).toBe("2026-10-01T00:00:00.000Z");
+  });
 });
