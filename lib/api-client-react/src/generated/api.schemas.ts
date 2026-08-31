@@ -825,6 +825,15 @@ export const SeatSeatStatus = {
   vacated: 'vacated',
 } as const;
 
+/**
+ * Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.
+ */
+export interface GmRecord {
+  w: number;
+  l: number;
+  otl: number;
+}
+
 export interface AssignedGm {
   assignment_id: string;
   user_id: string;
@@ -840,6 +849,12 @@ export interface AssignedGm {
   gm_psn_online_id?: string | null;
   started_at?: string;
   role?: string;
+  /** @nullable */
+  first_nhl_game?: string | null;
+  /** @nullable */
+  profile_image_url?: string | null;
+  league_record?: GmRecord;
+  site_record?: GmRecord;
 }
 
 export interface Seat {
@@ -1246,6 +1261,16 @@ export interface UserProfile {
   primary_identity: PlayerSystem | null;
   /** True when xbox_gamertag was confirmed via Xbox Live OAuth, not self-reported. */
   xbox_verified?: boolean;
+  /**
+     * Self-reported, e.g. "NHL 94" — not verified.
+     * @nullable
+     */
+  first_nhl_game?: string | null;
+  /**
+     * Self-reported public image URL used as an avatar. Not verified or fetched server-side.
+     * @nullable
+     */
+  profile_image_url?: string | null;
 }
 
 export interface XboxLinkStatus {
@@ -1281,6 +1306,18 @@ export interface UserProfileUpdate {
   psn_online_id?: string | null;
   systems_played?: PlayerSystem[];
   primary_identity?: PlayerSystem | null;
+  /**
+     * @minLength 1
+     * @maxLength 60
+     * @nullable
+     */
+  first_nhl_game?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     * @nullable
+     */
+  profile_image_url?: string | null;
 }
 
 export interface WaitlistPositionInput {

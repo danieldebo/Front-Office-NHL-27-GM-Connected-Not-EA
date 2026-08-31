@@ -26,6 +26,11 @@ const profileSchema = z.object({
   psn_online_id: z.string().trim().max(100),
   systems_played: z.array(z.enum(['xbox', 'playstation'])),
   primary_identity: z.enum(['xbox', 'playstation']).or(z.literal('')),
+  first_nhl_game: z.string().trim().max(60, 'Keep it to 60 characters or fewer'),
+  profile_image_url: z.string().trim().max(500).refine(
+    (value) => !value || /^https?:\/\/\S+$/i.test(value),
+    'Enter a full http(s) image URL',
+  ),
 }).superRefine((values, context) => {
   if (values.primary_identity && !values.systems_played.includes(values.primary_identity)) {
     context.addIssue({
@@ -63,6 +68,8 @@ const EMPTY_PROFILE: ProfileValues = {
   psn_online_id: '',
   systems_played: [],
   primary_identity: '',
+  first_nhl_game: '',
+  profile_image_url: '',
 };
 
 function errorDetail(value: unknown, fallback: string): string {
@@ -196,6 +203,8 @@ export default function Profile() {
             profile.primary_identity === 'playstation' || profile.primary_identity === 'xbox'
               ? profile.primary_identity
               : '',
+          first_nhl_game: profile.first_nhl_game ?? '',
+          profile_image_url: profile.profile_image_url ?? '',
         });
         setLoadError('');
       })
@@ -222,6 +231,8 @@ export default function Profile() {
           xbox_gamertag: values.xbox_gamertag || null,
           psn_online_id: values.psn_online_id || null,
           primary_identity: values.primary_identity || null,
+          first_nhl_game: values.first_nhl_game || null,
+          profile_image_url: values.profile_image_url || null,
         }),
       });
       const body = await response.json().catch(() => ({})) as ProfileResponse;
@@ -237,6 +248,8 @@ export default function Profile() {
         psn_online_id: profile.psn_online_id ?? '',
         systems_played: profile.systems_played ?? values.systems_played,
         primary_identity: profile.primary_identity ?? '',
+        first_nhl_game: profile.first_nhl_game ?? '',
+        profile_image_url: profile.profile_image_url ?? '',
       });
       setSaved(true);
     } catch {
@@ -246,6 +259,8 @@ export default function Profile() {
 
   const errors = form.formState.errors;
   const selectedSystems = form.watch('systems_played');
+  const profileImageUrl = form.watch('profile_image_url');
+  const previewUrl = !errors.profile_image_url && profileImageUrl ? profileImageUrl : null;
 
   return (
     <>
@@ -349,6 +364,39 @@ export default function Profile() {
                   </select>
                   <span className="field-help">This is the identity opponents see with your display name.</span>
                   {errors.primary_identity && <span className="field-error">{errors.primary_identity.message}</span>}
+                </div>
+                <div className="field">
+                  <label htmlFor="profile-first-game">First NHL game you ever played/owned</label>
+                  <input
+                    id="profile-first-game"
+                    autoComplete="off"
+                    placeholder="NHL 94"
+                    aria-invalid={!!errors.first_nhl_game}
+                    data-testid="input-first-nhl-game"
+                    {...form.register('first_nhl_game')}
+                  />
+                  {errors.first_nhl_game && <span className="field-error">{errors.first_nhl_game.message}</span>}
+                </div>
+                <div className="field full">
+                  <label htmlFor="profile-image-url">Profile image URL</label>
+                  <div className="profile-avatar-row">
+                    <span className="profile-avatar-preview" aria-hidden="true">
+                      {previewUrl
+                        ? <img src={previewUrl} alt="" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+                        : <span className="profile-avatar-fallback">{(form.getValues('display_name') || '?').charAt(0).toUpperCase()}</span>}
+                    </span>
+                    <input
+                      id="profile-image-url"
+                      type="url"
+                      autoComplete="off"
+                      placeholder="https://example.com/your-avatar.png"
+                      aria-invalid={!!errors.profile_image_url}
+                      data-testid="input-profile-image-url"
+                      {...form.register('profile_image_url')}
+                    />
+                  </div>
+                  <span className="field-help">A public link to an image — shown as your avatar wherever you're a GM.</span>
+                  {errors.profile_image_url && <span className="field-error">{errors.profile_image_url.message}</span>}
                 </div>
                 <div className="profile-actions">
                   <div aria-live="polite">

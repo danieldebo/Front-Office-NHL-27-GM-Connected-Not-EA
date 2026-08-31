@@ -32,4 +32,16 @@ export interface UserProfileUpdate {
   psn_online_id?: string | null;
   systems_played?: PlayerSystem[];
   primary_identity?: PlayerSystem | null;
+  /**
+     * @minLength 1
+     * @maxLength 60
+     * @nullable
+     */
+  first_nhl_game?: string | null;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     * @nullable
+     */
+  profile_image_url?: string | null;
 }

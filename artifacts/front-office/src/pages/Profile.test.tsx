@@ -89,8 +89,43 @@ describe('Profile', () => {
       psn_online_id: null,
       systems_played: ['xbox'],
       primary_identity: 'xbox',
+      first_nhl_game: null,
+      profile_image_url: null,
     });
     expect((await screen.findByTestId('status-profile-saved')).textContent).toBe('Profile saved.');
+  });
+
+  it('loads and saves first_nhl_game and profile_image_url', async () => {
+    const fetchMock = stubFetch({
+      onPatch: (body) => ({ ...profile, first_nhl_game: 'NHL 94', profile_image_url: 'https://example.test/me.png', ...(body as object) }),
+    });
+    renderProfile();
+
+    const firstGame = await screen.findByTestId('input-first-nhl-game') as HTMLInputElement;
+    expect(firstGame.value).toBe('');
+
+    fireEvent.change(firstGame, { target: { value: 'NHL 94' } });
+    fireEvent.change(screen.getByTestId('input-profile-image-url'), { target: { value: 'https://example.test/me.png' } });
+    fireEvent.click(screen.getByTestId('button-save-profile'));
+
+    await waitFor(() => expect(callsTo(fetchMock, '/api/users/me')).toHaveLength(2));
+    const [, patchInit] = callsTo(fetchMock, '/api/users/me')[1]!;
+    expect(JSON.parse(String(patchInit!.body))).toMatchObject({
+      first_nhl_game: 'NHL 94',
+      profile_image_url: 'https://example.test/me.png',
+    });
+    expect((await screen.findByTestId('status-profile-saved')).textContent).toBe('Profile saved.');
+  });
+
+  it('rejects a profile image URL that is not http(s)', async () => {
+    stubFetch();
+    renderProfile();
+
+    const imageUrl = await screen.findByTestId('input-profile-image-url');
+    fireEvent.change(imageUrl, { target: { value: 'javascript:alert(1)' } });
+    fireEvent.click(screen.getByTestId('button-save-profile'));
+
+    expect(await screen.findByText(/http\(s\) image URL/i)).toBeTruthy();
   });
 
   it('requires a valid IANA time zone before sending a patch', async () => {

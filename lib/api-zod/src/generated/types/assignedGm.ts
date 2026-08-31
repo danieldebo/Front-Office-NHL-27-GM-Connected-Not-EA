@@ -5,6 +5,7 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { GmRecord } from './gmRecord';
 import type { PlayerSystem } from './playerSystem';
 
 export interface AssignedGm {
@@ -22,4 +23,10 @@ export interface AssignedGm {
   gm_psn_online_id?: string | null;
   started_at?: Date;
   role?: string;
+  /** @nullable */
+  first_nhl_game?: string | null;
+  /** @nullable */
+  profile_image_url?: string | null;
+  league_record?: GmRecord;
+  site_record?: GmRecord;
 }

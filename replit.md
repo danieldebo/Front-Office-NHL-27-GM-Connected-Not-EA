@@ -220,6 +220,7 @@ two places numeric order and dependency order diverge):
 | 2.13.0 | `db/schema-signup-history.sql` | `league_signup` keeps a permanent accept/decline history instead of being deleted on decision |
 | 2.14.0 | `db/schema-waitlist-decided-by.sql` | `waitlist_entry.decided_by` — who resolved a waitlist-only applicant, matching `league_signup.decided_by` |
 | 2.15.0 | `db/schema-join-requests.sql` | `join_request` + `invite_link` — seats.ts always queried these; never previously committed as a migration |
+| 2.16.0 | `db/schema-gm-card-profile.sql` | `app_user.first_nhl_game` + `profile_image_url`, surfaced on the GM seat card |
 
 ---
 
