@@ -6,6 +6,10 @@ import {
   useListUnassignedMembers,
   useAssignGm,
   useRevokeGm,
+  useAddTeam,
+  useReplaceTeamClub,
+  useRemoveTeam,
+  useApproveAllSeats,
   useListJoinRequests,
   useApproveJoinRequest,
   useRejectJoinRequest,
@@ -48,6 +52,7 @@ import { gmIdentityLabel } from '@/components/gmIdentity';
 import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
 import SetupChecklist from '@/components/SetupChecklist';
 import OperationsTab from '@/components/OperationsTab';
+import TeamPicker from '@/components/TeamPicker';
 import { toast } from '@/hooks/use-toast';
 
 // Helper components
@@ -64,7 +69,10 @@ export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) 
   const name = gm.gm_display_name || 'Unknown GM';
   const leagueRecord = formatGmRecord(gm.league_record);
   const siteRecord = formatGmRecord(gm.site_record);
-  const hasFacts = Boolean(gm.first_nhl_game || leagueRecord || siteRecord);
+  const cardDisplay = gm.gm_card_display ?? 'first_game';
+  const showFirstGame = Boolean(gm.first_nhl_game) && (cardDisplay === 'first_game' || cardDisplay === 'both');
+  const showFavoriteTeam = Boolean(gm.favorite_club) && (cardDisplay === 'favorite_team' || cardDisplay === 'both');
+  const hasFacts = Boolean(showFirstGame || showFavoriteTeam || leagueRecord || siteRecord);
 
   return (
     <div className="gm-card" data-testid={`text-seat-gm-${seatId}`}>
@@ -87,10 +95,16 @@ export function SeatGmLabel({ gm, seatId }: { gm: AssignedGm; seatId: string }) 
         </div>
         {hasFacts && (
           <dl className="gm-card-facts">
-            {gm.first_nhl_game && (
+            {showFirstGame && (
               <div className="gm-card-fact">
                 <dt>First game</dt>
                 <dd>{gm.first_nhl_game}</dd>
+              </div>
+            )}
+            {showFavoriteTeam && gm.favorite_club && (
+              <div className="gm-card-fact">
+                <dt>Favorite team</dt>
+                <dd>{gm.favorite_club.abbrev} — {gm.favorite_club.name}</dd>
               </div>
             )}
             {leagueRecord && (
@@ -175,15 +189,163 @@ function AssignGmPicker({
   );
 }
 
+const APPROVE_ALL_OPTIONS: { value: 'queue' | 'members' | 'none'; label: string; description: string }[] = [
+  {
+    value: 'queue',
+    label: 'Fill from signups & waitlist',
+    description: 'Pulls candidates from this league\'s signup/waitlist queue, oldest first, until every open seat is filled or the queue runs out — then randomly pairs each filled seat to its new GM.',
+  },
+  {
+    value: 'members',
+    label: 'Fill from any un-seated member',
+    description: 'Broader pool — any accepted league member without a seat, not just people who signed up or waitlisted.',
+  },
+  {
+    value: 'none',
+    label: 'Just reshuffle current GMs',
+    description: "Doesn't add anyone new — randomly reassigns which seat each already-assigned GM occupies. Useful for reseeding a full league.",
+  },
+];
+
+function ApproveAllPanel({ leagueId, onDone }: { leagueId: string; onDone: () => void }) {
+  const [fillSource, setFillSource] = useState<'queue' | 'members' | 'none'>('queue');
+  const approveAll = useApproveAllSeats();
+
+  const handleApprove = () => {
+    const chosen = APPROVE_ALL_OPTIONS.find(o => o.value === fillSource)!;
+    if (!confirm(`Approve All & Randomize Teams?\n\n${chosen.label}\n${chosen.description}\n\nThis cannot be undone.`)) return;
+    approveAll.mutate({ leagueId, data: { fill_source: fillSource } }, {
+      onSuccess: (result) => {
+        toast({
+          title: 'Approve All complete',
+          description: `${result.filled} seat${result.filled === 1 ? '' : 's'} filled, ${result.randomized} reassigned.`,
+        });
+        onDone();
+      },
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Approve All failed'),
+    });
+  };
+
+  return (
+    <div className="panel" style={{ marginBottom: '16px' }}>
+      <div className="panel-head">
+        <h2>Approve All &amp; Randomize Teams</h2>
+        <div className="note">Commissioner quick-start</div>
+      </div>
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <p style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)', margin: 0 }}>
+          A one-click template for standing up a full league fast: autofills every open seat and randomizes who lands on which team.
+        </p>
+        {APPROVE_ALL_OPTIONS.map(opt => (
+          <label key={opt.value} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
+            <input
+              type="radio"
+              name="approve-all-fill-source"
+              checked={fillSource === opt.value}
+              onChange={() => setFillSource(opt.value)}
+              style={{ marginTop: '3px' }}
+            />
+            <span>
+              <div style={{ fontWeight: 600, fontSize: '13px' }}>{opt.label}</div>
+              <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>{opt.description}</div>
+            </span>
+          </label>
+        ))}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+          <button
+            className="btn"
+            style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}
+            disabled={approveAll.isPending}
+            onClick={handleApprove}
+          >
+            {approveAll.isPending ? 'Working…' : 'Approve All & Randomize Teams'}
+          </button>
+          <button className="btn ghost" onClick={onDone} disabled={approveAll.isPending}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddTeamPanel({ leagueId, seasonId, existingClubIds, onDone }: {
+  leagueId: string; seasonId: string; existingClubIds: string[]; onDone: () => void;
+}) {
+  const [clubId, setClubId] = useState<string | null>(null);
+  const addTeam = useAddTeam();
+
+  return (
+    <div className="panel" style={{ marginBottom: '16px' }}>
+      <div className="panel-head"><h2>Add a Team</h2></div>
+      <div style={{ padding: '16px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <TeamPicker value={clubId} onChange={setClubId} disabledClubIds={existingClubIds} aria-label="Club to add" />
+        <button
+          className="btn"
+          style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}
+          disabled={!clubId || addTeam.isPending}
+          onClick={() => {
+            if (!clubId) return;
+            addTeam.mutate({ leagueId, seasonId, data: { nhl_club_id: clubId } }, {
+              onSuccess: () => { setClubId(null); onDone(); },
+              onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to add team'),
+            });
+          }}
+        >
+          {addTeam.isPending ? 'Adding…' : 'Add Team'}
+        </button>
+        <button className="btn ghost" onClick={onDone}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function ReplaceClubControl({ seat, existingClubIds, onDone }: {
+  seat: Seat; existingClubIds: string[]; onDone: () => void;
+}) {
+  const [clubId, setClubId] = useState<string | null>(seat.nhl_club_id ?? null);
+  const replaceClub = useReplaceTeamClub();
+
+  return (
+    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
+      <TeamPicker
+        value={clubId}
+        onChange={setClubId}
+        disabledClubIds={existingClubIds.filter(id => id !== seat.nhl_club_id)}
+        aria-label="Replace with club"
+      />
+      <button
+        className="btn"
+        style={{ padding: '6px 12px', fontSize: '12px' }}
+        disabled={!clubId || clubId === seat.nhl_club_id || replaceClub.isPending}
+        onClick={() => {
+          if (!clubId) return;
+          replaceClub.mutate({ teamSeasonId: seat.team_season_id, data: { nhl_club_id: clubId } }, {
+            onSuccess: onDone,
+            onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to replace team'),
+          });
+        }}
+      >
+        {replaceClub.isPending ? 'Saving…' : 'Save'}
+      </button>
+      <button className="btn ghost" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={onDone}>Cancel</button>
+    </div>
+  );
+}
+
 function SeatsTab({ leagueId }: { leagueId: string }) {
   const { data: seatsResponse, isLoading } = useListSeats(leagueId);
   const seats = seatsResponse?.data || [];
   const { data: membersResponse } = useListUnassignedMembers(leagueId);
   const members = membersResponse?.data || [];
+  const { data: seasonsResponse } = useListSeasons(leagueId);
+  const activeSeasonId = seasonsResponse?.data.find(s => s.is_active)?.id ?? null;
   const assignGm = useAssignGm();
   const revokeGm = useRevokeGm();
+  const removeTeam = useRemoveTeam();
   const queryClient = useQueryClient();
   const [assigningSeatId, setAssigningSeatId] = useState<string | null>(null);
+  const [renamingSeatId, setRenamingSeatId] = useState<string | null>(null);
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [showApproveAll, setShowApproveAll] = useState(false);
 
   if (isLoading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading seats...</div>;
 
@@ -204,6 +366,8 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
   const invalidateSeatData = () => {
     queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/seats`] as any });
     queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/members/unassigned`] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/signups`] as any });
+    queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/waitlist`] as any });
   };
 
   const handleRevoke = (seat: Seat) => {
@@ -227,49 +391,111 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
     });
   };
 
+  const handleRemoveTeam = (seat: Seat) => {
+    if (!confirm(`Remove ${seat.franchise_name} from this season? This cannot be undone.`)) return;
+    removeTeam.mutate({ teamSeasonId: seat.team_season_id }, {
+      onSuccess: invalidateSeatData,
+      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to remove team — an open seat only'),
+    });
+  };
+
+  const existingClubIds = seats.map(s => s.nhl_club_id).filter((id): id is string => Boolean(id));
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-      {seats.map(seat => (
-        <div key={seat.team_season_id} className="panel" style={{ marginBottom: 0 }}>
-          <div className="panel-head" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div className="crest" style={{ width: '28px', height: '28px', fontSize: '12px' }}>
-              {seat.club_abbrev || seat.franchise_name?.substring(0, 2).toUpperCase()}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: '14px' }}>{seat.franchise_name}</div>
-              <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', textTransform: 'uppercase' }}>
-                {seat.division}
+    <div>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <button className="btn" style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }} onClick={() => setShowApproveAll(v => !v)}>
+          {showApproveAll ? 'Hide Approve All' : 'Approve All & Randomize Teams'}
+        </button>
+        {activeSeasonId && (
+          <button className="btn ghost" onClick={() => setShowAddTeam(v => !v)}>
+            {showAddTeam ? 'Hide Add Team' : '+ Add Team'}
+          </button>
+        )}
+      </div>
+      {showApproveAll && (
+        <ApproveAllPanel leagueId={leagueId} onDone={() => setShowApproveAll(false)} />
+      )}
+      {showAddTeam && activeSeasonId && (
+        <AddTeamPanel
+          leagueId={leagueId}
+          seasonId={activeSeasonId}
+          existingClubIds={existingClubIds}
+          onDone={() => { setShowAddTeam(false); invalidateSeatData(); }}
+        />
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+        {seats.map(seat => (
+          <div key={seat.team_season_id} className="panel" style={{ marginBottom: 0 }}>
+            <div className="panel-head" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="crest" style={{ width: '28px', height: '28px', fontSize: '12px' }}>
+                {seat.club_abbrev || seat.franchise_name?.substring(0, 2).toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: '14px' }}>{seat.franchise_name}</div>
+                <div style={{ fontFamily: 'var(--data)', fontSize: '10px', color: 'var(--steel)', textTransform: 'uppercase' }}>
+                  {seat.division}
+                </div>
+              </div>
+              <div className={`chip ${seat.seat_status === 'open' ? 'ea' : seat.seat_status === 'pending' ? 'ocr' : 'conf'}`}>
+                {seat.seat_status}
               </div>
             </div>
-            <div className={`chip ${seat.seat_status === 'open' ? 'ea' : seat.seat_status === 'pending' ? 'ocr' : 'conf'}`}>
-              {seat.seat_status}
+            {renamingSeatId === seat.team_season_id ? (
+              <div style={{ padding: '16px' }}>
+                <ReplaceClubControl
+                  seat={seat}
+                  existingClubIds={existingClubIds}
+                  onDone={() => { setRenamingSeatId(null); invalidateSeatData(); }}
+                />
+              </div>
+            ) : (
+              <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                {seat.gm ? (
+                  <>
+                    <SeatGmLabel gm={seat.gm} seatId={seat.team_season_id} />
+                    <button onClick={() => handleRevoke(seat)} className="btn ghost" style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}>Revoke</button>
+                  </>
+                ) : assigningSeatId === seat.team_season_id ? (
+                  <AssignGmPicker
+                    seat={seat}
+                    members={members}
+                    isPending={assignGm.isPending}
+                    onCancel={() => setAssigningSeatId(null)}
+                    onAssign={userId => handleAssign(seat, userId)}
+                  />
+                ) : (
+                  <>
+                    <div style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)' }}>
+                      No GM assigned
+                    </div>
+                    <button onClick={() => setAssigningSeatId(seat.team_season_id)} className="btn" style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}>Assign GM</button>
+                  </>
+                )}
+              </div>
+            )}
+            <div style={{ padding: '0 16px 16px', display: 'flex', gap: '8px' }}>
+              <button
+                className="btn ghost"
+                style={{ padding: '4px 10px', fontSize: '11px' }}
+                onClick={() => setRenamingSeatId(renamingSeatId === seat.team_season_id ? null : seat.team_season_id)}
+              >
+                {renamingSeatId === seat.team_season_id ? 'Cancel' : 'Rename / Replace'}
+              </button>
+              {seat.seat_status === 'open' && (
+                <button
+                  className="btn ghost"
+                  style={{ padding: '4px 10px', fontSize: '11px', color: 'var(--goal)', borderColor: 'var(--goal)' }}
+                  disabled={removeTeam.isPending}
+                  onClick={() => handleRemoveTeam(seat)}
+                >
+                  Remove
+                </button>
+              )}
             </div>
           </div>
-          <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-            {seat.gm ? (
-              <>
-                <SeatGmLabel gm={seat.gm} seatId={seat.team_season_id} />
-                <button onClick={() => handleRevoke(seat)} className="btn ghost" style={{ color: 'var(--goal)', borderColor: 'var(--goal)' }}>Revoke</button>
-              </>
-            ) : assigningSeatId === seat.team_season_id ? (
-              <AssignGmPicker
-                seat={seat}
-                members={members}
-                isPending={assignGm.isPending}
-                onCancel={() => setAssigningSeatId(null)}
-                onAssign={userId => handleAssign(seat, userId)}
-              />
-            ) : (
-              <>
-                <div style={{ fontFamily: 'var(--data)', fontSize: '12px', color: 'var(--steel)' }}>
-                  No GM assigned
-                </div>
-                <button onClick={() => setAssigningSeatId(seat.team_season_id)} className="btn" style={{ background: 'var(--crease)', borderColor: 'var(--crease)' }}>Assign GM</button>
-              </>
-            )}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

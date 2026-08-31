@@ -224,6 +224,8 @@ two places numeric order and dependency order diverge):
 | 2.16.0 | `db/schema-gm-card-profile.sql` | `app_user.first_nhl_game` + `profile_image_url`, surfaced on the GM seat card |
 | 2.17.0 | `db/schema-league-limits.sql` | `app_user.extra_leagues_approved` — manual admin gate for a user's 6th-10th league |
 | 2.18.0 | `db/schema-open-league-season-start.sql` | `v_open_leagues.season_starts_on` — active season start date, for the public Open Leagues card |
+| 2.19.0 | `db/schema-club-catalog-leagues.sql` | `nhl_club.league_source` + a curated SHL/DEL/Liiga/ECHL club catalog, for team add/remove/rename |
+| 2.20.0 | `db/schema-favorite-team.sql` | `app_user.favorite_club_id` + `gm_card_display`, surfaced on the GM seat card |
 
 ---
 

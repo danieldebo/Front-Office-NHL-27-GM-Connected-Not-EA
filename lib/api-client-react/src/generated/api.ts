@@ -20,7 +20,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AddTeamInput,
   ApplicantActionResult,
+  ApproveAllInput,
+  ApproveAllSeats200,
   ApproveBoxScoreBody,
   AssignGmInput,
   BoxScoreUpload,
@@ -70,6 +73,8 @@ import type {
   LeagueSettingsVersion,
   LeagueSignup,
   LeagueSignupInput,
+  ListClubs200,
+  ListClubsParams,
   ListDqFindingsParams,
   ListGames200,
   ListGamesParams,
@@ -109,6 +114,7 @@ import type {
   ReleaseKeeperParams,
   ReleaseResult,
   ReorderWaitlistEntry200,
+  ReplaceClubInput,
   ResultInput,
   RevokeGmParams,
   RosterStatusResult,
@@ -3293,6 +3299,389 @@ export const useRevokeGm = <TError = ErrorType<Problem>,
         TContext
       > => {
       return useMutation(getRevokeGmMutationOptions(options));
+    }
+
+export const getListClubsUrl = (params?: ListClubsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/clubs?${stringifiedParams}` : `/api/clubs`
+}
+
+/**
+ * The full set of teams a commissioner can assign to a franchise seat —
+ * the 32 current NHL clubs plus a curated set of well-known clubs from
+ * SHL, DEL, Liiga and the ECHL. Static reference data, not league-scoped.
+ * @summary List the club catalog (NHL + curated alternate leagues)
+ */
+export const listClubs = async (params?: ListClubsParams, options?: RequestInit): Promise<ListClubs200> => {
+
+  return customFetch<ListClubs200>(getListClubsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClubsQueryKey = (params?: ListClubsParams,) => {
+    return [
+    `/api/clubs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListClubsQueryOptions = <TData = Awaited<ReturnType<typeof listClubs>>, TError = ErrorType<unknown>>(params?: ListClubsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClubs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClubsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClubs>>> = ({ signal }) => listClubs(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClubs>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListClubsQueryResult = NonNullable<Awaited<ReturnType<typeof listClubs>>>
+export type ListClubsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the club catalog (NHL + curated alternate leagues)
+ */
+
+export function useListClubs<TData = Awaited<ReturnType<typeof listClubs>>, TError = ErrorType<unknown>>(
+ params?: ListClubsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClubs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListClubsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddTeamUrl = (leagueId: string,
+    seasonId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/seasons/${seasonId}/teams`
+}
+
+/**
+ * @summary Add a new franchise seat to a season from the club catalog (commissioner only)
+ */
+export const addTeam = async (leagueId: string,
+    seasonId: string,
+    addTeamInput: AddTeamInput, options?: RequestInit): Promise<Seat> => {
+
+  return customFetch<Seat>(getAddTeamUrl(leagueId,seasonId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addTeamInput)
+  }
+);}
+
+
+
+
+
+export const getAddTeamMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addTeam>>, TError,{leagueId: string;seasonId: string;data: BodyType<AddTeamInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addTeam>>, TError,{leagueId: string;seasonId: string;data: BodyType<AddTeamInput>}, TContext> => {
+
+const mutationKey = ['addTeam'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addTeam>>, {leagueId: string;seasonId: string;data: BodyType<AddTeamInput>}> = (props) => {
+          const {leagueId,seasonId,data} = props ?? {};
+
+          return  addTeam(leagueId,seasonId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddTeamMutationResult = NonNullable<Awaited<ReturnType<typeof addTeam>>>
+    export type AddTeamMutationBody = BodyType<AddTeamInput>
+    export type AddTeamMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Add a new franchise seat to a season from the club catalog (commissioner only)
+ */
+export const useAddTeam = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addTeam>>, TError,{leagueId: string;seasonId: string;data: BodyType<AddTeamInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addTeam>>,
+        TError,
+        {leagueId: string;seasonId: string;data: BodyType<AddTeamInput>},
+        TContext
+      > => {
+      return useMutation(getAddTeamMutationOptions(options));
+    }
+
+export const getReplaceTeamClubUrl = (teamSeasonId: string,) => {
+
+
+
+
+  return `/api/team-seasons/${teamSeasonId}/club`
+}
+
+/**
+ * @summary Rename/replace a franchise seat's club with another catalog club (commissioner only)
+ */
+export const replaceTeamClub = async (teamSeasonId: string,
+    replaceClubInput: ReplaceClubInput, options?: RequestInit): Promise<Seat> => {
+
+  return customFetch<Seat>(getReplaceTeamClubUrl(teamSeasonId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(replaceClubInput)
+  }
+);}
+
+
+
+
+
+export const getReplaceTeamClubMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceTeamClub>>, TError,{teamSeasonId: string;data: BodyType<ReplaceClubInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof replaceTeamClub>>, TError,{teamSeasonId: string;data: BodyType<ReplaceClubInput>}, TContext> => {
+
+const mutationKey = ['replaceTeamClub'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof replaceTeamClub>>, {teamSeasonId: string;data: BodyType<ReplaceClubInput>}> = (props) => {
+          const {teamSeasonId,data} = props ?? {};
+
+          return  replaceTeamClub(teamSeasonId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReplaceTeamClubMutationResult = NonNullable<Awaited<ReturnType<typeof replaceTeamClub>>>
+    export type ReplaceTeamClubMutationBody = BodyType<ReplaceClubInput>
+    export type ReplaceTeamClubMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Rename/replace a franchise seat's club with another catalog club (commissioner only)
+ */
+export const useReplaceTeamClub = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof replaceTeamClub>>, TError,{teamSeasonId: string;data: BodyType<ReplaceClubInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof replaceTeamClub>>,
+        TError,
+        {teamSeasonId: string;data: BodyType<ReplaceClubInput>},
+        TContext
+      > => {
+      return useMutation(getReplaceTeamClubMutationOptions(options));
+    }
+
+export const getRemoveTeamUrl = (teamSeasonId: string,) => {
+
+
+
+
+  return `/api/team-seasons/${teamSeasonId}/club`
+}
+
+/**
+ * Only an open seat (no active GM) can be removed — revoke the GM first.
+ * @summary Remove a franchise seat from the season (commissioner only)
+ */
+export const removeTeam = async (teamSeasonId: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRemoveTeamUrl(teamSeasonId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveTeamMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeTeam>>, TError,{teamSeasonId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeTeam>>, TError,{teamSeasonId: string}, TContext> => {
+
+const mutationKey = ['removeTeam'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeTeam>>, {teamSeasonId: string}> = (props) => {
+          const {teamSeasonId} = props ?? {};
+
+          return  removeTeam(teamSeasonId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveTeamMutationResult = NonNullable<Awaited<ReturnType<typeof removeTeam>>>
+
+    export type RemoveTeamMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Remove a franchise seat from the season (commissioner only)
+ */
+export const useRemoveTeam = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeTeam>>, TError,{teamSeasonId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeTeam>>,
+        TError,
+        {teamSeasonId: string},
+        TContext
+      > => {
+      return useMutation(getRemoveTeamMutationOptions(options));
+    }
+
+export const getApproveAllSeatsUrl = (leagueId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/seats/approve-all`
+}
+
+/**
+ * A one-click "quick-start" template action for a commissioner. Fills
+ * every open seat in the active season from the chosen candidate pool
+ * (paired to seats in random order — this is the "randomize team
+ * designation" step), then, when fill_source is "none", instead
+ * randomly reshuffles which already-filled seat's club each currently
+ * assigned GM has.
+ * @summary Autofill every open seat and randomize team designation (commissioner only)
+ */
+export const approveAllSeats = async (leagueId: string,
+    approveAllInput: ApproveAllInput, options?: RequestInit): Promise<ApproveAllSeats200> => {
+
+  return customFetch<ApproveAllSeats200>(getApproveAllSeatsUrl(leagueId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(approveAllInput)
+  }
+);}
+
+
+
+
+
+export const getApproveAllSeatsMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAllSeats>>, TError,{leagueId: string;data: BodyType<ApproveAllInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof approveAllSeats>>, TError,{leagueId: string;data: BodyType<ApproveAllInput>}, TContext> => {
+
+const mutationKey = ['approveAllSeats'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof approveAllSeats>>, {leagueId: string;data: BodyType<ApproveAllInput>}> = (props) => {
+          const {leagueId,data} = props ?? {};
+
+          return  approveAllSeats(leagueId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApproveAllSeatsMutationResult = NonNullable<Awaited<ReturnType<typeof approveAllSeats>>>
+    export type ApproveAllSeatsMutationBody = BodyType<ApproveAllInput>
+    export type ApproveAllSeatsMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Autofill every open seat and randomize team designation (commissioner only)
+ */
+export const useApproveAllSeats = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof approveAllSeats>>, TError,{leagueId: string;data: BodyType<ApproveAllInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof approveAllSeats>>,
+        TError,
+        {leagueId: string;data: BodyType<ApproveAllInput>},
+        TContext
+      > => {
+      return useMutation(getApproveAllSeatsMutationOptions(options));
     }
 
 export const getGetLatestRulebookUrl = (leagueId: string,) => {

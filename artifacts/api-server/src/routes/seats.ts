@@ -72,6 +72,13 @@ async function loadSeat(teamSeasonId: string) {
        au.platform_gamertag AS gm_legacy_gamertag,
        au.first_nhl_game AS gm_first_nhl_game,
        au.profile_image_url AS gm_profile_image_url,
+       au.gm_card_display AS gm_card_display,
+       fc.id AS gm_favorite_club_id,
+       fc.abbrev AS gm_favorite_club_abbrev,
+       fc.name AS gm_favorite_club_name,
+       fc.conference AS gm_favorite_club_conference,
+       fc.division AS gm_favorite_club_division,
+       fc.league_source AS gm_favorite_club_league_source,
        ga.started_at AS gm_started_at,
        ga.role AS gm_role
      FROM team_season ts
@@ -79,6 +86,7 @@ async function loadSeat(teamSeasonId: string) {
      LEFT JOIN nhl_club nc ON nc.id = ts.nhl_club_id
      LEFT JOIN gm_assignment ga ON ga.team_season_id = ts.id AND ga.ended_at IS NULL
      LEFT JOIN app_user au ON au.id = ga.user_id
+     LEFT JOIN nhl_club fc ON fc.id = au.favorite_club_id
     WHERE ts.id = $1`,
     [teamSeasonId]
   );
@@ -189,6 +197,17 @@ function formatSeat(
           role: r.gm_role,
           first_nhl_game: r.gm_first_nhl_game ?? null,
           profile_image_url: r.gm_profile_image_url ?? null,
+          favorite_club: r.gm_favorite_club_id
+            ? {
+                id: r.gm_favorite_club_id,
+                abbrev: r.gm_favorite_club_abbrev,
+                name: r.gm_favorite_club_name,
+                conference: r.gm_favorite_club_conference ?? null,
+                division: r.gm_favorite_club_division ?? null,
+                league_source: r.gm_favorite_club_league_source,
+              }
+            : null,
+          gm_card_display: (r.gm_card_display as string | null) ?? "first_game",
           league_record: record?.league ?? ZERO_GM_RECORD,
           site_record: record?.site ?? ZERO_GM_RECORD,
         }
@@ -670,6 +689,13 @@ router.get(
          au.platform_gamertag AS gm_legacy_gamertag,
          au.first_nhl_game AS gm_first_nhl_game,
          au.profile_image_url AS gm_profile_image_url,
+         au.gm_card_display AS gm_card_display,
+         fc.id AS gm_favorite_club_id,
+         fc.abbrev AS gm_favorite_club_abbrev,
+         fc.name AS gm_favorite_club_name,
+         fc.conference AS gm_favorite_club_conference,
+         fc.division AS gm_favorite_club_division,
+         fc.league_source AS gm_favorite_club_league_source,
          ga.started_at AS gm_started_at,
          ga.role AS gm_role,
          hist.ever_assigned,
@@ -679,6 +705,7 @@ router.get(
        LEFT JOIN nhl_club nc ON nc.id = ts.nhl_club_id
        LEFT JOIN gm_assignment ga ON ga.team_season_id = ts.id AND ga.ended_at IS NULL
        LEFT JOIN app_user au ON au.id = ga.user_id
+       LEFT JOIN nhl_club fc ON fc.id = au.favorite_club_id
        LEFT JOIN LATERAL (
          SELECT COUNT(*) > 0 AS ever_assigned, MAX(g.ended_at) AS last_vacated_at
            FROM gm_assignment g WHERE g.team_season_id = ts.id
@@ -853,6 +880,404 @@ router.delete(
 
     const seat = await loadSeat(teamSeasonId);
     res.json(formatSeat(seat as Record<string, unknown>));
+  }
+);
+
+// ────────────────────────────────────────────── Club catalog & team management
+
+function shuffle<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j]!, copy[i]!];
+  }
+  return copy;
+}
+
+// GET /clubs — the full club catalog (NHL + curated alternate leagues)
+router.get(
+  "/clubs",
+  async (req: Request, res: Response): Promise<void> => {
+    const leagueSource = req.query.league_source as string | undefined;
+    const params: unknown[] = [];
+    let where = "";
+    if (leagueSource) {
+      params.push(leagueSource);
+      where = `WHERE league_source = $1`;
+    }
+    const { rows } = await pool.query(
+      `SELECT id, abbrev, name, conference, division, league_source
+         FROM nhl_club
+         ${where}
+        ORDER BY league_source, conference NULLS LAST, division NULLS LAST, abbrev`,
+      params
+    );
+    res.json({ data: rows });
+  }
+);
+
+// POST /leagues/:leagueId/seasons/:seasonId/teams — add a franchise seat
+router.post(
+  "/leagues/:leagueId/seasons/:seasonId/teams",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res); return; }
+
+    const leagueId = req.params.leagueId as string;
+    const seasonId = req.params.seasonId as string;
+    const league = await getLeagueOwner(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    if (!can(user, "seat:manage", { kind: "league", ownerId: league.owner_user_id })) {
+      forbidden(res, "Only the league owner can add teams");
+      return;
+    }
+
+    const seasonRow = await pool.query<{ id: string }>(
+      `SELECT id FROM season WHERE id = $1 AND league_id = $2`,
+      [seasonId, leagueId]
+    );
+    if (!seasonRow.rows[0]) { notFound(res, "Season not found"); return; }
+
+    const clubId = (req.body as { nhl_club_id?: unknown })?.nhl_club_id;
+    if (typeof clubId !== "string") { badRequest(res, "nhl_club_id is required"); return; }
+
+    const clubRow = await pool.query<{ id: string; name: string; conference: string | null; division: string | null }>(
+      `SELECT id, name, conference, division FROM nhl_club WHERE id = $1`,
+      [clubId]
+    );
+    const club = clubRow.rows[0];
+    if (!club) { notFound(res, "Club not found"); return; }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const franchise = await client.query<{ id: string }>(
+        `INSERT INTO franchise (league_id, name, founded_season_id)
+         VALUES ($1, $2, $3)
+         RETURNING id`,
+        [leagueId, club.name, seasonId]
+      );
+
+      let teamSeasonId: string;
+      try {
+        const teamSeason = await client.query<{ id: string }>(
+          `INSERT INTO team_season (season_id, franchise_id, nhl_club_id, conference, division, seat_status)
+           VALUES ($1, $2, $3, $4, $5, 'open')
+           RETURNING id`,
+          [seasonId, franchise.rows[0]!.id, club.id, club.conference, club.division]
+        );
+        teamSeasonId = teamSeason.rows[0]!.id;
+      } catch (err) {
+        await client.query("ROLLBACK");
+        client.release();
+        if (err instanceof Error && /unique/i.test(err.message)) {
+          conflict(res, "That club is already used by a seat in this season");
+          return;
+        }
+        throw err;
+      }
+
+      await client.query("COMMIT");
+      client.release();
+
+      const seat = await loadSeat(teamSeasonId);
+      res.status(201).json(formatSeat(seat as Record<string, unknown>));
+    } catch (err) {
+      client.release();
+      throw err;
+    }
+  }
+);
+
+// PATCH /team-seasons/:teamSeasonId/club — rename/replace a seat's club
+router.patch(
+  "/team-seasons/:teamSeasonId/club",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res); return; }
+
+    const teamSeasonId = req.params.teamSeasonId as string;
+    const tsRow = await pool.query<{ id: string; season_id: string; franchise_id: string }>(
+      `SELECT id, season_id, franchise_id FROM team_season WHERE id = $1`,
+      [teamSeasonId]
+    );
+    if (!tsRow.rows[0]) { notFound(res, "Team season not found"); return; }
+
+    const seasonRow = await pool.query<{ league_id: string }>(
+      `SELECT league_id FROM season WHERE id = $1`,
+      [tsRow.rows[0].season_id]
+    );
+    const leagueId = seasonRow.rows[0]?.league_id;
+    if (!leagueId) { notFound(res, "Season not found"); return; }
+
+    const league = await getLeagueOwner(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    if (!can(user, "seat:manage", { kind: "league", ownerId: league.owner_user_id })) {
+      forbidden(res, "Only the league owner can rename/replace a team");
+      return;
+    }
+
+    const clubId = (req.body as { nhl_club_id?: unknown })?.nhl_club_id;
+    if (typeof clubId !== "string") { badRequest(res, "nhl_club_id is required"); return; }
+
+    const clubRow = await pool.query<{ id: string; name: string; conference: string | null; division: string | null }>(
+      `SELECT id, name, conference, division FROM nhl_club WHERE id = $1`,
+      [clubId]
+    );
+    const club = clubRow.rows[0];
+    if (!club) { notFound(res, "Club not found"); return; }
+
+    try {
+      await pool.query(
+        `UPDATE team_season SET nhl_club_id = $2, conference = $3, division = $4 WHERE id = $1`,
+        [teamSeasonId, club.id, club.conference, club.division]
+      );
+    } catch (err) {
+      if (err instanceof Error && /unique/i.test(err.message)) {
+        conflict(res, "That club is already used by another seat in this season");
+        return;
+      }
+      throw err;
+    }
+    // The franchise is the continuity layer that persists across seasons —
+    // keep its display name in step with the club it currently represents.
+    await pool.query(`UPDATE franchise SET name = $2 WHERE id = $1`, [tsRow.rows[0].franchise_id, club.name]);
+
+    const seat = await loadSeat(teamSeasonId);
+    res.json(formatSeat(seat as Record<string, unknown>));
+  }
+);
+
+// DELETE /team-seasons/:teamSeasonId — remove a franchise seat (must be open)
+router.delete(
+  "/team-seasons/:teamSeasonId",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res); return; }
+
+    const teamSeasonId = req.params.teamSeasonId as string;
+    const tsRow = await pool.query<{ id: string; season_id: string; seat_status: string }>(
+      `SELECT id, season_id, seat_status FROM team_season WHERE id = $1`,
+      [teamSeasonId]
+    );
+    if (!tsRow.rows[0]) { notFound(res, "Team season not found"); return; }
+
+    const seasonRow = await pool.query<{ league_id: string }>(
+      `SELECT league_id FROM season WHERE id = $1`,
+      [tsRow.rows[0].season_id]
+    );
+    const leagueId = seasonRow.rows[0]?.league_id;
+    if (!leagueId) { notFound(res, "Season not found"); return; }
+
+    const league = await getLeagueOwner(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    if (!can(user, "seat:manage", { kind: "league", ownerId: league.owner_user_id })) {
+      forbidden(res, "Only the league owner can remove a team");
+      return;
+    }
+
+    if (tsRow.rows[0].seat_status !== "open") {
+      conflict(res, "This seat has an active GM — revoke them first");
+      return;
+    }
+
+    await pool.query(`DELETE FROM team_season WHERE id = $1`, [teamSeasonId]);
+    res.sendStatus(204);
+  }
+);
+
+// POST /leagues/:leagueId/seats/approve-all — autofill open seats and
+// randomize team designation, or (fill_source=none) reshuffle GM<->seat
+// pairing among already-filled seats. See openapi.yaml ApproveAllInput.
+router.post(
+  "/leagues/:leagueId/seats/approve-all",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) { unauthorized(res); return; }
+
+    const leagueId = req.params.leagueId as string;
+    const league = await getLeagueOwner(leagueId);
+    if (!league) { notFound(res, "League not found"); return; }
+
+    if (!can(user, "seat:manage", { kind: "league", ownerId: league.owner_user_id })) {
+      forbidden(res, "Only the league owner can approve all seats");
+      return;
+    }
+
+    const fillSource = (req.body as { fill_source?: unknown })?.fill_source;
+    if (fillSource !== "queue" && fillSource !== "members" && fillSource !== "none") {
+      badRequest(res, "fill_source must be one of: queue, members, none");
+      return;
+    }
+
+    const seasonRow = await pool.query<{ id: string }>(
+      `SELECT id FROM season WHERE league_id = $1 AND is_active = TRUE LIMIT 1`,
+      [leagueId]
+    );
+    const seasonId = seasonRow.rows[0]?.id;
+    if (!seasonId) { notFound(res, "No active season"); return; }
+
+    let filled = 0;
+    let randomized = 0;
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const seatsRow = await client.query<{ id: string; seat_status: string }>(
+        `SELECT id, seat_status FROM team_season WHERE season_id = $1 FOR UPDATE`,
+        [seasonId]
+      );
+      const openSeatIds = shuffle(seatsRow.rows.filter((r) => r.seat_status === "open").map((r) => r.id));
+
+      if (fillSource === "queue" || fillSource === "members") {
+        let candidateIds: string[] = [];
+        if (fillSource === "queue") {
+          const candidates = await client.query<{ user_id: string; signup_id: string | null }>(
+            `SELECT DISTINCT ON (user_id) user_id, signup_id, sort_key FROM (
+               SELECT w.user_id AS user_id, su.id AS signup_id, w.position AS sort_key, 0 AS pool
+                 FROM waitlist_entry w
+                 LEFT JOIN league_signup su ON su.id = w.signup_id
+                WHERE w.league_id = $1 AND w.status = 'waiting'
+               UNION ALL
+               SELECT su.user_id AS user_id, su.id AS signup_id,
+                      EXTRACT(EPOCH FROM su.created_at) AS sort_key, 1 AS pool
+                 FROM league_signup su
+                WHERE su.league_id = $1 AND su.status = 'pending'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM waitlist_entry w2
+                     WHERE w2.league_id = su.league_id AND w2.user_id = su.user_id AND w2.status = 'waiting'
+                  )
+             ) queue
+             WHERE NOT EXISTS (
+               SELECT 1 FROM league_membership lm WHERE lm.league_id = $1 AND lm.user_id = queue.user_id AND lm.left_at IS NULL
+             )
+             ORDER BY user_id, pool, sort_key`,
+            [leagueId]
+          );
+          candidateIds = candidates.rows.map((r) => r.user_id);
+          // resolve each accepted candidate's queue entries, mirroring
+          // POST /leagues/:id/signups/:signupId/accept
+          for (const row of candidates.rows.slice(0, openSeatIds.length)) {
+            await client.query(
+              `UPDATE waitlist_entry SET status = 'placed', resolved_at = now(), decided_by = $3
+                WHERE league_id = $1 AND user_id = $2 AND status IN ('waiting','invited')`,
+              [leagueId, row.user_id, league.owner_user_id]
+            );
+            if (row.signup_id) {
+              await client.query(
+                `UPDATE league_signup SET status = 'accepted', decided_by = $1, decided_at = now() WHERE id = $2`,
+                [league.owner_user_id, row.signup_id]
+              );
+            }
+            await client.query(
+              `INSERT INTO league_membership (league_id, user_id, role)
+               VALUES ($1, $2, 'gm')
+               ON CONFLICT (league_id, user_id) DO UPDATE SET left_at = NULL`,
+              [leagueId, row.user_id]
+            );
+          }
+        } else {
+          const candidates = await client.query<{ user_id: string }>(
+            `SELECT lm.user_id
+               FROM league_membership lm
+              WHERE lm.league_id = $1 AND lm.left_at IS NULL
+                AND NOT EXISTS (
+                  SELECT 1 FROM gm_assignment ga
+                  JOIN team_season ts ON ts.id = ga.team_season_id
+                  WHERE ga.user_id = lm.user_id AND ga.ended_at IS NULL AND ts.season_id = $2
+                )
+              ORDER BY lm.joined_at ASC`,
+            [leagueId, seasonId]
+          );
+          candidateIds = candidates.rows.map((r) => r.user_id);
+        }
+
+        const pairs = Math.min(openSeatIds.length, candidateIds.length);
+        for (let i = 0; i < pairs; i++) {
+          const seatId = openSeatIds[i]!;
+          const userId = candidateIds[i]!;
+          await client.query(
+            `INSERT INTO gm_assignment (team_season_id, user_id, role) VALUES ($1, $2, 'gm')`,
+            [seatId, userId]
+          );
+          await client.query(`UPDATE team_season SET seat_status = 'filled' WHERE id = $1`, [seatId]);
+          filled++;
+        }
+      } else {
+        // fill_source = 'none' — reshuffle which seat each currently-assigned
+        // GM occupies, without changing who's in the league or seat count.
+        const assignments = await client.query<{ assignment_id: string; team_season_id: string; user_id: string; role: string }>(
+          `SELECT ga.id AS assignment_id, ga.team_season_id, ga.user_id, ga.role
+             FROM gm_assignment ga
+             JOIN team_season ts ON ts.id = ga.team_season_id
+            WHERE ts.season_id = $1 AND ga.ended_at IS NULL`,
+          [seasonId]
+        );
+        const seatIds = shuffle(assignments.rows.map((r) => r.team_season_id));
+        for (let i = 0; i < assignments.rows.length; i++) {
+          const assignment = assignments.rows[i]!;
+          const newSeatId = seatIds[i]!;
+          if (newSeatId === assignment.team_season_id) continue;
+          await client.query(
+            `UPDATE gm_assignment SET ended_at = now(), end_reason = 'approve_all_randomize' WHERE id = $1`,
+            [assignment.assignment_id]
+          );
+          await client.query(
+            `INSERT INTO gm_assignment (team_season_id, user_id, role) VALUES ($1, $2, $3)`,
+            [newSeatId, assignment.user_id, assignment.role]
+          );
+          randomized++;
+        }
+      }
+
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    const { rows } = await pool.query(
+      `SELECT
+         ts.id AS team_season_id, ts.franchise_id, fr.name AS franchise_name,
+         ts.nhl_club_id, nc.abbrev AS club_abbrev, nc.name AS club_name,
+         ts.conference, ts.division, ts.seat_status,
+         ga.id AS assignment_id, ga.user_id AS gm_user_id,
+         au.display_name AS gm_display_name,
+         to_jsonb(au)->>'primary_identity' AS gm_primary_identity,
+         to_jsonb(au)->>'xbox_gamertag' AS gm_xbox_gamertag,
+         to_jsonb(au)->>'psn_online_id' AS gm_psn_online_id,
+         au.platform::text AS gm_legacy_platform,
+         au.platform_gamertag AS gm_legacy_gamertag,
+         au.first_nhl_game AS gm_first_nhl_game,
+         au.profile_image_url AS gm_profile_image_url,
+         au.gm_card_display AS gm_card_display,
+         fc.id AS gm_favorite_club_id,
+         fc.abbrev AS gm_favorite_club_abbrev,
+         fc.name AS gm_favorite_club_name,
+         fc.conference AS gm_favorite_club_conference,
+         fc.division AS gm_favorite_club_division,
+         fc.league_source AS gm_favorite_club_league_source,
+         ga.started_at AS gm_started_at, ga.role AS gm_role
+       FROM team_season ts
+       JOIN franchise fr ON fr.id = ts.franchise_id
+       LEFT JOIN nhl_club nc ON nc.id = ts.nhl_club_id
+       LEFT JOIN gm_assignment ga ON ga.team_season_id = ts.id AND ga.ended_at IS NULL
+       LEFT JOIN app_user au ON au.id = ga.user_id
+       LEFT JOIN nhl_club fc ON fc.id = au.favorite_club_id
+      WHERE ts.season_id = $1
+      ORDER BY ts.conference, ts.division, nc.abbrev`,
+      [seasonId]
+    );
+    const gmUserIds = rows.map((r) => r.gm_user_id as string | null).filter((id): id is string => Boolean(id));
+    const records = await getGmCareerRecords(gmUserIds, leagueId);
+    res.json({ data: rows.map((r) => formatSeat(r, records)), filled, randomized });
   }
 );
 

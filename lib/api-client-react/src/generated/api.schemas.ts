@@ -836,6 +836,45 @@ export const SeatSeatStatus = {
 } as const;
 
 /**
+ * NHL = the 32 current NHL clubs. SHL (Sweden), DEL (Germany), LIIGA
+ * (Finland) and ECHL are a small curated set of well-known, long-
+ * standing clubs from those leagues — not a live or exhaustive roster.
+ */
+export type ClubLeagueSource = typeof ClubLeagueSource[keyof typeof ClubLeagueSource];
+
+
+export const ClubLeagueSource = {
+  NHL: 'NHL',
+  SHL: 'SHL',
+  DEL: 'DEL',
+  LIIGA: 'LIIGA',
+  ECHL: 'ECHL',
+} as const;
+
+export interface Club {
+  id: string;
+  abbrev: string;
+  name: string;
+  /** @nullable */
+  conference?: string | null;
+  /** @nullable */
+  division?: string | null;
+  league_source: ClubLeagueSource;
+}
+
+/**
+ * Which of first_nhl_game / favorite_club this user wants shown on their GM seat card.
+ */
+export type GmCardDisplay = typeof GmCardDisplay[keyof typeof GmCardDisplay];
+
+
+export const GmCardDisplay = {
+  first_game: 'first_game',
+  favorite_team: 'favorite_team',
+  both: 'both',
+} as const;
+
+/**
  * Combined win-loss-OT-loss record across every completed, standings-counting game for every team_season this GM has ever held.
  */
 export interface GmRecord {
@@ -866,6 +905,8 @@ export interface AssignedGm {
   first_nhl_game?: string | null;
   /** @nullable */
   profile_image_url?: string | null;
+  favorite_club?: Club | null;
+  gm_card_display?: GmCardDisplay;
   league_record?: GmRecord;
   site_record?: GmRecord;
 }
@@ -931,6 +972,39 @@ export interface AssignGmInput {
      * @nullable
      */
   end_reason?: string | null;
+}
+
+export interface AddTeamInput {
+  /** A Club.id from the /clubs catalog — any league. */
+  nhl_club_id: string;
+}
+
+export interface ReplaceClubInput {
+  /** A Club.id from the /clubs catalog — any league. */
+  nhl_club_id: string;
+}
+
+/**
+ * queue = pull from this league's signups/waitlist, oldest first.
+ * members = any league member with no seat. none = don't autofill,
+ * only randomize the GM<->seat pairing on already-filled seats.
+ */
+export type ApproveAllInputFillSource = typeof ApproveAllInputFillSource[keyof typeof ApproveAllInputFillSource];
+
+
+export const ApproveAllInputFillSource = {
+  queue: 'queue',
+  members: 'members',
+  none: 'none',
+} as const;
+
+export interface ApproveAllInput {
+  /**
+     * queue = pull from this league's signups/waitlist, oldest first.
+     * members = any league member with no seat. none = don't autofill,
+     * only randomize the GM<->seat pairing on already-filled seats.
+     */
+  fill_source: ApproveAllInputFillSource;
 }
 
 export interface RulebookRevision {
@@ -1289,6 +1363,8 @@ export interface UserProfile {
      * @nullable
      */
   profile_image_url?: string | null;
+  favorite_club?: Club | null;
+  gm_card_display?: GmCardDisplay;
 }
 
 export interface XboxLinkStatus {
@@ -1336,6 +1412,12 @@ export interface UserProfileUpdate {
      * @nullable
      */
   profile_image_url?: string | null;
+  /**
+     * A Club.id from the /clubs catalog — any league. Null clears it.
+     * @nullable
+     */
+  favorite_club_id?: string | null;
+  gm_card_display?: GmCardDisplay;
 }
 
 export interface WaitlistPositionInput {
@@ -2269,6 +2351,22 @@ export type ListUnassignedMembers200 = {
 
 export type RevokeGmParams = {
 reason?: string;
+};
+
+export type ListClubsParams = {
+league_source?: ClubLeagueSource;
+};
+
+export type ListClubs200 = {
+  data: Club[];
+};
+
+export type ApproveAllSeats200 = {
+  data: Seat[];
+  /** Number of previously-open seats that were filled. */
+  filled: number;
+  /** Number of GM assignments moved to a different seat. */
+  randomized: number;
 };
 
 export type ListRulebookRevisions200 = {

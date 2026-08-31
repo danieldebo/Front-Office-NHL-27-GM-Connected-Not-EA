@@ -25,14 +25,17 @@ SELECT
     ll.accepting_signups,
     ll.accepting_waitlist,
     s.id AS active_season_id,
-    s.starts_on AS season_starts_on,
     s.max_seats,
     COUNT(ts.id) FILTER (WHERE ts.seat_status = 'filled') AS seats_filled,
     s.max_seats - COUNT(ts.id) FILTER (WHERE ts.seat_status = 'filled') AS seats_open,
     (SELECT COUNT(*) FROM waitlist_entry w
        WHERE w.league_id = l.id AND w.status = 'waiting') AS waitlist_length,
     lh.games_confirmed,
-    lh.active_gms
+    lh.active_gms,
+    -- Appended, not inserted, so CREATE OR REPLACE VIEW doesn't try to
+    -- rename an existing column — Postgres only allows a view's trailing
+    -- columns to change across a replace.
+    s.starts_on AS season_starts_on
 FROM league l
 JOIN league_listing ll ON ll.league_id = l.id AND ll.is_listed
 LEFT JOIN season s ON s.league_id = l.id AND s.is_active

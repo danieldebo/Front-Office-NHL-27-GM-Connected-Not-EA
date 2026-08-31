@@ -5,6 +5,7 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { GmCardDisplay } from './gmCardDisplay';
 import type { PlayerSystem } from './playerSystem';
 
 export interface UserProfileUpdate {
@@ -44,4 +45,10 @@ export interface UserProfileUpdate {
      * @nullable
      */
   profile_image_url?: string | null;
+  /**
+     * A Club.id from the /clubs catalog — any league. Null clears it.
+     * @nullable
+     */
+  favorite_club_id?: string | null;
+  gm_card_display?: GmCardDisplay;
 }

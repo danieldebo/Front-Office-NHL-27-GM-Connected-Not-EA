@@ -6,6 +6,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useGetXboxLink, useUnlinkXbox } from '@workspace/api-client-react';
 import Header from '@/components/Header';
 import { Form } from '@/components/ui/form';
+import TeamPicker from '@/components/TeamPicker';
+
+const GM_CARD_DISPLAY_OPTIONS: { value: 'first_game' | 'favorite_team' | 'both'; label: string }[] = [
+  { value: 'first_game', label: 'First NHL game' },
+  { value: 'favorite_team', label: 'Favorite team' },
+  { value: 'both', label: 'Both' },
+];
 
 const SYSTEMS = [
   { value: 'xbox', label: 'Xbox' },
@@ -31,6 +38,8 @@ const profileSchema = z.object({
     (value) => !value || /^https?:\/\/\S+$/i.test(value),
     'Enter a full http(s) image URL',
   ),
+  favorite_club_id: z.string().nullable(),
+  gm_card_display: z.enum(['first_game', 'favorite_team', 'both']),
 }).superRefine((values, context) => {
   if (values.primary_identity && !values.systems_played.includes(values.primary_identity)) {
     context.addIssue({
@@ -53,6 +62,13 @@ const profileSchema = z.object({
       message: 'PSN Online ID is required for a PlayStation primary identity',
     });
   }
+  if ((values.gm_card_display === 'favorite_team' || values.gm_card_display === 'both') && !values.favorite_club_id) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['favorite_club_id'],
+      message: 'Pick a favorite team to show it on your GM card',
+    });
+  }
 });
 
 type ProfileValues = z.infer<typeof profileSchema>;
@@ -70,6 +86,8 @@ const EMPTY_PROFILE: ProfileValues = {
   primary_identity: '',
   first_nhl_game: '',
   profile_image_url: '',
+  favorite_club_id: null,
+  gm_card_display: 'first_game',
 };
 
 function errorDetail(value: unknown, fallback: string): string {
@@ -205,6 +223,8 @@ export default function Profile() {
               : '',
           first_nhl_game: profile.first_nhl_game ?? '',
           profile_image_url: profile.profile_image_url ?? '',
+          favorite_club_id: profile.favorite_club_id ?? null,
+          gm_card_display: profile.gm_card_display ?? 'first_game',
         });
         setLoadError('');
       })
@@ -250,6 +270,8 @@ export default function Profile() {
         primary_identity: profile.primary_identity ?? '',
         first_nhl_game: profile.first_nhl_game ?? '',
         profile_image_url: profile.profile_image_url ?? '',
+        favorite_club_id: profile.favorite_club_id ?? null,
+        gm_card_display: profile.gm_card_display ?? values.gm_card_display,
       });
       setSaved(true);
     } catch {
@@ -397,6 +419,30 @@ export default function Profile() {
                   </div>
                   <span className="field-help">A public link to an image — shown as your avatar wherever you're a GM.</span>
                   {errors.profile_image_url && <span className="field-error">{errors.profile_image_url.message}</span>}
+                </div>
+                <div className="field">
+                  <label htmlFor="profile-favorite-club">Favorite team</label>
+                  <TeamPicker
+                    id="profile-favorite-club"
+                    aria-label="Favorite team"
+                    allowNone
+                    value={form.watch('favorite_club_id')}
+                    onChange={(clubId) => form.setValue('favorite_club_id', clubId, { shouldDirty: true, shouldValidate: true })}
+                  />
+                  {errors.favorite_club_id && <span className="field-error">{errors.favorite_club_id.message}</span>}
+                </div>
+                <div className="field">
+                  <label htmlFor="profile-card-display">Show on GM seat card</label>
+                  <select
+                    id="profile-card-display"
+                    aria-invalid={!!errors.gm_card_display}
+                    data-testid="select-gm-card-display"
+                    {...form.register('gm_card_display')}
+                  >
+                    {GM_CARD_DISPLAY_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                  </select>
+                  <span className="field-help">Which of these shows on your franchise seat card — pick Favorite team or Both once you've set one above.</span>
+                  {errors.gm_card_display && <span className="field-error">{errors.gm_card_display.message}</span>}
                 </div>
                 <div className="profile-actions">
                   <div aria-live="polite">
