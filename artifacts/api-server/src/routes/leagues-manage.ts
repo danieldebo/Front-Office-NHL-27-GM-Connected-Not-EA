@@ -37,6 +37,15 @@ import {
 
 const router: IRouter = Router();
 
+// Cosmetic, self-reported — not fetched or verified server-side. Accepts a
+// real http(s) link (a commissioner's own hosted image) or a data:image
+// URI (the built-in generated logo presets are inline SVG data URIs).
+const LOGO_URL_PATTERN = /^(https?:\/\/\S+|data:image\/[a-z0-9.+-]+[;,]\S+)$/i;
+
+function invalidLogoUrl(logoUrl: string | null | undefined): boolean {
+  return logoUrl != null && !LOGO_URL_PATTERN.test(logoUrl);
+}
+
 // ────────────────────────────────────────────── Create league
 
 router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
@@ -56,6 +65,10 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
     name, slug, visibility = "public", primary_color, secondary_color, logo_url,
     platform = "crossplay", team_count = 32, settings_template_id,
   } = parsed.data;
+  if (invalidLogoUrl(logo_url)) {
+    badRequest(res, "logo_url must be an http(s) URL or a data:image URI");
+    return;
+  }
   const template = getTemplate(settings_template_id);
 
   // Ensure app_user exists for this Replit user
@@ -198,6 +211,10 @@ router.patch(
     }
 
     const { name, visibility, primary_color, secondary_color, logo_url } = parsed.data;
+    if (invalidLogoUrl(logo_url)) {
+      badRequest(res, "logo_url must be an http(s) URL or a data:image URI");
+      return;
+    }
 
     const sets: string[] = [];
     const vals: unknown[] = [leagueId];

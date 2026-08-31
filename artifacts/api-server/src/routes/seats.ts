@@ -32,6 +32,8 @@ import { LEAGUE_MEMBERSHIP_CAP, countActiveLeagueMemberships } from "../server/c
 
 const router: IRouter = Router();
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ────────────────────────────────────────────── helpers
 
 async function getLeagueOwner(leagueId: string) {
@@ -940,7 +942,10 @@ router.post(
     if (!seasonRow.rows[0]) { notFound(res, "Season not found"); return; }
 
     const clubId = (req.body as { nhl_club_id?: unknown })?.nhl_club_id;
-    if (typeof clubId !== "string") { badRequest(res, "nhl_club_id is required"); return; }
+    if (typeof clubId !== "string" || !UUID_PATTERN.test(clubId)) {
+      badRequest(res, "nhl_club_id must be a valid club id");
+      return;
+    }
 
     const clubRow = await pool.query<{ id: string; name: string; conference: string | null; division: string | null }>(
       `SELECT id, name, conference, division FROM nhl_club WHERE id = $1`,
@@ -972,7 +977,8 @@ router.post(
       } catch (err) {
         await client.query("ROLLBACK");
         client.release();
-        if (err instanceof Error && /unique/i.test(err.message)) {
+        const pgErr = err as { code?: string };
+        if (pgErr?.code === "23505") {
           conflict(res, "That club is already used by a seat in this season");
           return;
         }
@@ -1021,7 +1027,10 @@ router.patch(
     }
 
     const clubId = (req.body as { nhl_club_id?: unknown })?.nhl_club_id;
-    if (typeof clubId !== "string") { badRequest(res, "nhl_club_id is required"); return; }
+    if (typeof clubId !== "string" || !UUID_PATTERN.test(clubId)) {
+      badRequest(res, "nhl_club_id must be a valid club id");
+      return;
+    }
 
     const clubRow = await pool.query<{ id: string; name: string; conference: string | null; division: string | null }>(
       `SELECT id, name, conference, division FROM nhl_club WHERE id = $1`,
@@ -1036,7 +1045,8 @@ router.patch(
         [teamSeasonId, club.id, club.conference, club.division]
       );
     } catch (err) {
-      if (err instanceof Error && /unique/i.test(err.message)) {
+      const pgErr = err as { code?: string };
+      if (pgErr?.code === "23505") {
         conflict(res, "That club is already used by another seat in this season");
         return;
       }

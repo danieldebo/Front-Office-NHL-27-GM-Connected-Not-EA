@@ -2066,14 +2066,12 @@ export default function ManageLeague() {
         {activeTab === 'schedule' && (
           <ScheduleTab leagueId={league.id} />
         )}
-        {activeTab === 'settings' && (
+        {activeTab === 'settings' && <LeagueSettings leagueId={league.id} editable />}
+        {activeTab === 'discovery' && (
           <>
             <BrandingPanel league={league} />
-            <LeagueSettings leagueId={league.id} editable />
+            <DiscoveryTab leagueId={league.id} />
           </>
-        )}
-        {activeTab === 'discovery' && (
-          <DiscoveryTab leagueId={league.id} />
         )}
         {activeTab === 'operations' && (
           <OperationsTab leagueId={league.id} />

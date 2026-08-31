@@ -313,6 +313,8 @@ export const createLeagueBodyTeamCountDefault = 32;
 export const createLeagueBodyTeamCountMin = 3;
 export const createLeagueBodyTeamCountMax = 32;
 
+export const createLeagueBodyLogoUrlMax = 4000;
+
 
 
 export const CreateLeagueBody = zod.object({
@@ -324,7 +326,7 @@ export const CreateLeagueBody = zod.object({
   "settings_template_id": zod.string().optional().describe('Which league-settings template to seed version 1 from. Defaults to balanced_standard.'),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
-  "logo_url": zod.string().nullish()
+  "logo_url": zod.string().max(createLeagueBodyLogoUrlMax).nullish().describe('An http(s) URL, or a data:image\/svg+xml URI (the generated\npreset badges are inline SVG, comfortably under this bound —\na few hundred to ~1.3k characters each).\n')
 })
 
 export const CreateLeagueResponse = zod.object({
@@ -390,6 +392,8 @@ export const UpdateLeagueParams = zod.object({
 
 export const updateLeagueBodyNameMax = 100;
 
+export const updateLeagueBodyLogoUrlMax = 4000;
+
 
 
 export const UpdateLeagueBody = zod.object({
@@ -397,7 +401,7 @@ export const UpdateLeagueBody = zod.object({
   "visibility": zod.enum(['public', 'unlisted', 'private']).optional(),
   "primary_color": zod.string().nullish(),
   "secondary_color": zod.string().nullish(),
-  "logo_url": zod.string().nullish()
+  "logo_url": zod.string().max(updateLeagueBodyLogoUrlMax).nullish().describe('An http(s) URL, or a data:image\/svg+xml URI (the generated\npreset badges are inline SVG, comfortably under this bound —\na few hundred to ~1.3k characters each).\n')
 })
 
 export const UpdateLeagueResponse = zod.object({

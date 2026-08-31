@@ -3522,6 +3522,11 @@ components:
           type: ["string", "null"]
         logo_url:
           type: ["string", "null"]
+          maxLength: 4000
+          description: |
+            An http(s) URL, or a data:image/svg+xml URI (the generated
+            preset badges are inline SVG, comfortably under this bound —
+            a few hundred to ~1.3k characters each).
 
     UpdateLeagueInput:
       type: object
@@ -3539,6 +3544,11 @@ components:
           type: ["string", "null"]
         logo_url:
           type: ["string", "null"]
+          maxLength: 4000
+          description: |
+            An http(s) URL, or a data:image/svg+xml URI (the generated
+            preset badges are inline SVG, comfortably under this bound —
+            a few hundred to ~1.3k characters each).
 
     LeagueSettingsInput:
       type: object

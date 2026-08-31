@@ -33,6 +33,12 @@ export interface CreateLeagueInput {
   primary_color?: string | null;
   /** @nullable */
   secondary_color?: string | null;
-  /** @nullable */
+  /**
+     * An http(s) URL, or a data:image/svg+xml URI (the generated
+     * preset badges are inline SVG, comfortably under this bound —
+     * a few hundred to ~1.3k characters each).
+     * @maxLength 4000
+     * @nullable
+     */
   logo_url?: string | null;
 }

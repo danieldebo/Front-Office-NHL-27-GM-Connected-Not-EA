@@ -37,6 +37,7 @@ type Profile = {
 // Cosmetic, self-reported — not fetched or verified, so only bounded and
 // (for the URL) restricted to http(s) so it can't carry a javascript: URL.
 const HTTP_URL_PATTERN = /^https?:\/\/\S+$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function validTimezone(value: string): boolean {
   try {
@@ -112,8 +113,8 @@ export function validateProfilePatch(body: unknown): { values?: Record<string, u
   }
   if ("favorite_club_id" in input) {
     const value = input.favorite_club_id;
-    if (value !== null && typeof value !== "string") {
-      return { error: "favorite_club_id must be null or a club id" };
+    if (value !== null && (typeof value !== "string" || !UUID_PATTERN.test(value))) {
+      return { error: "favorite_club_id must be null or a valid club id" };
     }
     values.favorite_club_id = value;
   }
