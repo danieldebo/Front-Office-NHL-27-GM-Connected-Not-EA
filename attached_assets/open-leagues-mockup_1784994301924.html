@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Open Leagues — Front Office</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ice:#EDF1F4; --paper:#FFFFFF; --slab:#16202A; --slab-2:#1E2C39;
+  --steel:#5C6B78; --bulb:#F2A93B; --crease:#2F6FB5; --goal:#B33A2B;
+  --rule:#D3DBE2; --ink:#0E1620; --pos:#1F7A4C;
+  --display:'Anton',Impact,sans-serif; --body:'Public Sans',system-ui,sans-serif; --data:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box} html,body{margin:0;padding:0}
+body{background:var(--ice);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px;width:100%}
+a{color:var(--crease)}
+
+/* masthead */
+.masthead{border-bottom:1px solid var(--rule);background:var(--paper)}
+.masthead .wrap{display:flex;align-items:center;gap:14px;height:58px}
+.crest{width:32px;height:32px;flex:none;border-radius:3px;background:var(--slab);color:var(--bulb);font-family:var(--display);font-size:18px;display:grid;place-items:center}
+.mast-name{font-family:var(--display);font-size:18px;letter-spacing:.04em;text-transform:uppercase;line-height:1}
+.mast-nav{margin-left:auto;display:flex;gap:20px}
+.mast-nav a{font-family:var(--data);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);text-decoration:none;border-bottom:2px solid transparent;padding:4px 0}
+.mast-nav a[aria-current]{color:var(--ink);border-bottom-color:var(--bulb)}
+
+/* hero */
+.slab{background:var(--slab);color:#E8EEF3;position:relative;overflow:hidden}
+.slab::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 80% at 80% -30%,rgba(242,169,59,.15),transparent 60%)}
+.slab .wrap{position:relative;z-index:1;padding:32px 20px 34px}
+.eyebrow{font-family:var(--data);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--bulb)}
+.slab h1{font-family:var(--display);font-size:clamp(30px,5vw,50px);line-height:.95;letter-spacing:.01em;text-transform:uppercase;margin:8px 0 6px}
+.slab p{color:#9FB1BF;max-width:52ch;margin:0}
+
+/* filter bar */
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:16px 0}
+.chip-filter{font-family:var(--data);font-size:11px;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--rule);background:var(--paper);color:var(--steel);padding:7px 12px;border-radius:2px;cursor:pointer}
+.chip-filter.active{border-color:var(--slab);background:var(--slab);color:#fff}
+.filter-spacer{margin-left:auto;font-family:var(--data);font-size:11px;color:var(--steel)}
+
+/* league grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;padding-bottom:36px}
+.lcard{background:var(--paper);border:1px solid var(--rule);border-radius:4px;overflow:hidden;display:flex;flex-direction:column}
+.lcard-top{display:flex;gap:12px;padding:15px 16px 12px;align-items:flex-start}
+.llogo{width:44px;height:44px;border-radius:4px;flex:none;display:grid;place-items:center;font-family:var(--display);color:#fff;font-size:17px}
+.lname{font-family:var(--display);font-size:17px;letter-spacing:.02em;text-transform:uppercase;line-height:1;margin-bottom:5px}
+.lmeta{font-family:var(--data);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--steel);display:flex;gap:8px;flex-wrap:wrap}
+.health{margin-left:auto;text-align:right;flex:none}
+.health .g{font-family:var(--display);font-size:22px;line-height:1;color:var(--pos)}
+.health .l{font-family:var(--data);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel)}
+.lblurb{padding:0 16px 12px;font-size:13px;color:#33414c;line-height:1.45}
+.lstats{display:flex;gap:1px;background:var(--rule);border-top:1px solid var(--rule)}
+.lstat{background:var(--paper);flex:1;padding:10px 12px;text-align:center}
+.lstat .v{font-family:var(--data);font-size:15px;font-weight:600}
+.lstat .k{font-family:var(--data);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);margin-top:3px}
+.lstat .v.open{color:var(--pos)}
+.lstat .v.full{color:var(--steel)}
+.lfoot{padding:12px 16px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--rule)}
+.div-tag{font-family:var(--data);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:2px;border:1px solid}
+.div-diamond{color:#2f6fb5;border-color:#bbd2ea;background:#f1f6fc}
+.div-elite{color:#7a3ba8;border-color:#d8c1e8;background:#f7f1fc}
+.div-gold{color:#8A6100;border-color:#EBD3A1;background:#FDF7EA}
+.btn{margin-left:auto;font-family:var(--data);font-size:11px;letter-spacing:.07em;text-transform:uppercase;border:1px solid var(--slab);background:var(--slab);color:#fff;padding:8px 14px;border-radius:2px;cursor:pointer}
+.btn:hover{background:var(--crease);border-color:var(--crease)}
+.btn.wait{background:transparent;color:var(--slab)}
+.btn.wait:hover{color:#fff;background:var(--steel);border-color:var(--steel)}
+
+/* sign-up drawer (static preview) */
+.signup{background:var(--paper);border:1px solid var(--rule);border-radius:4px;margin:0 0 36px;overflow:hidden}
+.signup-head{background:var(--slab-2);color:#E8EEF3;padding:13px 18px;font-family:var(--display);font-size:15px;letter-spacing:.06em;text-transform:uppercase}
+.signup-body{padding:16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-family:var(--data);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--steel)}
+.field input,.field select{font-family:var(--body);font-size:14px;padding:9px 11px;border:1px solid var(--rule);border-radius:3px;background:var(--paper)}
+.field.full{grid-column:1/-1}
+.div-picker{display:flex;gap:6px;flex-wrap:wrap}
+.div-opt{font-family:var(--data);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:7px 11px;border:1px solid var(--rule);border-radius:2px;cursor:pointer;color:var(--steel)}
+.div-opt.sel{border-color:var(--crease);background:#f1f6fc;color:var(--crease);font-weight:600}
+.selfnote{grid-column:1/-1;font-family:var(--data);font-size:10.5px;color:var(--steel)}
+.signup-foot{padding:12px 18px;border-top:1px solid var(--rule);display:flex;align-items:center;gap:12px}
+.signup-foot .submit{margin-left:auto;font-family:var(--data);font-size:11px;letter-spacing:.07em;text-transform:uppercase;border:1px solid var(--slab);background:var(--slab);color:#fff;padding:9px 18px;border-radius:2px;cursor:pointer}
+
+/* PERSISTENT FOOTER */
+.site-footer{margin-top:auto;background:var(--slab);color:#9FB1BF}
+.site-footer .wrap{padding:16px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:var(--data);font-size:12px}
+.site-footer .made{color:#E8EEF3}
+.site-footer .made b{color:var(--bulb);font-family:var(--body);font-weight:700}
+.tip{margin-left:auto;display:flex;align-items:center;gap:10px;background:var(--slab-2);border:1px solid rgba(242,169,59,.25);border-radius:3px;padding:7px 12px}
+.tip .txt{color:#B7C4CE}
+.tip a{color:var(--bulb);text-decoration:none;font-weight:600}
+.tip a:hover{text-decoration:underline}
+.tip .amt{font-family:var(--display);color:var(--bulb);font-size:16px}
+
+@media (max-width:620px){
+  .signup-body{grid-template-columns:1fr}
+  .mast-nav{display:none}
+  .site-footer .wrap{flex-direction:column;align-items:flex-start}
+  .tip{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="crest">FO</div>
+    <div class="mast-name">Front Office</div>
+    <nav class="mast-nav">
+      <a href="#" aria-current="page">Open Leagues</a>
+      <a href="#">My Leagues</a>
+      <a href="#">Create a League</a>
+      <a href="#">Profile</a>
+    </nav>
+  </div>
+</header>
+
+<section class="slab">
+  <div class="wrap">
+    <div class="eyebrow">32 leagues recruiting · NHL 27</div>
+    <h1>Find your league.</h1>
+    <p>Active, well-run Connected Franchise leagues looking for GMs. Sign up for an open seat, or join a waitlist and get invited when one opens.</p>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="filters">
+    <button class="chip-filter active">All</button>
+    <button class="chip-filter">PSN</button>
+    <button class="chip-filter">Xbox</button>
+    <button class="chip-filter">Seats open</button>
+    <button class="chip-filter">Competitive</button>
+    <button class="chip-filter">Casual</button>
+    <span class="filter-spacer">Sorted by: health · seats open</span>
+  </div>
+
+  <div class="grid">
+
+    <!-- League with open seats -->
+    <div class="lcard">
+      <div class="lcard-top">
+        <div class="llogo" style="background:linear-gradient(135deg,#CE1126,#7a0a17)">RB</div>
+        <div style="flex:1">
+          <div class="lname">Rust Belt HL</div>
+          <div class="lmeta"><span>PSN</span><span>·</span><span>Competitive</span></div>
+        </div>
+        <div class="health"><div class="g">A−</div><div class="l">Health</div></div>
+      </div>
+      <div class="lblurb">Original-six purists, third season running. Trade committee, hard cap, weekly windows. We keep the schedule tight.</div>
+      <div class="lstats">
+        <div class="lstat"><div class="v open">3</div><div class="k">Seats open</div></div>
+        <div class="lstat"><div class="v">29 / 32</div><div class="k">Filled</div></div>
+        <div class="lstat"><div class="v">2</div><div class="k">Waitlist</div></div>
+      </div>
+      <div class="lfoot">
+        <span class="div-tag div-diamond">Diamond+</span>
+        <button class="btn">Sign up</button>
+      </div>
+    </div>
+
+    <!-- Full league — waitlist only -->
+    <div class="lcard">
+      <div class="lcard-top">
+        <div class="llogo" style="background:linear-gradient(135deg,#1f7a4c,#0d3d26)">EC</div>
+        <div style="flex:1">
+          <div class="lname">East Coast Elite</div>
+          <div class="lmeta"><span>Xbox</span><span>·</span><span>Hardcore</span></div>
+        </div>
+        <div class="health"><div class="g">A</div><div class="l">Health</div></div>
+      </div>
+      <div class="lblurb">Sim-heavy, franchise-mode veterans. Full for four straight seasons — the waitlist moves a few times a year.</div>
+      <div class="lstats">
+        <div class="lstat"><div class="v full">0</div><div class="k">Seats open</div></div>
+        <div class="lstat"><div class="v">32 / 32</div><div class="k">Filled</div></div>
+        <div class="lstat"><div class="v">7</div><div class="k">Waitlist</div></div>
+      </div>
+      <div class="lfoot">
+        <span class="div-tag div-elite">Elite+</span>
+        <button class="btn wait">Join waitlist</button>
+      </div>
+    </div>
+
+    <!-- Casual league, open -->
+    <div class="lcard">
+      <div class="lcard-top">
+        <div class="llogo" style="background:linear-gradient(135deg,#F2A93B,#b3781a)">SD</div>
+        <div style="flex:1">
+          <div class="lname">Sunday Danglers</div>
+          <div class="lmeta"><span>Both</span><span>·</span><span>Casual</span></div>
+        </div>
+        <div class="health"><div class="g">B+</div><div class="l">Health</div></div>
+      </div>
+      <div class="lblurb">Beer-league energy, no pressure, play when you can. New GMs and first-timers genuinely welcome.</div>
+      <div class="lstats">
+        <div class="lstat"><div class="v open">6</div><div class="k">Seats open</div></div>
+        <div class="lstat"><div class="v">10 / 16</div><div class="k">Filled</div></div>
+        <div class="lstat"><div class="v">0</div><div class="k">Waitlist</div></div>
+      </div>
+      <div class="lfoot">
+        <span class="div-tag div-gold">All levels</span>
+        <button class="btn">Sign up</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Sign-up preview -->
+  <div class="signup">
+    <div class="signup-head">Sign up — Rust Belt HL</div>
+    <div class="signup-body">
+      <div class="field"><label>Platform</label><select><option>PSN</option><option>Xbox</option></select></div>
+      <div class="field"><label>Time zone</label><select><option>America/Chicago (CT)</option><option>America/New_York (ET)</option></select></div>
+      <div class="field full">
+        <label>Your ranked division — you pick this</label>
+        <div class="div-picker">
+          <span class="div-opt">Bronze</span>
+          <span class="div-opt">Silver</span>
+          <span class="div-opt">Gold</span>
+          <span class="div-opt sel">Diamond</span>
+          <span class="div-opt">Platinum</span>
+          <span class="div-opt">Elite</span>
+          <span class="div-opt">Ultimate</span>
+        </div>
+        <span class="selfnote">Self-reported — a bracket you choose, editable any time. It helps the commissioner gauge fit; it never auto-rejects you.</span>
+      </div>
+      <div class="field full"><label>Message to the commissioner (optional)</label><input placeholder="Been running franchise mode since NHL 18, looking for a competitive PSN league…"></div>
+      <div class="field"><label>Preferred club (optional)</label><input placeholder="Any"></div>
+    </div>
+    <div class="signup-foot">
+      <span style="font-family:var(--data);font-size:11px;color:var(--steel)">3 seats open — this may place you directly.</span>
+      <button class="submit">Submit sign-up</button>
+    </div>
+  </div>
+</div>
+
+<!-- PERSISTENT FOOTER — on every page -->
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="made">Created by <b>DeBo</b></span>
+    <span style="color:#5C6B78">·</span>
+    <span>Front Office · league tools for NHL 27</span>
+    <div class="tip">
+      <span class="amt">$1</span>
+      <span class="txt">saved you a spreadsheet? tip the builder →</span>
+      <a href="https://venmo.com/theedebo">Venmo @theedebo</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,472 @@
+# =============================================================================
+# Front Office — CI/CD
+# Destination: .github/workflows/ci.yml
+#
+# Implements the delivery standards in front-office-architecture.md §6 and §9.
+#
+# Gate order is deliberate: cheap and high-signal first. A typecheck failure
+# should never wait behind a Playwright run.
+#
+#   quality → unit → integration → contract → migrations → security → e2e
+#                                                                      ↓
+#                                                     preview (PR) / deploy (main)
+#
+# The nightly schedule runs the data quality suite against a production replica.
+# =============================================================================
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Nightly data quality sweep, 07:17 UTC. Off-the-hour to avoid runner contention.
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+
+# Least privilege by default. Individual jobs widen this only where needed,
+# and deploys use OIDC rather than long-lived credentials.
+permissions:
+  contents: read
+
+# One run per ref. Superseded PR runs are cancelled; main deploys are not.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: '22'
+  POSTGRES_VERSION: '16'
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # 1. Static quality — seconds, catches most of what breaks a PR
+  # ---------------------------------------------------------------------------
+  quality:
+    name: Lint & typecheck
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Format check
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Enforces the module boundary that makes the whole architecture work:
+      # /core is pure domain logic and must not import I/O, the framework, or
+      # the database. If this rule erodes, standings arithmetic starts leaking
+      # into request handlers and correctness stops being testable.
+      - name: Enforce module boundaries
+        run: npx depcruise --config .dependency-cruiser.js src
+
+  # ---------------------------------------------------------------------------
+  # 2. Unit — the heaviest tier, because /core is where correctness lives
+  # ---------------------------------------------------------------------------
+  unit:
+    name: Unit & property tests
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Unit tests
+        run: npm run test:unit -- --coverage
+
+      # Invariants that must hold for ANY sequence of results:
+      #   GP = W + L + OTL
+      #   PTS = W*points_win + OTL*points_ot_loss + L*points_reg_loss
+      #   league-wide GF = GA
+      # These catch entire bug classes that example-based tests miss.
+      - name: Property-based invariant tests
+        run: npm run test:properties
+
+      # A deterministic, seeded, fully-simulated 32-team season with
+      # known-correct standings, checked into the repo. Any change to the
+      # standings or cap calculators is diffed against it.
+      - name: Golden season fixture
+        run: npm run test:golden
+
+      - name: Coverage floor on /core
+        run: npx nyc check-coverage --lines 95 --branches 90 --include 'src/core/**'
+
+  # ---------------------------------------------------------------------------
+  # 3. Integration — real Postgres, real RLS, real data quality suite
+  # ---------------------------------------------------------------------------
+  integration:
+    name: Integration & data quality
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [quality]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: frontoffice_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/frontoffice_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Apply schema
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema.sql
+
+      - name: Apply data quality suite
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data-quality-checks.sql
+
+      - name: Seed golden season
+        run: npm run db:seed:golden
+
+      - name: API integration tests
+        run: npm run test:integration
+
+      # Authorization is enforced in Postgres via row-level security precisely
+      # so it cannot be forgotten in a new endpoint. That guarantee is worth
+      # nothing untested — this asserts a GM CANNOT write another team's data.
+      - name: Row-level security policy tests
+        run: npm run test:rls
+
+      # The assertion suite must come back clean against seeded data. If the
+      # invariants fail on data we generated ourselves, they will certainly
+      # fail on data a league generates.
+      - name: Run data quality assertions
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CALL dq.run_all();"
+          psql "$DATABASE_URL" -t -A -c \
+            "SELECT check_name || ': ' || detail FROM dq.finding
+             WHERE severity = 'BLOCK' AND resolved_at IS NULL" > dq_blocking.txt
+          if [ -s dq_blocking.txt ]; then
+            echo "::error::Blocking data quality findings on seeded data:"
+            cat dq_blocking.txt
+            exit 1
+          fi
+          echo "No blocking findings."
+
+  # ---------------------------------------------------------------------------
+  # 4. Contract — the published API cannot drift from the implementation
+  # ---------------------------------------------------------------------------
+  contract:
+    name: API contract
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [quality]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Validate OpenAPI document
+        run: npx @redocly/cli lint openapi.yaml --format=github-actions
+
+      # Additive changes only within a major version. A removed field, a
+      # narrowed type, or a new required property is a breaking change and
+      # fails here — partners depend on this contract.
+      - name: Detect breaking API changes
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1
+          git show origin/${{ github.base_ref }}:openapi.yaml > /tmp/base-openapi.yaml
+          npx oasdiff breaking /tmp/base-openapi.yaml openapi.yaml --fail-on ERR
+
+      # Every request and response in the integration suite is validated
+      # against the schema, so documentation and behavior stay in sync.
+      - name: Contract conformance tests
+        run: npm run test:contract
+
+  # ---------------------------------------------------------------------------
+  # 5. Migrations — forward-only, expand/contract, dry-run on real shape
+  # ---------------------------------------------------------------------------
+  migrations:
+    name: Migration safety
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: frontoffice_migrate
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5433/frontoffice_migrate
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      # Migrations are immutable once merged. Editing one that has already run
+      # in production means environments silently diverge.
+      - name: Reject edits to already-merged migrations
+        run: |
+          CHANGED=$(git diff --name-only --diff-filter=MD \
+            origin/${{ github.base_ref }}...HEAD -- migrations/ || true)
+          if [ -n "$CHANGED" ]; then
+            echo "::error::Existing migrations were modified or deleted:"
+            echo "$CHANGED"
+            echo "Migrations are forward-only. Add a new one instead."
+            exit 1
+          fi
+
+      # Destructive DDL in the same deploy as a code change is how a league
+      # loses a season. Drops and renames must be a separate, later migration
+      # after reads have moved — the contract half of expand/contract.
+      - name: Block destructive DDL without an approval label
+        if: "!contains(github.event.pull_request.labels.*.name, 'approved-destructive-migration')"
+        run: |
+          NEW=$(git diff --name-only --diff-filter=A \
+            origin/${{ github.base_ref }}...HEAD -- migrations/ || true)
+          if [ -n "$NEW" ] && grep -Eil 'DROP (COLUMN|TABLE)|ALTER COLUMN .* TYPE|RENAME' $NEW; then
+            echo "::error::Destructive DDL detected. Use expand/contract across separate deploys,"
+            echo "or add the 'approved-destructive-migration' label if the contract step is intentional."
+            exit 1
+          fi
+
+      - name: Migrate from empty
+        run: npm run db:migrate
+
+      # Production-shaped, fully anonymized. Never real user data in CI.
+      - name: Restore production-shaped snapshot
+        run: |
+          curl -sSL "${{ secrets.ANON_SNAPSHOT_URL }}" -o snapshot.dump
+          pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" snapshot.dump
+
+      - name: Migrate against snapshot (timed)
+        run: |
+          START=$(date +%s)
+          npm run db:migrate
+          ELAPSED=$(( $(date +%s) - START ))
+          echo "Migration took ${ELAPSED}s"
+          # A migration that holds locks for minutes is an outage in disguise.
+          if [ "$ELAPSED" -gt 60 ]; then
+            echo "::error::Migration exceeded the 60s budget. Batch the backfill instead."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # 6. Security — OWASP ASVS L2 baseline, automated portion
+  # ---------------------------------------------------------------------------
+  security:
+    name: Security checks
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Static analysis
+        uses: github/codeql-action/init@v3
+        with: { languages: javascript-typescript }
+      - uses: github/codeql-action/analyze@v3
+
+      # You store an email, a gamertag, and a time zone. Nothing more, ever.
+      # This blocks a well-meaning PR from quietly widening that footprint.
+      - name: PII footprint check
+        run: npm run check:pii-schema
+
+  # ---------------------------------------------------------------------------
+  # 7. E2E — thin by design. Three flows, because three flows are the product.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: End-to-end
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [integration, contract]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # 1. create a league   2. submit and confirm a score   3. execute a trade
+      - name: Critical flows
+        run: npm run test:e2e
+
+      # The public league page is the acquisition channel. If it is slow or
+      # inaccessible, growth stops — so the budget is a build gate, not a report.
+      - name: Lighthouse budget on the public league page
+        run: npm run test:lighthouse
+        # Budget: LCP < 2.5s, INP < 200ms, CLS < 0.1, a11y >= 95 (WCAG 2.2 AA)
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 8. Preview — every PR gets a real environment on a branched database
+  # ---------------------------------------------------------------------------
+  preview:
+    name: Preview deploy
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [unit, integration, contract, migrations, security]
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    environment:
+      name: preview-${{ github.event.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Branch the database
+        run: npm run db:branch:create -- --name pr-${{ github.event.number }}
+      - name: Deploy preview
+        run: npm run deploy:preview
+      - name: Comment preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Preview is up with an isolated database branch.'
+            })
+
+  # ---------------------------------------------------------------------------
+  # 9. Deploy — trunk-based. main is always releasable.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [unit, integration, contract, security, e2e]
+    permissions:
+      contents: read
+      id-token: write   # OIDC — no long-lived cloud credentials in secrets
+    environment:
+      name: production
+      url: https://frontoffice.example
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      # Expand phase only. Contract migrations ship in a later deploy, after
+      # reads have moved off the old shape.
+      - name: Run migrations
+        run: npm run db:migrate
+
+      - name: Deploy
+        run: npm run deploy:production
+
+      - name: Smoke test
+        run: npm run test:smoke -- --base-url https://frontoffice.example
+
+      # Ship the current contract to the docs site so partners always read the
+      # version that is actually running.
+      - name: Publish API documentation
+        run: npx @redocly/cli build-docs openapi.yaml -o docs/api.html && npm run docs:publish
+
+      - name: Mark release in observability
+        run: npm run otel:release -- --sha ${{ github.sha }}
+
+      - name: Roll back on smoke failure
+        if: failure()
+        run: npm run deploy:rollback
+
+  # ---------------------------------------------------------------------------
+  # 10. Nightly — data quality against a production replica
+  # ---------------------------------------------------------------------------
+  nightly-data-quality:
+    name: Nightly data quality
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Run assertions against replica
+        env:
+          DATABASE_URL: ${{ secrets.REPLICA_READONLY_URL }}
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CALL dq.run_all();"
+
+      # BLOCK findings mean the model is broken — that is yours.
+      # ALERT findings are usually league behavior — those route to the
+      # commissioner, not to you. Keeping the two paths separate is what stops
+      # an on-call rotation from drowning in other people's roster problems.
+      - name: Route findings
+        env:
+          DATABASE_URL: ${{ secrets.REPLICA_READONLY_URL }}
+        run: npm run dq:route-findings
+
+      - name: Verify backup restore drill
+        run: npm run ops:restore-drill
+        # An untested backup is a rumor. Restores a recent logical export
+        # through the public export contract, which keeps that path exercised.

@@ -1,0 +1,7 @@
+- [Front Office architecture decisions](front-office-arch.md) — auth adapter, raw SQL, codegen constraints, and immutable season-settings binding
+- [Commissioner links schema notes](commissioner-links-schema.md) — dq schema must be created first; FOR UPDATE on views unsupported; new tables/views added in v1.7.0
+- [Front-office test environment](front-office-testing.md) — browser tests use a standalone Vitest config because the Vite app config requires workflow-only environment variables
+- [Notification delivery invariants](notification-delivery.md) — publish events transactionally; claim outbound work with leases; never wait on providers inside DB transactions
+- [Console identity verification](console-identity-verification.md) — Xbox/PSN ownership uses commissioner attestation; consumer profile pages are not server verification APIs
+- [Domain migration ledger](domain-migration-ledger.md) — every schema delta needs a unique exact version; never infer completion from a later version
+- [Publish-safe view columns](publish-safe-view-columns.md) — avoid generated type changes on columns used by production views; Publish cannot reorder those dependencies

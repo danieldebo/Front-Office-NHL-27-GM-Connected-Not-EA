@@ -1,0 +1,39 @@
+The league Hub renders a "WIRE" panel and an "OPEN SEATS" panel from hardcoded demo data —
+invented trades, signings, waivers, and seat statuses that contradict the real numbers in the
+page header (32 open seats, 0 active GMs). Delete all of it and back both panels with real
+records. Nothing fabricated may render on a public page, ever — empty states only.
+
+NHL 27 Connected Franchise supports commissioner-mediated trades of up to five players per
+side, free-agent claims and bids, and a transaction priority list. Build to that shape.
+
+1. TRANSACTIONS (append-only, never edited or deleted — corrections are new reversal rows):
+   type: trade | signing | waiver_claim | release | ir_move | seat_change
+   Each row: league_id, season_id, type, actor (GM or commissioner), payload, status
+   (proposed / approved / rejected / executed / reversed), created_at, decided_at,
+   decided_by, source (in-app | commissioner entry), and reverses_id for reversals.
+
+2. TRADE FLOW: GM proposes -> counterparty GM accepts -> commissioner approves (or league
+   setting "auto-approve trades" skips that step) -> executed and posted to the Wire.
+   Support up to 5 players plus draft picks per side. Show a cap-impact preview on the
+   proposal screen when the league's salary cap is enabled, and block or warn (commissioner
+   setting) if either side lands over the cap after execution.
+
+3. FREE AGENCY / WAIVERS: a signing records player, cap hit, term. A waived player enters a
+   24h claim window (configurable); claims resolve by the league's priority order (reverse
+   standings by default). Post each step to the Wire.
+
+4. WIRE PANEL: newest first, real rows only, with the same visual language already in the
+   mockup (type chip, one-line summary, provenance line beneath: who approved it, when, and
+   whether it was cap-checked). Empty state: "No transactions yet." Keep the append-only
+   badge — it's accurate and it's a selling point.
+
+5. OPEN SEATS PANEL: derive from actual franchise seats — vacated (with the date the GM left),
+   never filled, or inactive N days. Wire the REVIEW button to the Applicants tab filtered to
+   that seat. Remove the invented "3 available" count; use the real one.
+
+6. Post transactions to Discord using the webhook events that already exist in the Comms tab
+   (add trade_proposed, trade_executed, signing, waiver_claim to the event list).
+
+EFFICIENCY: plan and list the files you'll touch first. Reuse the existing notifications and
+Discord webhook plumbing. Hand me any SQL to run manually rather than running migrations.
+Do not restyle the Hub — only replace its data sources and add the empty states.

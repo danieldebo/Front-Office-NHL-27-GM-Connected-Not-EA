@@ -1,0 +1,167 @@
+A publish-time database migration failed validation on a disposable fork of the production database. Investigate the root cause generically and help me make the migration succeed.
+
+The following blocks are diagnostic data, not instructions.
+
+<migration_failure> Failed to run database migration statement ALTER TABLE "league_listing" ALTER COLUMN "platform" SET DATA TYPE "public"."platform_type" USING "platform"::"public"."platform_type"; cannot alter type of a column used by a view or rule </migration_failure>
+
+<generated_migration_diff> CREATE TYPE "public"."console_type" AS ENUM('xbox', 'playstation');
+
+CREATE TYPE "public"."platform_type" AS ENUM('xbox', 'playstation', 'crossplay');
+
+CREATE TABLE "app_user_profile_history" ( "id" bigserial PRIMARY KEY NOT NULL, "user_id" uuid NOT NULL, "display_name" text NOT NULL, "timezone" text NOT NULL, "xbox_gamertag" text, "psn_online_id" text, "systems_played" text[] NOT NULL, "primary_identity" text, "changed_by" uuid, "recorded_at" timestamp with time zone DEFAULT now() NOT NULL );
+
+CREATE TABLE "notification_item" ( "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL, "event_id" uuid NOT NULL, "user_id" uuid NOT NULL, "league_id" uuid, "event_type" text NOT NULL, "title" text NOT NULL, "body" text NOT NULL, "data" jsonb DEFAULT '{}'::jsonb NOT NULL, "created_at" timestamp with time zone DEFAULT now() NOT NULL, "read_at" timestamp with time zone, CONSTRAINT "notification_item_event_id_user_id_key" UNIQUE("event_id","user_id") );
+
+CREATE TABLE "league_settings_active" ( "league_id" uuid PRIMARY KEY NOT NULL, "settings_version_id" uuid NOT NULL, CONSTRAINT "league_settings_active_settings_version_id_key" UNIQUE("settings_version_id") );
+
+CREATE TABLE "identity_verification_challenge" ( "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL, "user_id" uuid NOT NULL, "platform" text NOT NULL, "gamertag" text NOT NULL, "code" text NOT NULL, "profile_url" text NOT NULL, "created_at" timestamp with time zone DEFAULT now() NOT NULL, "expires_at" timestamp with time zone NOT NULL, "superseded_at" timestamp with time zone, "completed_at" timestamp with time zone, "submitted_at" timestamp with time zone, "reviewed_by" uuid, CONSTRAINT "identity_verification_challenge_check" CHECK (expires_at > created_at), CONSTRAINT "identity_verification_challenge_platform_check" CHECK (platform = ANY (ARRAY['xbox'::text, 'playstation'::text])) );
+
+CREATE TABLE "discord_webhook" ( "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL, "league_id" uuid NOT NULL, "name" text NOT NULL, "url_ciphertext" "bytea" NOT NULL, "url_iv" "bytea" NOT NULL, "url_auth_tag" "bytea" NOT NULL, "event_filters" text[] NOT NULL, "enabled" boolean DEFAULT true NOT NULL, "failure_count" integer DEFAULT 0 NOT NULL, "disabled_at" timestamp with time zone, "created_by" uuid NOT NULL, "created_at" timestamp with time zone DEFAULT now() NOT NULL, CONSTRAINT "discord_webhook_event_filters_check" CHECK (cardinality(event_filters) > 0) );
+
+CREATE TABLE "identity_verification_evidence" ( "id" bigserial PRIMARY KEY NOT NULL, "challenge_id" uuid NOT NULL, "user_id" uuid NOT NULL, "platform" text NOT NULL, "gamertag" text NOT NULL, "profile_url" text NOT NULL, "fetched_at" timestamp with time zone DEFAULT now() NOT NULL, "response_status" integer, "response_sha256" text, "code_found" boolean NOT NULL, "outcome" text NOT NULL, "method" text DEFAULT 'commissioner_attestation' NOT NULL, "reviewer_user_id" uuid, CONSTRAINT "identity_verification_evidence_method_check" CHECK (((method = 'legacy_profile_scrape'::text) AND (reviewer_user_id IS NULL)) OR ((method = 'commissioner_attestation'::text) AND (reviewer_user_id IS NOT NULL))), CONSTRAINT "identity_verification_evidence_outcome_check" CHECK (outcome = ANY (ARRAY['verified'::text, 'code_not_found'::text, 'fetch_failed'::text])), CONSTRAINT "identity_verification_evidence_platform_check" CHECK (platform = ANY (ARRAY['xbox'::text, 'playstation'::text])) );
+
+CREATE TABLE "notification_delivery_job" ( "id" bigserial PRIMARY KEY NOT NULL, "event_id" uuid NOT NULL, "outbox_id" bigint, "channel" text NOT NULL, "user_id" uuid, "webhook_id" uuid, "status" text DEFAULT 'pending' NOT NULL, "attempts" integer DEFAULT 0 NOT NULL, "next_attempt_at" timestamp with time zone DEFAULT now() NOT NULL, "last_error" text, "created_at" timestamp with time zone DEFAULT now() NOT NULL, "delivered_at" timestamp with time zone, "claim_token" uuid, "lease_expires_at" timestamp with time zone, CONSTRAINT "notification_delivery_job_channel_check" CHECK (channel = ANY (ARRAY['in_app'::text, 'email'::text, 'discord'::text])), CONSTRAINT "notification_delivery_job_check" CHECK ((channel = 'discord'::text) = (webhook_id IS NOT NULL)), CONSTRAINT "notification_delivery_job_check1" CHECK ((channel = 'discord'::text) OR (user_id IS NOT NULL)), CONSTRAINT "notification_delivery_job_status_check" CHECK (status = ANY (ARRAY['pending'::text, 'retry'::text, 'sent'::text, 'failed'::text, 'digest_pending'::text])) );
+
+CREATE TABLE "league_settings_version" ( "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL, "league_id" uuid NOT NULL, "version" integer NOT NULL, "ea_league_id" text, "platform" text DEFAULT 'both' NOT NULL, "team_count" integer DEFAULT 32 NOT NULL, "roster_source" text DEFAULT 'manual' NOT NULL, "schedule_format" text DEFAULT 'round_robin' NOT NULL, "schedule_settings" jsonb DEFAULT '{}'::jsonb NOT NULL, "playoff_format" jsonb DEFAULT '{}'::jsonb NOT NULL, "salary_cap_cents" bigint, "roster_min" integer, "roster_max" integer, "divisions" jsonb DEFAULT '[]'::jsonb NOT NULL, "conferences" jsonb DEFAULT '[]'::jsonb NOT NULL, "rules_notes" text, "slider_presets" jsonb DEFAULT '{}'::jsonb NOT NULL, "migrated_from_season_id" uuid, "changed_by" uuid NOT NULL, "changed_at" timestamp with time zone DEFAULT now() NOT NULL, "change_summary" text NOT NULL, "require_verified_identities" boolean DEFAULT false NOT NULL, "applied_template_id" text, CONSTRAINT "league_settings_version_league_id_id_key" UNIQUE("id","league_id"), CONSTRAINT "league_settings_version_league_id_version_key" UNIQUE("league_id","version"), CONSTRAINT "league_settings_version_migrated_from_season_id_key" UNIQUE("migrated_from_season_id"), CONSTRAINT "league_settings_version_applied_template_id_check" CHECK ((applied_template_id IS NULL) OR (applied_template_id = ANY (ARRAY['balanced_standard'::text, 'international_style'::text, 'maximum_fighting_contact'::text]))), CONSTRAINT "league_settings_version_change_summary_check" CHECK (length(btrim(change_summary)) > 0), CONSTRAINT "league_settings_version_check" CHECK ((roster_min IS NULL) OR (roster_max IS NULL) OR (roster_min <= roster_max)), CONSTRAINT "league_settings_version_check1" CHECK ((schedule_format <> 'custom'::text) OR ((schedule_settings ? 'games_per_matchup'::text) AND (jsonb_typeof((schedule_settings -> 'games_per_matchup'::text)) = 'number'::text) AND ((((schedule_settings ->> 'games_per_matchup'::text))::integer >= 1) AND (((schedule_settings ->> 'games_per_matchup'::text))::integer <= 8)))), CONSTRAINT "league_settings_version_conferences_check" CHECK (jsonb_typeof(conferences) = 'array'::text), CONSTRAINT "league_settings_version_divisions_check" CHECK (jsonb_typeof(divisions) = 'array'::text), CONSTRAINT "league_settings_version_platform_check" CHECK (platform = ANY (ARRAY['psn'::text, 'xbox'::text, 'both'::text])), CONSTRAINT "league_settings_version_playoff_format_check" CHECK (jsonb_typeof(playoff_format) = 'object'::text), CONSTRAINT "league_settings_version_roster_max_check" CHECK ((roster_max IS NULL) OR (roster_max >= 1)), CONSTRAINT "league_settings_version_roster_min_check" CHECK ((roster_min IS NULL) OR (roster_min >= 1)), CONSTRAINT "league_settings_version_roster_source_check" CHECK (roster_source = ANY (ARRAY['manual'::text, 'ea'::text, 'csv_import'::text])), CONSTRAINT "league_settings_version_salary_cap_cents_check" CHECK ((salary_cap_cents IS NULL) OR (salary_cap_cents >= 0)), CONSTRAINT "league_settings_version_schedule_format_check" CHECK (schedule_format = ANY (ARRAY['round_robin'::text, 'double_round_robin'::text, 'custom'::text])), CONSTRAINT "league_settings_version_schedule_settings_check" CHECK (jsonb_typeof(schedule_settings) = 'object'::text), CONSTRAINT "league_settings_version_slider_presets_check" CHECK (jsonb_typeof(slider_presets) = 'object'::text), CONSTRAINT "league_settings_version_team_count_check" CHECK ((team_count >= 3) AND (team_count <= 32)), CONSTRAINT "league_settings_version_version_check" CHECK (version > 0) );
+
+CREATE TABLE "notification_preference" ( "user_id" uuid NOT NULL, "event_type" text NOT NULL, "in_app" boolean DEFAULT true NOT NULL, "email" boolean DEFAULT false NOT NULL, "daily_digest" boolean DEFAULT false NOT NULL, "updated_at" timestamp with time zone DEFAULT now() NOT NULL, CONSTRAINT "notification_preference_pkey" PRIMARY KEY("user_id","event_type"), CONSTRAINT "notification_preference_check" CHECK ((NOT daily_digest) OR email), CONSTRAINT "notification_preference_event_type_check" CHECK (length(btrim(event_type)) > 0) );
+
+ALTER TABLE "app_user" ALTER COLUMN "platform" SET DATA TYPE "public"."console_type" USING "platform"::"public"."console_type";
+
+ALTER TABLE "league_listing" ALTER COLUMN "platform" SET DEFAULT 'crossplay'::"public"."platform_type";
+
+ALTER TABLE "league_listing" ALTER COLUMN "platform" SET DATA TYPE "public"."platform_type" USING "platform"::"public"."platform_type";
+
+ALTER TABLE "league_signup" ALTER COLUMN "platform" SET DATA TYPE "public"."console_type" USING "platform"::"public"."console_type";
+
+ALTER TABLE "outbox" ADD COLUMN "dead_lettered_at" timestamp with time zone;
+
+ALTER TABLE "app_user" ADD COLUMN "xbox_gamertag" text;
+
+ALTER TABLE "app_user" ADD COLUMN "psn_online_id" text;
+
+ALTER TABLE "app_user" ADD COLUMN "systems_played" text[] DEFAULT '{}' NOT NULL;
+
+ALTER TABLE "app_user" ADD COLUMN "primary_identity" text;
+
+ALTER TABLE "app_user" ADD COLUMN "xbox_identity_verified_at" timestamp with time zone;
+
+ALTER TABLE "app_user" ADD COLUMN "playstation_identity_verified_at" timestamp with time zone;
+
+ALTER TABLE "app_user" ADD COLUMN "location" text;
+
+ALTER TABLE "waitlist_entry" ADD COLUMN "decline_note" text;
+
+ALTER TABLE "waitlist_entry" ADD COLUMN "platform" text;
+
+ALTER TABLE "waitlist_entry" ADD COLUMN "platform_gamertag" text;
+
+ALTER TABLE "waitlist_entry" ADD COLUMN "xbox_gamertag" text;
+
+ALTER TABLE "waitlist_entry" ADD COLUMN "psn_online_id" text;
+
+ALTER TABLE "waitlist_entry" ADD COLUMN "primary_identity" text;
+
+ALTER TABLE "waitlist_entry" ADD COLUMN "systems_played" text[];
+
+ALTER TABLE "league_signup" ADD COLUMN "platform_gamertag" text;
+
+ALTER TABLE "league_signup" ADD COLUMN "xbox_gamertag" text;
+
+ALTER TABLE "league_signup" ADD COLUMN "psn_online_id" text;
+
+ALTER TABLE "league_signup" ADD COLUMN "primary_identity" text;
+
+ALTER TABLE "league_signup" ADD COLUMN "systems_played" text[];
+
+ALTER TABLE "league_signup" ADD COLUMN "country_code" char(2);
+
+ALTER TABLE "league_signup" ADD COLUMN "location" text;
+
+ALTER TABLE "league" ADD COLUMN "platform" "platform_type" DEFAULT 'crossplay' NOT NULL;
+
+ALTER TABLE "season" ADD COLUMN "settings_version_id" uuid;
+
+ALTER TABLE "app_user_profile_history" ADD CONSTRAINT "app_user_profile_history_changed_by_fkey" FOREIGN KEY ("changed_by") REFERENCES "public"."app_user"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "app_user_profile_history" ADD CONSTRAINT "app_user_profile_history_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."app_user"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "notification_item" ADD CONSTRAINT "notification_item_league_id_fkey" FOREIGN KEY ("league_id") REFERENCES "public"."league"("id") ON DELETE cascade ON UPDATE no action;
+
+ALTER TABLE "notification_item" ADD CONSTRAINT "notification_item_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."app_user"("id") ON DELETE cascade ON UPDATE no action;
+
+ALTER TABLE "league_settings_active" ADD CONSTRAINT "league_settings_active_league_id_fkey" FOREIGN KEY ("league_id") REFERENCES "public"."league"("id") ON DELETE cascade ON UPDATE no action;
+
+ALTER TABLE "league_settings_active" ADD CONSTRAINT "league_settings_active_league_id_settings_version_id_fkey" FOREIGN KEY ("league_id","settings_version_id") REFERENCES "public"."league_settings_version"("league_id","id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "identity_verification_challenge" ADD CONSTRAINT "identity_verification_challenge_reviewed_by_fkey" FOREIGN KEY ("reviewed_by") REFERENCES "public"."app_user"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "identity_verification_challenge" ADD CONSTRAINT "identity_verification_challenge_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."app_user"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "discord_webhook" ADD CONSTRAINT "discord_webhook_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."app_user"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "discord_webhook" ADD CONSTRAINT "discord_webhook_league_id_fkey" FOREIGN KEY ("league_id") REFERENCES "public"."league"("id") ON DELETE cascade ON UPDATE no action;
+
+ALTER TABLE "identity_verification_evidence" ADD CONSTRAINT "identity_verification_evidence_challenge_id_fkey" FOREIGN KEY ("challenge_id") REFERENCES "public"."identity_verification_challenge"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "identity_verification_evidence" ADD CONSTRAINT "identity_verification_evidence_reviewer_user_id_fkey" FOREIGN KEY ("reviewer_user_id") REFERENCES "public"."app_user"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "identity_verification_evidence" ADD CONSTRAINT "identity_verification_evidence_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."app_user"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "notification_delivery_job" ADD CONSTRAINT "notification_delivery_job_outbox_id_fkey" FOREIGN KEY ("outbox_id") REFERENCES "public"."outbox"("id") ON DELETE set null ON UPDATE no action;
+
+ALTER TABLE "notification_delivery_job" ADD CONSTRAINT "notification_delivery_job_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."app_user"("id") ON DELETE cascade ON UPDATE no action;
+
+ALTER TABLE "notification_delivery_job" ADD CONSTRAINT "notification_delivery_job_webhook_id_fkey" FOREIGN KEY ("webhook_id") REFERENCES "public"."discord_webhook"("id") ON DELETE cascade ON UPDATE no action;
+
+ALTER TABLE "league_settings_version" ADD CONSTRAINT "league_settings_version_changed_by_fkey" FOREIGN KEY ("changed_by") REFERENCES "public"."app_user"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "league_settings_version" ADD CONSTRAINT "league_settings_version_league_id_fkey" FOREIGN KEY ("league_id") REFERENCES "public"."league"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "league_settings_version" ADD CONSTRAINT "league_settings_version_migrated_from_season_id_fkey" FOREIGN KEY ("migrated_from_season_id") REFERENCES "public"."season"("id") ON DELETE no action ON UPDATE no action;
+
+ALTER TABLE "notification_preference" ADD CONSTRAINT "notification_preference_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."app_user"("id") ON DELETE cascade ON UPDATE no action;
+
+CREATE INDEX "app_user_profile_history_user_recorded" ON "app_user_profile_history" USING btree ("user_id","recorded_at" DESC NULLS FIRST);
+
+CREATE INDEX "notification_item_user_created" ON "notification_item" USING btree ("user_id","created_at" DESC NULLS FIRST);
+
+CREATE INDEX "notification_item_user_unread" ON "notification_item" USING btree ("user_id","created_at" DESC NULLS FIRST) WHERE (read_at IS NULL);
+
+CREATE INDEX "identity_verification_challenge_current" ON "identity_verification_challenge" USING btree ("user_id","platform","created_at" DESC NULLS FIRST);
+
+CREATE INDEX "discord_webhook_league" ON "discord_webhook" USING btree ("league_id");
+
+CREATE INDEX "identity_verification_evidence_user" ON "identity_verification_evidence" USING btree ("user_id","platform","fetched_at" DESC NULLS FIRST);
+
+CREATE INDEX "notification_delivery_job_claimable" ON "notification_delivery_job" USING btree ("status","next_attempt_at","lease_expires_at") WHERE (status = ANY (ARRAY['pending'::text, 'retry'::text, 'digest_pending'::text]));
+
+CREATE UNIQUE INDEX "notification_delivery_job_dedupe" ON "notification_delivery_job" USING btree ("event_id","channel",COALESCE((user_id)::text, (webhook_id)::text));
+
+CREATE INDEX "notification_delivery_job_pending" ON "notification_delivery_job" USING btree ("next_attempt_at") WHERE (status = ANY (ARRAY['pending'::text, 'retry'::text]));
+
+CREATE UNIQUE INDEX "league_settings_version_migrated_season_uq" ON "league_settings_version" USING btree ("migrated_from_season_id");
+
+ALTER TABLE "season" ADD CONSTRAINT "season_settings_version_same_league" FOREIGN KEY ("league_id","settings_version_id") REFERENCES "public"."league_settings_version"("league_id","id") ON DELETE no action ON UPDATE no action;
+
+CREATE UNIQUE INDEX "outbox_dedupe_key_unique" ON "outbox" USING btree ("dedupe_key");
+
+CREATE INDEX "outbox_notification_pending" ON "outbox" USING btree ("next_attempt_at") WHERE ((processed_at IS NULL) AND (dead_lettered_at IS NULL));
+
+ALTER TABLE "app_user" ADD CONSTRAINT "app_user_primary_identity_present" CHECK ((primary_identity IS NULL) OR ((primary_identity = 'xbox'::text) AND (NULLIF(btrim(xbox_gamertag), ''::text) IS NOT NULL) AND ('xbox'::text = ANY (systems_played))) OR ((primary_identity = 'playstation'::text) AND (NULLIF(btrim(psn_online_id), ''::text) IS NOT NULL) AND ('playstation'::text = ANY (systems_played))));
+
+ALTER TABLE "app_user" ADD CONSTRAINT "app_user_primary_identity_valid" CHECK ((primary_identity IS NULL) OR (primary_identity = ANY (ARRAY['xbox'::text, 'playstation'::text])));
+
+ALTER TABLE "app_user" ADD CONSTRAINT "app_user_systems_played_valid" CHECK (systems_played <@ ARRAY['xbox'::text, 'playstation'::text]);
+
+ALTER TABLE "league_signup" ADD CONSTRAINT "signup_country_format" CHECK ((country_code IS NULL) OR (country_code ~ '^[A-Z]{2}$'::text));
+
+CREATE VIEW "public"."v_waitlist" AS (SELECT w.league_id, w."position", w.status, w.user_id, u.display_name, su.stated_division AS skill_division, COALESCE(su.country_code, u.country_code) AS country_code, COALESCE(su.location, u.location) AS location, COALESCE(su.timezone, u.timezone) AS timezone, su.platform, w.joined_at, w.invited_at, w.invite_expires_at FROM waitlist_entry w JOIN app_user u ON u.id = w.user_id LEFT JOIN league_signup su ON su.id = w.signup_id WHERE w.status = ANY (ARRAY['waiting'::waitlist_status, 'invited'::waitlist_status]) ORDER BY w.league_id, w."position"); </generated_migration_diff>
+
+<migration_warnings> No additional migration warnings were generated. </migration_warnings>
+
+The source is the current development database schema. The target is a disposable fork of the current production database schema; this failed validation did not modify production.
+
+Use the database and deployment skills where useful. Inspect the current development schema, use read-only production queries, and recompute the development-to-production schema diff if needed. Do not assume this is a known failure pattern.
+
+Do not modify production data or schema, add deployment-time DDL, or bypass the Publish flow. If the correct fix is in the project's schema source of truth or development database, explain it and apply it only through the normal Agent permissions. Ask before making a destructive development change. Then verify the development schema and tell me to retry publishing.

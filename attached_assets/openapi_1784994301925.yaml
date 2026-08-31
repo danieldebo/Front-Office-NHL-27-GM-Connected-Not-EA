@@ -1,0 +1,1082 @@
+openapi: 3.1.0
+
+info:
+  title: Front Office Public API
+  version: 1.0.0
+  summary: League management, results, and the export/ingest contract.
+  description: |
+    The public surface for Front Office. It is deliberately narrow: reads for
+    anything a league publishes, writes only for reporting and confirming
+    results, and a batch ingest path that is the single entry point for
+    machine-sourced data — commissioner CSV imports today, an authoritative
+    partner feed later.
+
+    **Design commitments**
+
+    * Additive changes only within a major version. Breaking changes bump the
+      path prefix and announce with `Sunset` (RFC 8594) at least 90 days out.
+    * Errors are `application/problem+json` per RFC 9457 and always carry a
+      `trace_id`. Support conversations start with an identifier, not a
+      screenshot.
+    * Pagination is cursor-based. Offset pagination over an append-only wire
+      silently skips rows as new ones arrive.
+    * Every mutating request accepts `Idempotency-Key`. Score submission
+      happens on phones on bad wifi; retries are the normal case.
+    * Every fact carries provenance. Callers can always see whether a number
+      was typed, confirmed by both parties, parsed from a screenshot, or
+      reconciled against an authoritative source.
+    * Derived values (standings, cap) are read-only everywhere. There is no
+      endpoint that edits a points total.
+  license:
+    name: Proprietary
+  contact:
+    name: Front Office Engineering
+
+servers:
+  - url: https://api.frontoffice.example/v1
+    description: Production
+  - url: https://api.staging.frontoffice.example/v1
+    description: Staging
+
+security:
+  - oauth2: [league:read]
+
+tags:
+  - name: Leagues
+    description: League and season metadata.
+  - name: Competition
+    description: Schedule, results, and derived standings.
+  - name: Front Office
+    description: Transactions, contracts, and cap position.
+  - name: Marketplace
+    description: Open GM seats across public leagues.
+  - name: Data Exchange
+    description: Export contract and batch ingest. The partner integration path.
+
+paths:
+
+  # ------------------------------------------------------------------ Leagues
+
+  /leagues/{leagueId}:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      summary: Get a league
+      operationId: getLeague
+      security:
+        - oauth2: [league:read]
+        - {}   # public leagues are readable unauthenticated
+      responses:
+        '200':
+          description: League found.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+            RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/League' }
+        '304': { description: Not modified. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /leagues/{leagueId}/seasons:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      summary: List seasons
+      description: Seasons are ordered oldest first. Each is scoped to one game title, which is how franchise history survives the annual release cycle.
+      operationId: listSeasons
+      responses:
+        '200':
+          description: Seasons.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Season' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # -------------------------------------------------------------- Competition
+
+  /seasons/{seasonId}/standings:
+    parameters:
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags: [Competition]
+      summary: Get standings
+      description: |
+        Computed from confirmed results on every request. There is no write
+        path for this resource by design — correcting a result corrects the
+        table automatically.
+      operationId: getStandings
+      responses:
+        '200':
+          description: Standings, sorted by the season's configured tiebreakers.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, computed_at]
+                properties:
+                  computed_at:
+                    type: string
+                    format: date-time
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/StandingsRow' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /seasons/{seasonId}/games:
+    parameters:
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+      - name: status
+        in: query
+        schema: { $ref: '#/components/schemas/GameStatus' }
+      - name: week
+        in: query
+        schema: { type: integer, minimum: 1 }
+      - name: franchise_id
+        in: query
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Competition]
+      summary: List games
+      operationId: listGames
+      responses:
+        '200':
+          description: A page of games.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Page'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Game' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /games/{gameId}/results:
+    parameters:
+      - $ref: '#/components/parameters/GameId'
+    post:
+      tags: [Competition]
+      summary: Report a result
+      description: |
+        Reports a final score for a game. The result is not counted toward
+        standings until the opposing GM confirms it, or the league's policy
+        auto-confirms after a configured interval.
+
+        Append-only: a correction is a new report that supersedes the previous
+        one and must carry a `supersede_reason`. Nothing is edited in place.
+      operationId: reportResult
+      security:
+        - oauth2: [result:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResultReport' }
+      responses:
+        '201':
+          description: Result recorded, awaiting confirmation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GameResult' }
+        '200':
+          description: Idempotent replay. The original result is returned unchanged.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GameResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /results/{resultId}/confirm:
+    parameters:
+      - name: resultId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Competition]
+      summary: Confirm a reported result
+      description: |
+        Confirmation must come from a different user than the reporter. A
+        self-confirmed result is flagged by the data quality suite and does not
+        earn `confirmed` provenance.
+      operationId: confirmResult
+      security:
+        - oauth2: [result:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                agree: { type: boolean, default: true }
+                dispute_reason:
+                  type: [string, 'null']
+                  maxLength: 500
+                  description: Required when `agree` is false. Moves the game to `disputed`.
+      responses:
+        '200':
+          description: Result confirmed or disputed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GameResult' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ------------------------------------------------------------- Front Office
+
+  /seasons/{seasonId}/transactions:
+    parameters:
+      - $ref: '#/components/parameters/SeasonId'
+      - $ref: '#/components/parameters/Cursor'
+      - $ref: '#/components/parameters/Limit'
+    get:
+      tags: [Front Office]
+      summary: Get the transaction wire
+      description: |
+        Append-only and newest first. A reversed transaction appears as a new
+        entry pointing at the one it undoes; the original is never removed.
+      operationId: listTransactions
+      responses:
+        '200':
+          description: A page of transactions.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Page'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Transaction' }
+
+  /seasons/{seasonId}/cap:
+    parameters:
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags: [Front Office]
+      summary: Get cap position for every team
+      description: Derived from active contracts. Read-only.
+      operationId: getCapPositions
+      responses:
+        '200':
+          description: Cap position per franchise.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/CapPosition' }
+
+  # -------------------------------------------------------------- Marketplace
+
+  /marketplace/seats:
+    get:
+      tags: [Marketplace]
+      summary: List open GM seats
+      description: |
+        Open seats across public leagues, ranked by league health. This is the
+        mechanism that turns a ghosted GM from a league-ending event into a
+        two-day vacancy.
+      operationId: listOpenSeats
+      security:
+        - oauth2: [league:read]
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: platform
+          in: query
+          description: Filter by league type.
+          schema: { type: string, enum: [xbox, playstation, crossplay] }
+        - name: console
+          in: query
+          description: The prospect's console; returns only leagues they're eligible for (their console, or any crossplay league).
+          schema: { type: string, enum: [xbox, playstation] }
+        - name: timezone
+          in: query
+          description: IANA time zone identifier, used to rank by schedule overlap.
+          schema: { type: string, examples: ['America/Chicago'] }
+        - name: min_health
+          in: query
+          schema: { type: number, minimum: 0, maximum: 100 }
+      responses:
+        '200':
+          description: A page of open seats.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Page'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/OpenSeat' }
+
+  # ------------------------------------------------------------ Data Exchange
+
+  /seasons/{seasonId}/export:
+    parameters:
+      - $ref: '#/components/parameters/SeasonId'
+      - name: format
+        in: query
+        schema: { type: string, enum: [json, csv], default: json }
+    get:
+      tags: [Data Exchange]
+      summary: Export a season
+      description: |
+        The full season payload under export schema 1.0.0. This same contract
+        serves league exports, scheduled logical backups, and partner
+        integrations — which is why the backup job uses it: dogfooding keeps the
+        export path known-working on the day someone asks for it.
+
+        `csv` returns a zip of the flat file set described in the data model doc.
+
+        **Access is restricted (review finding H4).** A season export contains
+        every participating user's handle, gamertag, and country — it is a PII
+        surface, not public league data. `export:read` is granted ONLY to the
+        league's own owner/commissioner and to partners explicitly scoped to
+        that league. A spectator or an unrelated GM receives 403. `visibility:
+        public` makes standings readable; it does NOT make the member roster
+        exportable. Every call is written to `audit_log`, and the endpoint is
+        rate-limited per token.
+      operationId: exportSeason
+      security:
+        - oauth2: [export:read]         # league owner/commissioner only
+        - partnerApiKey: [export:read]  # partner scoped to THIS league only
+      responses:
+        '200':
+          description: Export payload.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SeasonExport' }
+            application/zip:
+              schema: { type: string, format: binary }
+        '202':
+          description: |
+            Large export queued. The manifest URL is short-lived, signed, and
+            single-use — it carries its own authorization so it can be fetched
+            without re-auth, and it must NOT be a guessable object path. It
+            expires; a second fetch or a late fetch returns 403/410.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [manifest_url, expires_at]
+                properties:
+                  manifest_url:
+                    type: string
+                    format: uri
+                    description: Signed, single-use, expiring. Not a stable object address.
+                  expires_at: { type: string, format: date-time }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /leagues/{leagueId}/ingest:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Data Exchange]
+      summary: Submit an ingest batch
+      description: |
+        The single entry point for machine-sourced data. The raw payload is
+        stored before anything is parsed, so a bad parse or a changed upstream
+        shape can always be diagnosed against exactly what arrived.
+
+        Batches are idempotent by payload digest — resubmitting identical bytes
+        returns the original batch rather than creating a duplicate.
+
+        Nothing from a batch reaches standings until it passes the blocking
+        data quality checks and, where the source outranks existing data, a
+        commissioner has reviewed the conflict diff.
+      operationId: createIngestBatch
+      security:
+        - oauth2: [ingest:write]
+        - partnerApiKey: [ingest:write]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IngestRequest' }
+      responses:
+        '202':
+          description: Batch accepted for processing.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestBatch' }
+        '200':
+          description: Idempotent replay. The existing batch is returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestBatch' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+
+  /ingest/{batchId}:
+    parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Data Exchange]
+      summary: Get ingest batch status
+      description: |
+        Includes the conflict diff — every row where the incoming source
+        disagrees with what the league already recorded. A league's own history
+        is never silently rewritten by an external source.
+      operationId: getIngestBatch
+      security:
+        - oauth2: [ingest:write]
+        - partnerApiKey: [ingest:write]
+      responses:
+        '200':
+          description: Batch status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IngestBatchDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+# ---------------------------------------------------------------- Webhooks
+
+webhooks:
+  # All outbound webhooks are signed (review finding M5): an `X-FrontOffice-
+  # Signature` header carries an HMAC-SHA256 of the raw body under a per-
+  # subscriber secret, and `X-FrontOffice-Timestamp` bounds replay. Consumers
+  # must verify both before trusting the payload. Delivery is at least once and
+  # drained from the transactional outbox, so handlers must dedupe on `event_id`.
+  resultConfirmed:
+    post:
+      summary: A result was confirmed by both GMs
+      description: Delivered at least once. Handlers must be idempotent on `event_id`.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/WebhookEnvelope'
+                - type: object
+                  properties:
+                    data: { $ref: '#/components/schemas/GameResult' }
+      responses:
+        '204': { description: Acknowledged. }
+
+  transactionExecuted:
+    post:
+      summary: A transaction was approved and executed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/WebhookEnvelope'
+                - type: object
+                  properties:
+                    data: { $ref: '#/components/schemas/Transaction' }
+      responses:
+        '204': { description: Acknowledged. }
+
+  seatOpened:
+    post:
+      summary: A GM seat became available
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/WebhookEnvelope'
+                - type: object
+                  properties:
+                    data: { $ref: '#/components/schemas/OpenSeat' }
+      responses:
+        '204': { description: Acknowledged. }
+
+# -------------------------------------------------------------- Components
+
+components:
+
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: Discord OAuth. The audience already lives there, and it removes credential storage entirely.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.frontoffice.example/oauth/authorize
+          tokenUrl: https://auth.frontoffice.example/oauth/token
+          refreshUrl: https://auth.frontoffice.example/oauth/token
+          scopes:
+            league:read: Read league, season, schedule, and standings data
+            result:write: Report and confirm results for your own team
+            export:read: Export full season payloads
+            ingest:write: Submit ingest batches
+    partnerApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: |
+        Server-to-server key for data exchange only. Partner keys are scoped to
+        specific leagues and cannot reach result-reporting endpoints.
+
+  parameters:
+    LeagueId:
+      name: leagueId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SeasonId:
+      name: seasonId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    GameId:
+      name: gameId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor from the previous page's `next_cursor`.
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        Client-generated key, typically a UUID. Replaying the same key within
+        24 hours returns the original response instead of applying the change
+        twice.
+      schema: { type: string, maxLength: 255 }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: ETag of the version the client read. A mismatch returns 409 rather than overwriting.
+      schema: { type: string }
+
+  headers:
+    ETag:
+      schema: { type: string }
+    RateLimitRemaining:
+      description: Requests remaining in the current window.
+      schema: { type: integer }
+    Sunset:
+      description: RFC 8594. Present on deprecated operations, at least 90 days before removal.
+      schema: { type: string }
+
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Authenticated but not permitted. A GM may only write data for their own team.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: No such resource, or not visible to this caller.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Version mismatch or concurrent modification. Re-read and retry.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unprocessable:
+      description: Well-formed but rejected by a business rule, for example a cap-illegal roster.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PayloadTooLarge:
+      description: Ingest payload exceeds the batch size limit.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status, trace_id]
+      properties:
+        type: { type: string, format: uri, examples: ['https://frontoffice.example/problems/cap-illegal'] }
+        title: { type: string, examples: ['Roster would exceed the salary cap'] }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri }
+        trace_id:
+          type: string
+          description: Present on every error. Quote this in a support request.
+        errors:
+          type: array
+          description: Field-level validation failures, when applicable.
+          items:
+            type: object
+            properties:
+              pointer: { type: string, examples: ['/home_goals'] }
+              message: { type: string }
+
+    Page:
+      type: object
+      required: [next_cursor, has_more]
+      properties:
+        next_cursor: { type: [string, 'null'] }
+        has_more: { type: boolean }
+
+    Provenance:
+      type: object
+      description: |
+        Attached to every fact. This is the trust layer — a caller can always
+        tell whether a number was typed by one person, agreed by two, parsed by
+        a machine, or reconciled against an authoritative source.
+      required: [data_source]
+      properties:
+        data_source:
+          type: string
+          enum: [manual, confirmed, ocr, csv_import, partner_api, system]
+        confidence:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+          description: Populated for machine-parsed data only.
+        reported_by: { type: [string, 'null'], format: uuid }
+        verified_by: { type: [string, 'null'], format: uuid }
+        verified_at: { type: [string, 'null'], format: date-time }
+        ingest_batch_id: { type: [string, 'null'], format: uuid }
+        superseded_by: { type: [string, 'null'], format: uuid }
+        supersede_reason: { type: [string, 'null'] }
+
+    League:
+      type: object
+      required: [id, slug, name, visibility, platform]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        visibility: { type: string, enum: [public, unlisted, private] }
+        platform:
+          type: string
+          enum: [xbox, playstation, crossplay]
+          description: |
+            League type, set at creation. Crossplay accepts both consoles; a
+            single-console league accepts only its own. Drives open-leagues
+            filtering and sign-up eligibility. Defaults to crossplay (widest pool).
+        logo_url: { type: [string, 'null'], format: uri }
+        health_score: { type: [number, 'null'], minimum: 0, maximum: 100 }
+        external_ids: { $ref: '#/components/schemas/ExternalIds' }
+
+    ExternalIds:
+      type: object
+      description: |
+        Identifier mapping to outside systems. Present on every mappable entity
+        from day one so that adopting a partner's identifiers later is an
+        update, not a migration.
+      additionalProperties: { type: string }
+      examples:
+        - { nhl_api: '16' }
+
+    Season:
+      type: object
+      required: [id, ordinal, label, game_title]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 1 }
+        label: { type: string, examples: ['Season 1 (NHL 27)'] }
+        game_title: { type: string, examples: ['NHL27'] }
+        starts_on: { type: [string, 'null'], format: date }
+        ends_on: { type: [string, 'null'], format: date }
+        salary_cap_cents: { type: [integer, 'null'] }
+        points_system:
+          type: object
+          properties:
+            win: { type: integer }
+            ot_loss: { type: integer }
+            reg_loss: { type: integer }
+        tiebreakers:
+          type: array
+          items: { type: string }
+        is_active: { type: boolean }
+
+    GameStatus:
+      type: string
+      enum: [scheduled, in_window, reported, confirmed, disputed, forfeited, postponed, simulated, voided]
+
+    Game:
+      type: object
+      required: [id, season_id, status, window, home, away]
+      properties:
+        id: { type: string, format: uuid }
+        season_id: { type: string, format: uuid }
+        week: { type: [integer, 'null'] }
+        status: { $ref: '#/components/schemas/GameStatus' }
+        window:
+          type: object
+          description: |
+            Matchup windows rather than fixed clock times. Thirty-two adults
+            across six time zones cannot reliably meet at 8:15 PM; they can
+            reliably meet sometime this week.
+          required: [opens_at, closes_at]
+          properties:
+            opens_at: { type: string, format: date-time }
+            closes_at: { type: string, format: date-time }
+        played_at: { type: [string, 'null'], format: date-time }
+        home: { $ref: '#/components/schemas/GameSide' }
+        away: { $ref: '#/components/schemas/GameSide' }
+        result: { oneOf: [{ $ref: '#/components/schemas/GameResult' }, { type: 'null' }] }
+        external_ids: { $ref: '#/components/schemas/ExternalIds' }
+
+    GameSide:
+      type: object
+      required: [franchise_id]
+      properties:
+        franchise_id: { type: string, format: uuid }
+        franchise_name: { type: string }
+        club_abbrev: { type: [string, 'null'] }
+        goals: { type: [integer, 'null'], minimum: 0 }
+
+    ResultReport:
+      type: object
+      required: [home_goals, away_goals, decision]
+      properties:
+        home_goals: { type: integer, minimum: 0 }
+        away_goals: { type: integer, minimum: 0 }
+        decision: { type: string, enum: [regulation, overtime, shootout] }
+        supersede_result_id:
+          type: [string, 'null']
+          format: uuid
+          description: Set when correcting a previous result.
+        supersede_reason:
+          type: [string, 'null']
+          maxLength: 500
+          description: Required when `supersede_result_id` is set. Silent edits are rejected.
+        skater_stats:
+          type: array
+          items: { $ref: '#/components/schemas/SkaterStat' }
+        goalie_stats:
+          type: array
+          items: { $ref: '#/components/schemas/GoalieStat' }
+
+    GameResult:
+      type: object
+      required: [id, game_id, home_goals, away_goals, decision, version, provenance]
+      properties:
+        id: { type: string, format: uuid }
+        game_id: { type: string, format: uuid }
+        home_goals: { type: integer, minimum: 0 }
+        away_goals: { type: integer, minimum: 0 }
+        decision: { type: string, enum: [regulation, overtime, shootout] }
+        version:
+          type: integer
+          description: |
+            Optimistic-concurrency token (review finding B4). Returned as the
+            ETag; supply it as If-Match on confirm/dispute/supersede. A stale
+            value returns 409 rather than silently overwriting a state another
+            GM just changed. The scores themselves are immutable — this guards
+            the lifecycle fields (status, verified_by), not the facts.
+        counts_toward_standings:
+          type: boolean
+          description: False until confirmed. Parsed data is never counted unconfirmed.
+        provenance: { $ref: '#/components/schemas/Provenance' }
+        skater_stats:
+          type: array
+          items: { $ref: '#/components/schemas/SkaterStat' }
+        goalie_stats:
+          type: array
+          items: { $ref: '#/components/schemas/GoalieStat' }
+        created_at: { type: string, format: date-time }
+
+    PlayerRef:
+      type: object
+      required: [full_name]
+      properties:
+        id: { type: [string, 'null'], format: uuid }
+        full_name: { type: string }
+        position: { type: [string, 'null'], enum: [C, LW, RW, D, G, null] }
+        external_ids: { $ref: '#/components/schemas/ExternalIds' }
+
+    SkaterStat:
+      type: object
+      description: NHL-standard abbreviations throughout, so a partner payload maps one to one.
+      required: [player, franchise_id]
+      properties:
+        player: { $ref: '#/components/schemas/PlayerRef' }
+        franchise_id: { type: string, format: uuid }
+        G: { type: integer, minimum: 0, default: 0 }
+        A: { type: integer, minimum: 0, default: 0 }
+        PIM: { type: integer, minimum: 0, default: 0 }
+        SOG: { type: integer, minimum: 0, default: 0 }
+        HIT: { type: integer, minimum: 0, default: 0 }
+        BLK: { type: integer, minimum: 0, default: 0 }
+        FOW: { type: integer, minimum: 0, default: 0 }
+        FOL: { type: integer, minimum: 0, default: 0 }
+        plus_minus: { type: integer, default: 0 }
+        toi_seconds: { type: integer, minimum: 0, default: 0 }
+        provenance: { $ref: '#/components/schemas/Provenance' }
+
+    GoalieStat:
+      type: object
+      required: [player, franchise_id]
+      properties:
+        player: { $ref: '#/components/schemas/PlayerRef' }
+        franchise_id: { type: string, format: uuid }
+        SA: { type: integer, minimum: 0, default: 0 }
+        SV: { type: integer, minimum: 0, default: 0 }
+        GA: { type: integer, minimum: 0, default: 0 }
+        toi_seconds: { type: integer, minimum: 0, default: 0 }
+        decision: { type: [string, 'null'], enum: [W, L, OTL, null] }
+        shutout: { type: boolean, default: false }
+        provenance: { $ref: '#/components/schemas/Provenance' }
+
+    StandingsRow:
+      type: object
+      description: Derived. There is no write path for this resource.
+      required: [franchise_id, GP, W, L, OTL, PTS]
+      properties:
+        rank: { type: integer }
+        franchise_id: { type: string, format: uuid }
+        franchise_name: { type: string }
+        club_abbrev: { type: [string, 'null'] }
+        GP: { type: integer }
+        W: { type: integer }
+        L: { type: integer }
+        OTL: { type: integer }
+        PTS: { type: integer }
+        ROW: { type: integer }
+        GF: { type: integer }
+        GA: { type: integer }
+        DIFF: { type: integer }
+        unconfirmed_games:
+          type: integer
+          description: Games reported but not yet confirmed, and therefore not counted above.
+
+    CapPosition:
+      type: object
+      properties:
+        franchise_id: { type: string, format: uuid }
+        cap_used_cents: { type: integer }
+        cap_space_cents: { type: integer }
+        roster_count: { type: integer }
+        is_illegal: { type: boolean }
+        expiring_contracts: { type: integer }
+
+    Transaction:
+      type: object
+      required: [id, type, status, assets]
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [trade, signing, release, waiver_claim, call_up, send_down, ir_place, ir_activate, retire, draft_pick, reversal]
+        status:
+          type: string
+          enum: [proposed, accepted, pending_approval, approved, rejected, executed, reversed, withdrawn]
+        proposed_at: { type: string, format: date-time }
+        resolved_at: { type: [string, 'null'], format: date-time }
+        reverses_transaction_id:
+          type: [string, 'null']
+          format: uuid
+          description: A reversal is a new entry pointing at what it undoes. The original is never removed.
+        note: { type: [string, 'null'] }
+        assets:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { type: string, enum: [player, draft_pick, cap_space, retained_salary] }
+              player: { oneOf: [{ $ref: '#/components/schemas/PlayerRef' }, { type: 'null' }] }
+              draft_year: { type: [integer, 'null'] }
+              draft_round: { type: [integer, 'null'] }
+              amount_cents: { type: [integer, 'null'] }
+              from_franchise_id: { type: [string, 'null'], format: uuid }
+              to_franchise_id: { type: [string, 'null'], format: uuid }
+        approvals:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id: { type: string, format: uuid }
+              vote: { type: boolean }
+              rationale: { type: [string, 'null'] }
+        provenance: { $ref: '#/components/schemas/Provenance' }
+
+    OpenSeat:
+      type: object
+      properties:
+        league: { $ref: '#/components/schemas/League' }
+        season_id: { type: string, format: uuid }
+        franchise_id: { type: string, format: uuid }
+        franchise_name: { type: string }
+        club_abbrev: { type: [string, 'null'] }
+        opened_at: { type: string, format: date-time }
+        applicants: { type: integer }
+        league_health_score: { type: [number, 'null'] }
+        games_remaining: { type: integer }
+
+    SeasonExport:
+      type: object
+      description: Export schema 1.0.0. Also the shape accepted by the ingest endpoint.
+      required: [export_schema_version, generated_at, league, season]
+      properties:
+        export_schema_version: { type: string, const: '1.0.0' }
+        generated_at: { type: string, format: date-time }
+        league: { $ref: '#/components/schemas/League' }
+        season: { $ref: '#/components/schemas/Season' }
+        franchises:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              club_abbrev: { type: [string, 'null'] }
+              gms:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    user_id: { type: string, format: uuid }
+                    display_name: { type: string }
+                    from: { type: string, format: date-time }
+                    to: { type: [string, 'null'], format: date-time }
+        games:
+          type: array
+          items: { $ref: '#/components/schemas/Game' }
+        transactions:
+          type: array
+          items: { $ref: '#/components/schemas/Transaction' }
+        standings:
+          type: array
+          description: Derived, export-only. Never accepted on ingest.
+          items: { $ref: '#/components/schemas/StandingsRow' }
+
+    IngestRequest:
+      type: object
+      required: [source, payload]
+      properties:
+        source:
+          type: string
+          enum: [csv_import, partner_api]
+          description: |
+            Determines authority during reconciliation. `partner_api` outranks
+            everything else and will supersede existing records — which is why
+            it requires commissioner review of the conflict diff before it goes
+            live.
+        source_ref:
+          type: string
+          description: Filename, feed cursor, or upstream batch identifier.
+        payload:
+          description: A `SeasonExport` document, or a CSV bundle reference.
+          oneOf:
+            - $ref: '#/components/schemas/SeasonExport'
+            - type: object
+              required: [csv_bundle_url]
+              properties:
+                csv_bundle_url: { type: string, format: uri }
+        dry_run:
+          type: boolean
+          default: false
+          description: Validate and produce the conflict diff without writing facts.
+
+    IngestBatch:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        league_id: { type: string, format: uuid }
+        source: { type: string }
+        payload_digest: { type: string, description: SHA-256 of the raw payload as received. }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        status: { type: string, enum: [accepted, processing, awaiting_review, published, rejected] }
+
+    IngestBatchDetail:
+      allOf:
+        - $ref: '#/components/schemas/IngestBatch'
+        - type: object
+          properties:
+            row_count: { type: integer }
+            conflict_count: { type: integer }
+            quarantined_count:
+              type: integer
+              description: Rows that failed validation. A bad row never fails the batch and is never silently dropped.
+            publishable:
+              type: boolean
+              description: False while any blocking data quality finding is open.
+            blocking_findings:
+              type: array
+              items:
+                type: object
+                properties:
+                  check_name: { type: string }
+                  detail: { type: string }
+            conflicts:
+              type: array
+              description: Every row where the incoming source disagrees with the existing record.
+              items:
+                type: object
+                properties:
+                  entity_type: { type: string }
+                  entity_id: { type: string, format: uuid }
+                  field: { type: string }
+                  existing_value: {}
+                  incoming_value: {}
+                  existing_source: { type: string }
+                  incoming_source: { type: string }
+
+    WebhookEnvelope:
+      type: object
+      required: [event_id, event_type, occurred_at]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Deduplicate on this. Delivery is at least once.
+        event_type: { type: string }
+        occurred_at: { type: string, format: date-time }
+        league_id: { type: string, format: uuid }
+        api_version: { type: string, const: '1.0.0' }

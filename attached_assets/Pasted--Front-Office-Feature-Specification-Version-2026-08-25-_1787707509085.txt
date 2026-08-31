@@ -1,0 +1,179 @@
+# Front Office — Feature Specification
+
+**Version:** 2026-08-25 (rev 3)
+**Scope:** Companion platform for NHL 27 Connected Franchise leagues. The game runs the hockey; Front Office runs the league — coordination, scheduling, stats, standings, and everything EA doesn't keep.
+
+---
+
+## Changelog
+
+**rev 3:**
+- **NEW §9 addition** — Discord integration: league notifications post to Discord channels via webhooks
+
+**rev 2:**
+- **NEW §2** — User platform identity: gamertag inputs + systems played
+- **NEW §3** — League Settings Sheet mirroring every in-game Connected Franchise configurable
+- **NEW §6** — Custom roster & stats uploads with commissioner approval gate (auto-approve setting)
+- **NEW §9** — Scheduling module with notifications (priority gap)
+- **NEW §10** — Multi-season Records & History (EA wipes annual stats every season; Front Office is the permanent archive)
+- Carried forward unchanged: membership/provisioning, keepers, discovery, invite links, data discipline
+
+---
+
+## 1. Platform Core *(existing)*
+
+- Account auth; commissioner self-signup
+- Persistent footer: "Created by DeBo" with $1 donation suggestion → Venmo @theedebo
+- Footer feature-request modal (optional email + message)
+- Append-only fact store, derived views (standings, cap), provenance on every fact
+
+## 2. User Profiles & Platform Identity **[NEW]**
+
+- Profile fields: display name, email, **time zone (required — feeds scheduling)**
+- **Platform identities:** Xbox Gamertag and/or PSN Online ID; one marked primary
+- **Systems played:** multi-select (Xbox, PlayStation)
+- **League-type gate:** joining an Xbox league requires an Xbox identity on file; PlayStation likewise; Crossplay requires at least one. Matches the league's enforced platform field and keeps discovery honest.
+- Gamertags surface on team pages, rosters, and matchup cards — the in-game invite should always be one glance away
+- Identity changes are logged (who, when, old → new)
+
+## 3. League Creation & Settings Sheet
+
+*Existing:* commissioner creates league; league type Xbox / PlayStation / Crossplay (enforced, drives discovery + matchmaking); shareable league link (public_code + /l/slug); reusable invite links (/join/token with rotation, expiry, use caps).
+
+**[NEW] Settings Sheet** — a structured mirror of every in-game Connected Franchise configurable, so the site is the league's source of truth:
+
+- In-game **League ID** (links the site league to its EA counterpart)
+- Team count (3–32, matching EA's range) — drives seat-limit enforcement
+- Roster source: default EA / updated EA / custom (custom routes through §6 Uploads)
+- Schedule format, playoff format, salary cap rules, divisions & conferences, rule-set notes, gameplay slider preset (key/value or free text)
+- **Versioned settings:** mid-season edits (EA allows commissioner rule tweaks) create a new version with a change log visible to all members — no silent rule changes
+
+## 4. Membership & Provisioning *(existing)*
+
+- Enforced team/seat limit per league, tied to Settings Sheet team count
+- Commissioner provisions all members (names, emails, logos), including people without accounts yet — pre-provisioned seats are claimable on signup
+- Per-member relationship tiers: friend / VIP / stranger
+- Automatic weekly commissioner email built from an editable template
+
+## 5. Discovery & Intake *(existing)*
+
+- Open leagues page with league-type filtering
+- Self-reported Ranked Division (Bronze / Silver / Gold / Diamond / Platinum / Elite / Ultimate)
+- Hidden admin skill rating (10-scale, never shown to users)
+- League waitlist join
+- **[NEW touchpoint]** discovery can filter by the user's systems on file, showing only leagues they're actually eligible to join
+
+## 6. Rosters, Stats & Uploads **[NEW]**
+
+**Who uploads:** team owners *and* commissioners.
+
+**Approval gate:**
+- Member uploads land in **Pending** → commissioner approves or rejects (with note)
+- League settings: **auto-approve toggles**, separate for roster uploads and stat uploads
+- Commissioner uploads apply immediately (self-approved, still logged like everything else)
+
+**Roster uploads:**
+- Downloadable CSV template; validation against the NHL player registry, manual-entry fallback for custom players
+- **Diff preview** before submit: adds, drops, and moves vs the current roster — the commissioner approves a diff, not a mystery file
+- On approval, changes post as append-only facts (uploader, approver, timestamp, source file retained)
+
+**Stats uploads:**
+- Per-game box scores via form entry or CSV; season-level stat imports
+- Same pending/approve flow; approved stats feed standings, leaders, and history
+
+**Audit:** every upload stores uploader, timestamp, approval state, approver, and the applied diff. Nothing is overwritten.
+
+## 7. Keepers & Player Registry *(existing)*
+
+- Teams input keepers; commissioner sets keepers-per-team and can add/edit/remove keepers on any team
+- Original keeper-designation date tracked
+- Indexed registry of all NHL players seeded from the free public NHL API (api.nhle.com/stats/rest, api-web.nhle.com), manual-entry fallback
+- Registry match → 1/3/5-year stat card on the team admin page
+
+## 8. Transactions: Trades, Trade Block, Free Agency
+
+Mirrors the in-game flow — EA routes every transaction through the commissioner, and so does Front Office:
+
+- **Trade proposals:** up to 5 players per side (matches the in-game cap), with cap-impact preview from the derived cap view
+- **Commissioner approval queue:** approve/reject with note; approved trades post as facts and notify both GMs
+- **Trade Block:** list up to 5 players with stated asks (position / age / salary), visible league-wide
+- **Free agency:** claim submissions, per-team priority lists, drops; commissioner processes; public claim log
+- **Cap violation flag:** EA requires violations resolved before playing — dashboard warning stays lit until the team is legal
+
+## 9. Scheduling & Notifications **[NEW — priority module]**
+
+The gap: EA's flexible scheduling lets games be played in any order but gives zero tools for agreeing on *when*. Front Office owns this.
+
+**Availability:**
+- Recurring weekly availability windows per user, plus blackout dates
+- Stored against the user's time zone, always rendered in the viewer's
+
+**Matchups:**
+- Generated from the Settings Sheet schedule format (round robin × N, division-weighted) or imported via CSV for custom schedules
+- Every matchup card shows both gamertags and platform — no hunting for who to invite
+
+**Scheduling flow:**
+1. Either player proposes up to 3 time slots (smart suggestions pulled from availability overlap)
+2. Opponent accepts one or counters
+3. Confirmed slot locks the game; both parties notified with an .ics attached
+
+**Reschedules & no-shows:**
+- Reschedule request → other party accepts or declines; full audit trail
+- No-show reporting after a grace period → commissioner resolution queue (assign forfeit = force 1-0, mirroring EA's override tools)
+
+**Deadlines & nudges:**
+- Commissioner sets play-by windows (e.g., every matchup within 7 days)
+- Overdue games auto-flag on the commissioner dashboard and trigger nudge notifications to both players
+
+**Calendar:**
+- Per-user **ICS feed URL** — subscribe once in Google/Apple Calendar and confirmed games appear automatically
+- Per-game .ics download
+
+**Notifications:**
+- Channels at launch: in-app inbox + email (reuses the weekly-email infrastructure)
+- Event types: game proposed / confirmed / reminder (T-24h and T-1h) / rescheduled / overdue nudge / result posted / trade & claim events / commissioner announcements
+- Per-user preferences: per-event-type toggles + optional daily digest
+
+**Discord integration:**
+- Commissioner pastes a Discord channel **webhook URL** into league settings — no bot, no OAuth, no Discord app approval. Webhooks accept plain HTTP POSTs, so this is near-zero dependency and cheap to build
+- A league can register **multiple webhooks (up to 5)**, each with a label and an event-type filter — matching how league servers actually run: #scores gets results, #trades gets transactions, #announcements gets commissioner broadcasts
+- **Send test message** button on save, so setup is verifiable in ten seconds
+- Posts render as **rich embeds** (teams, score, players each way, timestamp) with a deep link back to the relevant Front Office page
+- Architecturally, Discord is a **third sink on the existing notification dispatcher** alongside in-app inbox and email — same events, one more channel, no parallel system
+- Delivery runs through an outbound queue with retry + backoff (Discord rate limits return 429 with a retry_after); repeated hard failures (deleted or revoked webhook → 404/401) auto-disable the webhook and notify the commissioner
+- Webhook URLs are secrets: stored encrypted, shown masked after save, commissioner-only, changes logged (who/when)
+- Optional toggle: overdue-game nudges can also post publicly to Discord (off by default — enable at your league's own risk)
+- Backlog candidates: web push, full Discord bot (slash commands, role sync)
+
+## 10. Results, Standings & History
+
+- **Result reporting:** winner reports the score (optional box score attached); opponent confirms or disputes within a league-set window; auto-confirm on timeout (commissioner setting); disputes go to the commissioner queue with override authority — same shape as EA's force/override tools
+- Derived standings from facts (existing discipline): team stats, league leaders, head-to-head records
+- **Playoffs:** bracket generated from the Settings Sheet playoff format; series tracking and postseason stat views
+- **[NEW] Records & History:** EA wipes annual stats, records, and awards at every season reset — Front Office doesn't. All-time standings, career stats per gamertag, championship banners, a league records book, and full season archives. This is the platform's moat.
+
+## 11. Season Lifecycle
+
+Mirrors EA's flow, with history intact on the site side:
+
+Pre-League (provisioning, Settings Sheet, roster source lock) → Regular Season → Playoffs → Offseason (settings refinements, division realignment, keeper declarations, reset) → next season
+
+- Offseason league-size reduction supported, matching EA's rule (removed non-human teams' players → free-agent pool, noted on the league log)
+
+## 12. Communications *(existing + new touchpoints)*
+
+- Weekly commissioner email from editable template — **[NEW]** auto-injected sections: unscheduled/overdue games, pending upload approvals, upcoming week's schedule
+- Commissioner broadcast announcements → member inboxes + email
+
+## 13. Data Discipline *(existing, applies everywhere)*
+
+- Append-only facts; derived standings/cap views; provenance (actor, timestamp, source) on every fact
+- Uploads, schedule changes, results, and transactions all conform — no exceptions for new modules
+
+---
+
+## Build Integration Notes
+
+- **Dependencies:** §2 identity before league-type gating; §9 notification core before the scheduling flows that fire it; §6 uploads after the roster module exists
+- **Suggested checkpoint grouping for BUILD_ORDER:** identity fields → Settings Sheet → uploads + approval queue → notification core → Discord sink → scheduling (availability → proposals → ICS → nudges) → results/disputes → history views
+- **Efficiency:** scheduling is the largest new surface — split it into 3–4 checkpoints, one per fresh chat, plan-before-build per the EFFICIENCY guide

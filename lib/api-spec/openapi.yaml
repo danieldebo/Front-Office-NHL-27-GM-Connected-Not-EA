@@ -1,0 +1,4465 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.3.0
+  description: Front Office API — league management, results, standings, and scheduling.
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: Leagues
+    description: League and season metadata.
+  - name: Seats
+    description: Seat management — invites, join requests, GM assignment.
+  - name: Rulebook
+    description: Versioned league bylaws.
+  - name: Competition
+    description: Schedule, results, and derived standings.
+  - name: Schedule
+    description: Season schedule generation and week-window management.
+  - name: Availability
+    description: Per-GM availability grids and overlap surfacing.
+  - name: Discovery
+    description: Open-league directory, sign-up, and waitlist intake.
+  - name: Feedback
+    description: Feature request inbox.
+  - name: Users
+    description: Authenticated player profile.
+  - name: Notifications
+    description: Durable inbox, notification preferences, announcements, and Discord delivery.
+  - name: Transactions
+    description: Append-only roster and trade ledger.
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /users/me:
+    get:
+      tags: [Users]
+      operationId: getMyProfile
+      summary: Get the authenticated player's saved profile
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Current player profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      tags: [Users]
+      operationId: updateMyProfile
+      summary: Update the authenticated player's saved profile
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: Updated player profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Invalid or inconsistent profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /users/me/identity-verifications/{platform}/challenge:
+    parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/PlayerSystem'
+    post:
+      tags: [Users]
+      operationId: createIdentityVerificationChallenge
+      summary: Create a short-lived public console profile challenge
+      security:
+        - sessionCookie: []
+      responses:
+        '201':
+          description: Challenge created for the currently saved platform identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityVerificationChallenge'
+        '400':
+          description: No saved identity exists for this platform.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /users/me/identity-verifications/{platform}/complete:
+    parameters:
+      - name: platform
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/PlayerSystem'
+    post:
+      tags: [Users]
+      operationId: completeIdentityVerification
+      summary: Submit a challenge for commissioner review
+      description: |
+        The player marks a code placed in their official console profile as ready.
+        The server never fetches provider pages or verifies the profile automatically.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Challenge submitted; share the returned relative review path with a commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityVerificationSubmission'
+        '400':
+          description: Challenge is missing, expired, superseded, or was already submitted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /identity-verifications/review/{challengeId}:
+    parameters:
+      - $ref: '#/components/parameters/IdentityVerificationChallengeId'
+    get:
+      tags: [Users]
+      operationId: getIdentityVerificationReview
+      summary: Get a commissioner-attested identity review
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Review details. Only an owner of a non-deleted league other than the applicant may view it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityVerificationReview'
+        '401': { description: Not authenticated. }
+        '403': { description: Caller is not an eligible commissioner or is the applicant. }
+        '404': { description: Challenge not found. }
+
+  /identity-verifications/review/{challengeId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/IdentityVerificationChallengeId'
+    post:
+      tags: [Users]
+      operationId: approveIdentityVerificationReview
+      summary: Attest that the exact code was seen on the official profile
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Commissioner attestation recorded and identity verified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityVerificationApproval'
+        '400': { description: "Challenge is not submitted, active, unexpired, or its saved identity changed." }
+        '401': { description: Not authenticated. }
+        '403': { description: Caller is not an eligible commissioner or is the applicant. }
+        '404': { description: Challenge not found. }
+
+  # ------------------------------------------------------------------ Discovery
+
+  /leagues/open:
+    get:
+      tags: [Discovery]
+      operationId: listOpenLeagues
+      summary: Public list of recruiting leagues (no auth required)
+      parameters:
+        - name: platform
+          in: query
+          schema:
+            type: string
+            enum: [psn, xbox, both]
+        - name: competitiveness
+          in: query
+          schema:
+            type: string
+            enum: [casual, competitive, hardcore]
+        - name: seats_open
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+        - name: health_min
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Open leagues with seat and waitlist counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OpenLeague'
+                  total:
+                    type: integer
+
+  /leagues/{leagueId}/signup:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Discovery]
+      operationId: signupForLeague
+      summary: Sign up for an open seat (authenticated)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeagueSignupInput'
+      responses:
+        '201':
+          description: Sign-up created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueSignup'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found or not recruiting.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Already signed up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/waitlist:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Discovery]
+      operationId: listLeagueWaitlist
+      summary: List waitlist entries for a league (commissioner only)
+      parameters:
+        - name: seat
+          in: query
+          description: Return only waitlist entrants willing to take this team-season seat.
+          schema:
+            type: string
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Waitlist entries ordered by position.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WaitlistApplicant'
+                  total:
+                    type: integer
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags: [Discovery]
+      operationId: joinLeagueWaitlist
+      summary: Join the waitlist for a league (authenticated)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicantSeatPreferenceInput'
+      responses:
+        '201':
+          description: Waitlist entry created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistEntry'
+        '200':
+          description: Already on the waitlist — returns existing entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistEntry'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found or not recruiting.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Waitlist not accepting entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/waitlist/{userId}/position:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [Discovery]
+      operationId: reorderWaitlistEntry
+      summary: Move a waitlist entry to a new position (commissioner only)
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaitlistPositionInput'
+      responses:
+        '200':
+          description: Entry repositioned. Returns the new position.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [league_id, user_id, position]
+                properties:
+                  league_id:
+                    type: string
+                  user_id:
+                    type: string
+                  position:
+                    type: integer
+        '400':
+          description: Invalid position value.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League or waitlist entry not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Feedback
+
+  /feature-requests:
+    post:
+      tags: [Feedback]
+      operationId: createFeatureRequest
+      summary: Submit a feature idea (no auth required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureRequestInput'
+      responses:
+        '201':
+          description: Feature request received.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureRequestReceipt'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Leagues
+
+  /leagues:
+    post:
+      tags: [Leagues]
+      operationId: createLeague
+      summary: Create a new league
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeagueInput'
+      responses:
+        '201':
+          description: League created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Slug already taken.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/me:
+    get:
+      tags: [Leagues]
+      operationId: getMyLeagues
+      summary: List leagues the current user belongs to
+      responses:
+        '200':
+          description: Leagues the current user is a member of.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/League'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: getLeague
+      summary: Get a league
+      responses:
+        '200':
+          description: League found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      tags: [Leagues]
+      operationId: updateLeague
+      summary: Update league presentation metadata (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeagueInput'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/League'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/settings:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: getLeagueSettings
+      summary: Get the active immutable settings version (league members)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Active settings version, or a null data result when none exists yet.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LeagueSettingsVersion'
+                  - $ref: '#/components/schemas/NoLeagueSettings'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Caller is not an active league member.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League or settings not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /league-settings/templates:
+    get:
+      tags: [Leagues]
+      operationId: listLeagueSettingsTemplates
+      summary: List curated starting templates for the league Settings Sheet
+      responses:
+        '200':
+          description: Stable curated templates and their complete settings mappings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueSettingsTemplateList'
+  /leagues/{leagueId}/settings/versions:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Leagues]
+      operationId: createLeagueSettingsVersion
+      summary: Append and activate a new settings version (commissioner only)
+      description: Existing settings versions are never updated or deleted.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeagueSettingsInput'
+      responses:
+        '201':
+          description: New immutable settings version created and activated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueSettingsVersion'
+        '400':
+          description: Invalid settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Caller is not the commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Settings conflict with active season occupancy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/settings/history:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: listLeagueSettingsHistory
+      summary: List immutable settings history newest first (league members)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Settings history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueSettingsHistory'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Caller is not an active league member.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/hub:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: getLeagueHub
+      summary: Hub summary — games on time, open seats, active season stats
+      responses:
+        '200':
+          description: Hub summary data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueHub'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/transactions:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Transactions]
+      operationId: listLeagueTransactions
+      summary: List the newest ledger entries for a league
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200':
+          description: Render-ready ledger entries, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionList' }
+        '401': { description: Not authenticated. }
+        '403': { description: Not a league member. }
+        '404': { description: League not found. }
+    post:
+      tags: [Transactions]
+      operationId: createLeagueTransaction
+      summary: Propose an append-only roster or trade transaction
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTransactionInput' }
+      responses:
+        '201':
+          description: Transaction proposed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { description: Invalid transaction or asset combination. }
+        '403': { description: Caller cannot propose this transaction. }
+        '404': { description: "League, season, team, or player not found." }
+        '409': { description: Transaction conflicts with current ledger state. }
+
+  /transactions/{transactionId}/accept:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    post:
+      tags: [Transactions]
+      operationId: acceptTransaction
+      summary: Counterparty accepts a proposed transaction
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '201': { description: Acceptance appended, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
+        '400': { description: Transaction is not awaiting counterparty acceptance. }
+        '403': { description: Caller is not the counterparty GM. }
+        '404': { description: Transaction not found. }
+        '409': { description: Transaction has already progressed. }
+
+  /transactions/{transactionId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    post:
+      tags: [Transactions]
+      operationId: approveTransaction
+      summary: Commissioner approves an accepted transaction
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '201': { description: Approval appended, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
+        '400': { description: Transaction is not awaiting approval. }
+        '403': { description: Commissioner access required. }
+        '404': { description: Transaction not found. }
+        '409': { description: Transaction has already progressed. }
+
+  /transactions/{transactionId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    post:
+      tags: [Transactions]
+      operationId: rejectTransaction
+      summary: Commissioner rejects a transaction
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransactionRationaleInput' }
+      responses:
+        '201': { description: Rejection appended, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
+        '403': { description: Commissioner access required. }
+        '404': { description: Transaction not found. }
+        '409': { description: Transaction has already progressed. }
+
+  /transactions/{transactionId}/execute:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    post:
+      tags: [Transactions]
+      operationId: executeTransaction
+      summary: Commissioner executes an approved transaction
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '201': { description: Execution appended, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
+        '400': { description: Transaction is not approved. }
+        '403': { description: Commissioner access required. }
+        '404': { description: Transaction not found. }
+        '409': { description: Transaction has already progressed. }
+
+  /transactions/{transactionId}/reverse:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    post:
+      tags: [Transactions]
+      operationId: reverseTransaction
+      summary: Append a reversal ledger entry for an executed transaction
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransactionRationaleInput' }
+      responses:
+        '201': { description: Reversal appended, content: { application/json: { schema: { $ref: '#/components/schemas/Transaction' } } } }
+        '400': { description: Only an executed transaction can be reversed. }
+        '403': { description: Commissioner access required. }
+        '404': { description: Transaction not found. }
+        '409': { description: Transaction is already reversed. }
+
+  /leagues/{leagueId}/listing:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Discovery]
+      operationId: getLeagueListing
+      summary: Get league listing / discovery settings (commissioner only)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Listing settings for this league.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueListing'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      tags: [Discovery]
+      operationId: updateLeagueListing
+      summary: Update league listing / discovery settings (commissioner only)
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeagueListingInput'
+      responses:
+        '200':
+          description: Updated listing settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeagueListing'
+        '400':
+          description: Invalid input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/signups:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Discovery]
+      operationId: listLeagueSignups
+      summary: List sign-up applicants for a league (commissioner only)
+      parameters:
+        - name: seat
+          in: query
+          description: Return only applicants willing to take this team-season seat.
+          schema:
+            type: string
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Sign-up applicants ordered by created_at ASC.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LeagueApplicant'
+                  total:
+                    type: integer
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/signups/{signupId}/accept:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - name: signupId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Discovery]
+      operationId: acceptApplicant
+      summary: Accept a sign-up applicant (commissioner only)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Applicant accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantActionResult'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Sign-up not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/signups/{signupId}/decline:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - name: signupId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Discovery]
+      operationId: declineApplicant
+      summary: Decline a sign-up applicant (commissioner only)
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeclineApplicantInput'
+      responses:
+        '200':
+          description: Applicant declined.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicantActionResult'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden — caller is not the league commissioner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Sign-up not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /l/{slug}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+        description: League URL slug
+    get:
+      tags: [Leagues]
+      operationId: getPublicLeague
+      summary: Public league page — standings visible without authentication
+      responses:
+        '200':
+          description: League + active season standings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicLeagueEnvelope'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/seasons:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: listSeasons
+      summary: List seasons for a league
+      responses:
+        '200':
+          description: Seasons ordered oldest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Season'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags: [Leagues]
+      operationId: createSeason
+      summary: Create a new season and provision the configured number of franchise seats (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSeasonInput'
+      responses:
+        '201':
+          description: Season created with seats from the active league settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Season'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Seats
+
+  /leagues/{leagueId}/invites:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Seats]
+      operationId: listInvites
+      summary: List active invite links (commissioner only)
+      responses:
+        '200':
+          description: Active invite links.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InviteLink'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags: [Seats]
+      operationId: createInvite
+      summary: Generate an invite link (commissioner only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInviteInput'
+      responses:
+        '201':
+          description: Invite link created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteLink'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /invites/{token}:
+    parameters:
+      - $ref: '#/components/parameters/InviteToken'
+    get:
+      tags: [Seats]
+      operationId: getInvite
+      summary: Preview an invite link before joining
+      responses:
+        '200':
+          description: Invite details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteLink'
+        '404':
+          description: Not found or expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    delete:
+      tags: [Seats]
+      operationId: revokeInvite
+      summary: Revoke an invite link (commissioner only)
+      responses:
+        '204':
+          description: Revoked.
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /invites/{token}/join:
+    parameters:
+      - $ref: '#/components/parameters/InviteToken'
+    post:
+      tags: [Seats]
+      operationId: joinViaInvite
+      summary: Submit a join request via invite link
+      responses:
+        '201':
+          description: Join request created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+        '200':
+          description: Already requested — returns existing request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+        '400':
+          description: Invite expired or exhausted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Invite not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/join-requests:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Seats]
+      operationId: listJoinRequests
+      summary: List join requests for a league (commissioner only)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        '200':
+          description: Join requests.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JoinRequest'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/join-requests/{requestId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - $ref: '#/components/parameters/JoinRequestId'
+    post:
+      tags: [Seats]
+      operationId: approveJoinRequest
+      summary: Approve a join request and add the user to the league (commissioner only)
+      responses:
+        '200':
+          description: Approved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Already reviewed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/join-requests/{requestId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - $ref: '#/components/parameters/JoinRequestId'
+    post:
+      tags: [Seats]
+      operationId: rejectJoinRequest
+      summary: Reject a join request (commissioner only)
+      responses:
+        '200':
+          description: Rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRequest'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/seats:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Seats]
+      operationId: listSeats
+      summary: List all franchise seats in the active season
+      responses:
+        '200':
+          description: All seats with current GM info.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Seat'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /team-seasons/{teamSeasonId}/gm:
+    parameters:
+      - $ref: '#/components/parameters/TeamSeasonId'
+    put:
+      tags: [Seats]
+      operationId: assignGm
+      summary: Assign a GM to a franchise seat (commissioner only)
+      description: |
+        Closes the current active gm_assignment (if any) and opens a new one.
+        The franchise record is untouched — only the assignment changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignGmInput'
+      responses:
+        '200':
+          description: GM assigned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seat'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Team season or user not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    delete:
+      tags: [Seats]
+      operationId: revokeGm
+      summary: Remove the current GM from a seat (commissioner only)
+      parameters:
+        - name: reason
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: GM removed — seat is now open.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Seat'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Rulebook
+
+  /leagues/{leagueId}/rulebook:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Rulebook]
+      operationId: getLatestRulebook
+      summary: Get the current rulebook revision
+      responses:
+        '200':
+          description: Latest revision.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RulebookRevision'
+        '404':
+          description: No rulebook yet or league not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    put:
+      tags: [Rulebook]
+      operationId: publishRulebook
+      summary: Publish a new rulebook revision (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishRulebookInput'
+      responses:
+        '201':
+          description: New revision created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RulebookRevision'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/rulebook/revisions:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Rulebook]
+      operationId: listRulebookRevisions
+      summary: List all rulebook revisions in reverse-chronological order
+      responses:
+        '200':
+          description: All revisions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RulebookRevision'
+        '404':
+          description: League not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Competition
+
+  /seasons/{seasonId}/standings:
+    parameters:
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags: [Competition]
+      operationId: getStandings
+      summary: Get standings for a season
+      description: |
+        Computed from confirmed results on every request. There is no write
+        path for this resource — correcting a result corrects the table automatically.
+      responses:
+        '200':
+          description: Standings sorted by the season's configured tiebreakers.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, computed_at]
+                properties:
+                  computed_at:
+                    type: string
+                    format: date-time
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StandingsRow'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /seasons/{seasonId}/games:
+    parameters:
+      - $ref: '#/components/parameters/SeasonId'
+    get:
+      tags: [Competition]
+      operationId: listGames
+      summary: List games for a season
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/GameStatus'
+        - name: week
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: franchise_id
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page of games.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Game'
+                  next_cursor:
+                    type: ["string", "null"]
+                  has_more:
+                    type: boolean
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /games/{gameId}/results:
+    parameters:
+      - $ref: '#/components/parameters/GameId'
+    post:
+      tags: [Competition]
+      operationId: reportResult
+      summary: Report a result for a game
+      description: |
+        Reports a final score. The result is not counted toward standings until
+        the opposing GM confirms it. Append-only — a correction supersedes the
+        previous result and must carry a supersede_reason.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResultInput'
+      responses:
+        '201':
+          description: Result recorded, awaiting confirmation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameResult'
+        '200':
+          description: Idempotent replay. The original result is returned unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameResult'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Unprocessable entity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /results/{resultId}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/ResultId'
+    post:
+      tags: [Competition]
+      operationId: confirmResult
+      summary: Confirm or dispute a reported result
+      description: |
+        Confirmation must come from a different user than the reporter. Self-confirmation
+        is rejected. Supply the If-Match header with the result's version to prevent
+        racing GMs from silently overwriting each other.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmInput'
+      responses:
+        '200':
+          description: Result confirmed or disputed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameResult'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Version mismatch — re-read and retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Schedule
+
+  /seasons/{seasonId}/schedule:
+    post:
+      tags: [Schedule]
+      operationId: generateSchedule
+      summary: Generate a balanced round-robin schedule for a season
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateScheduleBody'
+      responses:
+        '201':
+          description: Schedule created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateScheduleResult'
+        '409':
+          description: Schedule already exists for this season.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /seasons/{seasonId}/weeks:
+    get:
+      tags: [Schedule]
+      operationId: listWeeks
+      summary: List week windows with game status counts
+      parameters:
+        - name: seasonId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Week window list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeekListEnvelope'
+
+  /games/{gameId}/window:
+    patch:
+      tags: [Schedule]
+      operationId: shiftWindow
+      summary: Shift a game's scheduling window (commissioner)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShiftWindowBody'
+      responses:
+        '200':
+          description: Window updated.
+
+  /games/{gameId}/postpone:
+    post:
+      tags: [Schedule]
+      operationId: postponeGame
+      summary: Postpone a game (commissioner)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostponeGameBody'
+      responses:
+        '200':
+          description: Game postponed.
+
+  /games/{gameId}/force-resolve:
+    post:
+      tags: [Schedule]
+      operationId: forceResolveGame
+      summary: Force-resolve a game at window close (commissioner)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForceResolveGameBody'
+      responses:
+        '200':
+          description: Game force-resolved.
+
+  # ------------------------------------------------------------------ Commissioner Links
+
+  /leagues/{leagueId}/commissioner-invite:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    get:
+      tags: [Leagues]
+      operationId: getCommissionerInvite
+      summary: Get the active commissioner invite and public code (commissioner only)
+      responses:
+        '200':
+          description: Active commissioner invite and public code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInviteEnvelope'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      tags: [Leagues]
+      operationId: createCommissionerInvite
+      summary: Create the first commissioner invite link (commissioner only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionerInviteInput'
+      responses:
+        '201':
+          description: Invite created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInvite'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: An active invite already exists — rotate instead.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      tags: [Leagues]
+      operationId: updateCommissionerInvite
+      summary: Update max_uses / expires_at on the active commissioner invite (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionerInviteInput'
+      responses:
+        '200':
+          description: Updated invite.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInvite'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No active invite.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    delete:
+      tags: [Leagues]
+      operationId: revokeCommissionerInvite
+      summary: Revoke the active commissioner invite (commissioner only)
+      responses:
+        '204':
+          description: Revoked.
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No active invite.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/commissioner-invite/rotate:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    post:
+      tags: [Leagues]
+      operationId: rotateCommissionerInvite
+      summary: Rotate the commissioner invite — revoke old, issue new (commissioner only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionerInviteInput'
+      responses:
+        '200':
+          description: New invite issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInvite'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /leagues/{leagueId}/public-code:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+    patch:
+      tags: [Leagues]
+      operationId: setPublicCode
+      summary: Set or update the league public code (commissioner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPublicCodeInput'
+      responses:
+        '200':
+          description: Public code updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicCodeResult'
+        '400':
+          description: Invalid format.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Public code already taken.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /j/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+        description: League public code (case-insensitive, e.g. RUSTBELT)
+    get:
+      tags: [Discovery]
+      operationId: resolvePublicCode
+      summary: Resolve a league public code to its slug (no auth required)
+      responses:
+        '200':
+          description: League slug resolved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicCodeLookup'
+        '404':
+          description: No league with that public code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /join/{token}:
+    parameters:
+      - $ref: '#/components/parameters/CommissionerInviteToken'
+    get:
+      tags: [Seats]
+      operationId: getCommissionerInvitePublic
+      summary: Public landing page data for a commissioner invite link
+      responses:
+        '200':
+          description: Invite info and usability.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionerInvitePublic'
+        '410':
+          description: Invite no longer active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /join/{token}/claim:
+    parameters:
+      - $ref: '#/components/parameters/CommissionerInviteToken'
+    post:
+      tags: [Seats]
+      operationId: claimCommissionerInvite
+      summary: Claim a seat via commissioner invite (authenticated)
+      responses:
+        '200':
+          description: Claim recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaimOutcome'
+        '409':
+          description: Already claimed this invite.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '410':
+          description: Invite no longer active.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  # ------------------------------------------------------------------ Availability
+
+  /leagues/{leagueId}/availability:
+    put:
+      tags: [Availability]
+      operationId: setAvailability
+      summary: Set my availability grid for a league
+      parameters:
+        - name: leagueId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAvailabilityBody'
+      responses:
+        '200':
+          description: Availability saved.
+
+  /leagues/{leagueId}/availability/me:
+    get:
+      tags: [Availability]
+      operationId: getMyAvailability
+      summary: Get my availability grid for a league
+      parameters:
+        - name: leagueId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Availability record.
+
+  /games/{gameId}/overlap:
+    get:
+      tags: [Availability]
+      operationId: getGameOverlap
+      summary: Get overlapping availability for a game's two GMs
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Overlap computation result.
+
+  /leagues/{leagueId}/dq-findings:
+    get:
+      operationId: listDqFindings
+      summary: List data-quality findings for a league (commissioner only)
+      tags: [DQ]
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+        - name: severity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [BLOCK, ALERT, WATCH]
+        - name: resolved
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated list of DQ findings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DqFindingsEnvelope'
+        '403':
+          description: Not the league commissioner.
+        '404':
+          description: League not found.
+
+  /leagues/{leagueId}/dq-findings/{findingId}/resolve:
+    patch:
+      operationId: resolveDqFinding
+      summary: Mark a DQ finding as resolved (commissioner only)
+      tags: [DQ]
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+        - name: findingId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Finding marked resolved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DqFinding'
+        '403':
+          description: Not the league commissioner.
+        '404':
+          description: Finding not found.
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: List the authenticated user's durable in-app inbox
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: unread_only
+          in: query
+          schema: { type: boolean, default: false }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: Inbox items.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationList'
+        '401': { description: Not authenticated }
+
+  /notifications/{notificationId}/read:
+    patch:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Mark an inbox item read
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Updated inbox item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404': { description: Notification not found }
+
+  /notification-preferences:
+    get:
+      tags: [Notifications]
+      operationId: getNotificationPreferences
+      summary: Get per-event notification preferences
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Preferences.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferenceList'
+    put:
+      tags: [Notifications]
+      operationId: updateNotificationPreferences
+      summary: Replace one or more per-event notification preferences
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferenceInput'
+      responses:
+        '200':
+          description: Preferences.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferenceList'
+        '400': { description: Invalid preferences }
+
+  /leagues/{leagueId}/announcements:
+    post:
+      tags: [Notifications]
+      operationId: createAnnouncement
+      summary: Publish a commissioner announcement through the notification dispatcher
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnouncementInput'
+      responses:
+        '202':
+          description: Announcement queued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementReceipt'
+        '403': { description: Commissioner access required }
+
+  /leagues/{leagueId}/discord-webhooks:
+    get:
+      tags: [Notifications]
+      operationId: listDiscordWebhooks
+      summary: List masked Discord webhook configurations
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+      responses:
+        '200':
+          description: Masked webhook configurations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscordWebhookList'
+    post:
+      tags: [Notifications]
+      operationId: createDiscordWebhook
+      summary: Add an encrypted Discord webhook (maximum five per league)
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscordWebhookInput'
+      responses:
+        '201':
+          description: Created masked webhook configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscordWebhook'
+        '409': { description: Webhook limit reached }
+
+  /leagues/{leagueId}/discord-webhooks/{webhookId}:
+    patch:
+      tags: [Notifications]
+      operationId: updateDiscordWebhook
+      summary: Update a Discord webhook configuration
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+        - name: webhookId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscordWebhookUpdate'
+      responses:
+        '200':
+          description: Updated masked webhook configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscordWebhook'
+        '404': { description: Webhook not found }
+    delete:
+      tags: [Notifications]
+      operationId: deleteDiscordWebhook
+      summary: Delete a Discord webhook configuration
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+        - name: webhookId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Webhook not found }
+
+  /leagues/{leagueId}/discord-webhooks/{webhookId}/test:
+    post:
+      tags: [Notifications]
+      operationId: testDiscordWebhook
+      summary: Queue a test message through the common dispatcher
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/LeagueId'
+        - name: webhookId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '202':
+          description: Test queued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementReceipt'
+
+components:
+
+  parameters:
+    IdentityVerificationChallengeId:
+      name: challengeId
+      in: path
+      required: true
+      schema: { type: string }
+    LeagueId:
+      name: leagueId
+      in: path
+      required: true
+      schema:
+        type: string
+    SeasonId:
+      name: seasonId
+      in: path
+      required: true
+      schema:
+        type: string
+    GameId:
+      name: gameId
+      in: path
+      required: true
+      schema:
+        type: string
+    ResultId:
+      name: resultId
+      in: path
+      required: true
+      schema:
+        type: string
+    TeamSeasonId:
+      name: teamSeasonId
+      in: path
+      required: true
+      schema:
+        type: string
+    InviteToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+    CommissionerInviteToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+    JoinRequestId:
+      name: requestId
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 255
+    TransactionId:
+      name: transactionId
+      in: path
+      required: true
+      schema:
+        type: string
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        type: string
+  schemas:
+    Notification:
+      type: object
+      required: [id, event_type, title, body, created_at]
+      properties:
+        id: { type: string }
+        league_id: { type: [string, 'null'] }
+        event_type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        data: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+        read_at: { type: [string, 'null'], format: date-time }
+    NotificationList:
+      type: object
+      required: [data, unread_count]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Notification' }
+        unread_count: { type: integer }
+    NotificationPreference:
+      type: object
+      required: [event_type, in_app, email, daily_digest]
+      properties:
+        event_type: { type: string, minLength: 1, maxLength: 100 }
+        in_app: { type: boolean }
+        email: { type: boolean }
+        daily_digest: { type: boolean }
+    NotificationPreferenceInput:
+      type: object
+      required: [preferences]
+      properties:
+        preferences:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/NotificationPreference' }
+    NotificationPreferenceList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/NotificationPreference' }
+    AnnouncementInput:
+      type: object
+      required: [title, body]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        body: { type: string, minLength: 1, maxLength: 4000 }
+    AnnouncementReceipt:
+      type: object
+      required: [event_id, queued]
+      properties:
+        event_id: { type: string }
+        queued: { type: boolean }
+    DiscordWebhookInput:
+      type: object
+      required: [name, url, event_filters]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        url: { type: string, maxLength: 2048 }
+        event_filters:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: '#/components/schemas/DiscordEventFilter' }
+    DiscordWebhook:
+      type: object
+      required: [id, name, masked_url, event_filters, enabled, failure_count, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        masked_url: { type: string }
+        event_filters:
+          type: array
+          items: { $ref: '#/components/schemas/DiscordEventFilter' }
+        enabled: { type: boolean }
+        failure_count: { type: integer }
+        disabled_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    DiscordWebhookUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        url: { type: string, maxLength: 2048 }
+        event_filters:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: '#/components/schemas/DiscordEventFilter' }
+        enabled: { type: boolean }
+    DiscordEventFilter:
+      type: string
+      enum:
+        - commissioner.announcement
+        - discord.test
+        - result.reported
+        - result.confirmed
+        - result.disputed
+        - schedule.generated
+        - schedule.window_shifted
+        - schedule.game_postponed
+        - schedule.game_resolved
+        - trade.proposed
+        - trade.executed
+        - signing
+        - waiver.claim
+    DiscordWebhookList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/DiscordWebhook' }
+
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status, trace_id]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: ["string", "null"]
+        instance:
+          type: ["string", "null"]
+        trace_id:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProblemError'
+
+    ProblemError:
+      type: object
+      properties:
+        pointer:
+          type: string
+        message:
+          type: string
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    # ------------------------------------------------------------------ Domain
+
+    League:
+      type: object
+      required: [id, slug, name, visibility]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        visibility:
+          type: string
+          enum: [public, unlisted, private]
+        logo_url:
+          type: ["string", "null"]
+        primary_color:
+          type: ["string", "null"]
+        secondary_color:
+          type: ["string", "null"]
+        owner_user_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CreateLeagueInput:
+      type: object
+      required: [name, slug, settings]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        slug:
+          type: string
+          minLength: 2
+          maxLength: 40
+          pattern: '^[a-z0-9][a-z0-9-]*[a-z0-9]$'
+        visibility:
+          type: string
+          enum: [public, unlisted, private]
+          default: public
+        primary_color:
+          type: ["string", "null"]
+        secondary_color:
+          type: ["string", "null"]
+        logo_url:
+          type: ["string", "null"]
+        settings:
+          $ref: '#/components/schemas/LeagueSettingsInput'
+
+    UpdateLeagueInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        visibility:
+          type: string
+          enum: [public, unlisted, private]
+        primary_color:
+          type: ["string", "null"]
+        secondary_color:
+          type: ["string", "null"]
+        logo_url:
+          type: ["string", "null"]
+
+    LeagueSettingsInput:
+      type: object
+      additionalProperties: false
+      required:
+        - platform
+        - team_count
+        - roster_source
+        - schedule_format
+        - schedule_settings
+        - playoff_format
+        - divisions
+        - conferences
+        - slider_presets
+        - require_verified_identities
+        - points_win
+        - points_ot_loss
+        - points_reg_loss
+        - tiebreakers
+        - use_league_defaults
+        - change_summary
+      properties:
+        applied_template_id:
+          type: ["string", "null"]
+          enum: [balanced_standard, international_style, maximum_fighting_contact, null]
+          description: Curated template explicitly applied before this version was saved.
+        ea_league_id:
+          type: ["string", "null"]
+          maxLength: 100
+        platform:
+          type: string
+          enum: [psn, xbox, both]
+        team_count:
+          type: integer
+          minimum: 3
+          maximum: 32
+        roster_source:
+          type: string
+          enum: [manual, ea, csv_import]
+        schedule_format:
+          type: string
+          enum: [round_robin, double_round_robin, custom]
+        schedule_settings:
+          type: object
+          additionalProperties: true
+        playoff_format:
+          type: object
+          additionalProperties: true
+        salary_cap_cents:
+          type: ["integer", "null"]
+          minimum: 0
+        roster_min:
+          type: ["integer", "null"]
+          minimum: 1
+        roster_max:
+          type: ["integer", "null"]
+          minimum: 1
+        divisions:
+          type: array
+          items:
+            type: string
+        conferences:
+          type: array
+          items:
+            type: string
+        rules_notes:
+          type: ["string", "null"]
+        slider_presets:
+          type: object
+          additionalProperties: true
+        require_verified_identities:
+          type: boolean
+          default: false
+          description: Require the selected saved console identity to be currently verified for signup and waitlist eligibility.
+        points_win:
+          type: integer
+          minimum: 0
+        points_ot_loss:
+          type: integer
+          minimum: 0
+        points_reg_loss:
+          type: integer
+          minimum: 0
+        tiebreakers:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+        use_league_defaults:
+          type: boolean
+          default: true
+        apply_to_active_season:
+          type: boolean
+          default: false
+        change_summary:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    LeagueSettingsTemplateValues:
+      type: object
+      additionalProperties: false
+      required:
+        - platform
+        - team_count
+        - roster_source
+        - schedule_format
+        - schedule_settings
+        - playoff_format
+        - salary_cap_cents
+        - roster_min
+        - roster_max
+        - divisions
+        - conferences
+        - rules_notes
+        - slider_presets
+        - require_verified_identities
+        - points_win
+        - points_ot_loss
+        - points_reg_loss
+        - tiebreakers
+        - use_league_defaults
+      properties:
+        platform:
+          type: string
+          enum: [psn, xbox, both]
+        team_count:
+          type: integer
+          minimum: 3
+          maximum: 32
+        roster_source:
+          type: string
+          enum: [manual, ea, csv_import]
+        schedule_format:
+          type: string
+          enum: [round_robin, double_round_robin, custom]
+        schedule_settings:
+          type: object
+          additionalProperties: true
+        playoff_format:
+          type: object
+          additionalProperties: true
+        salary_cap_cents:
+          type: ["integer", "null"]
+          minimum: 0
+        roster_min:
+          type: ["integer", "null"]
+          minimum: 1
+        roster_max:
+          type: ["integer", "null"]
+          minimum: 1
+        divisions:
+          type: array
+          items:
+            type: string
+        conferences:
+          type: array
+          items:
+            type: string
+        rules_notes:
+          type: ["string", "null"]
+        slider_presets:
+          type: object
+          additionalProperties: true
+        require_verified_identities:
+          type: boolean
+        points_win:
+          type: integer
+          minimum: 0
+        points_ot_loss:
+          type: integer
+          minimum: 0
+        points_reg_loss:
+          type: integer
+          minimum: 0
+        tiebreakers:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+        use_league_defaults:
+          type: boolean
+
+    LeagueSettingsTemplate:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, differences, values]
+      properties:
+        id:
+          type: string
+          enum: [balanced_standard, international_style, maximum_fighting_contact]
+        name:
+          type: string
+        description:
+          type: string
+        differences:
+          type: array
+          items:
+            type: string
+        values:
+          $ref: '#/components/schemas/LeagueSettingsTemplateValues'
+
+    LeagueSettingsTemplateList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeagueSettingsTemplate'
+
+    LeagueSettingsVersion:
+      allOf:
+        - $ref: '#/components/schemas/LeagueSettingsInput'
+        - type: object
+          required: [id, league_id, version, changed_by, changed_at, is_active, can_manage]
+          properties:
+            id:
+              type: string
+            league_id:
+              type: string
+            version:
+              type: integer
+            changed_by:
+              type: string
+            changed_at:
+              type: string
+              format: date-time
+            is_active:
+              type: boolean
+            can_manage:
+              type: boolean
+
+    LeagueSettingsHistory:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeagueSettingsVersion'
+
+    NoLeagueSettings:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: "null"
+
+    CreateSeasonInput:
+      type: object
+      required: [label, game_title]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 100
+        game_title:
+          type: string
+          minLength: 1
+          maxLength: 50
+        starts_on:
+          type: ["string", "null"]
+          format: date
+        ends_on:
+          type: ["string", "null"]
+          format: date
+        salary_cap_cents:
+          type: ["integer", "null"]
+          minimum: 0
+        roster_min:
+          type: ["integer", "null"]
+          minimum: 1
+        roster_max:
+          type: ["integer", "null"]
+          minimum: 1
+        games_per_matchup:
+          type: integer
+          minimum: 1
+          maximum: 8
+        points_win:
+          type: integer
+          minimum: 0
+        points_ot_loss:
+          type: integer
+          minimum: 0
+        points_reg_loss:
+          type: integer
+          minimum: 0
+        tiebreakers:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+
+    LeagueHub:
+      type: object
+      description: Summary stats for the league hub slab.
+      required: [league_id, active_season_id]
+      properties:
+        league_id:
+          type: string
+        active_season_id:
+          type: ["string", "null"]
+        active_season_label:
+          type: ["string", "null"]
+        games_scheduled:
+          type: integer
+        games_confirmed:
+          type: integer
+        games_on_time_pct:
+          type: ["number", "null"]
+        open_seats:
+          type: integer
+        active_gms:
+          type: integer
+        my_games_this_week:
+          type: array
+          items:
+            $ref: '#/components/schemas/Game'
+        recent_notifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        unread_notification_count:
+          type: integer
+          minimum: 0
+        applicant_activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/HubApplicantActivity'
+        wire_transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        open_seat_details:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpenSeatDetail'
+
+    Transaction:
+      type: object
+      required: [id, season_id, type, status, proposed_at, assets, summary, provenance, cap_checked]
+      properties:
+        id: { type: string }
+        season_id: { type: string }
+        type: { $ref: '#/components/schemas/TransactionType' }
+        status: { $ref: '#/components/schemas/TransactionStatus' }
+        proposed_by: { type: [string, 'null'] }
+        proposed_at: { type: string, format: date-time }
+        resolved_at: { type: [string, 'null'], format: date-time }
+        reverses_txn_id: { type: [string, 'null'] }
+        note: { type: [string, 'null'] }
+        assets:
+          type: array
+          items: { $ref: '#/components/schemas/TransactionAsset' }
+        summary: { type: string }
+        provenance: { type: string, enum: [manual, commissioner] }
+        cap_checked: { type: boolean }
+        approved_by:
+          type: [string, 'null']
+          description: Commissioner app-user ID from the recorded approval, if approved.
+    TransactionList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Transaction' }
+    TransactionType:
+      type: string
+      # Includes all persisted txn_type values. ir_move and seat_change remain
+      # public legacy aliases for rows created before their canonical mappings.
+      enum: [trade, signing, release, waiver_claim, call_up, send_down, ir_place, ir_activate, retire, draft_pick, reversal, ir_move, seat_change]
+    TransactionStatus:
+      type: string
+      enum: [proposed, accepted, pending_approval, approved, rejected, executed, reversed, withdrawn]
+    TransactionAsset:
+      type: object
+      required: [kind, from_team_season_id, to_team_season_id]
+      properties:
+        kind: { type: string, enum: [player, draft_pick, cap_space, retained_salary] }
+        player_id: { type: [string, 'null'] }
+        draft_year: { type: [integer, 'null'] }
+        draft_round: { type: [integer, 'null'] }
+        amount_cents: { type: [integer, 'null'], format: int64 }
+        from_team_season_id: { type: [string, 'null'] }
+        to_team_season_id: { type: [string, 'null'] }
+    CreateTransactionInput:
+      type: object
+      required: [season_id, type, assets]
+      properties:
+        season_id: { type: string }
+        # Only movement types with defined execution semantics are creatable.
+        # TransactionType remains broader so historical ledger rows are readable.
+        type: { type: string, enum: [trade, signing, release, waiver_claim] }
+        assets:
+          type: array
+          items: { $ref: '#/components/schemas/TransactionAsset' }
+        note: { type: string, maxLength: 2000 }
+        entry_source: { type: string, enum: [manual, commissioner], default: manual }
+    TransactionRationaleInput:
+      type: object
+      properties:
+        rationale: { type: string, maxLength: 2000 }
+    OpenSeatDetail:
+      type: object
+      required: [team_season_id, franchise_id, state, applicant_count]
+      properties:
+        team_season_id: { type: string }
+        franchise_id: { type: string }
+        franchise_name: { type: string }
+        state: { type: string, enum: [vacated, never_filled, inactive] }
+        applicant_count: { type: integer, minimum: 0 }
+
+    ApplicantSeatOption:
+      type: object
+      required: [team_season_id, franchise_id, franchise_name]
+      properties:
+        team_season_id: { type: string }
+        franchise_id: { type: string }
+        franchise_name: { type: string }
+        club_abbrev: { type: [string, 'null'] }
+        club_name: { type: [string, 'null'] }
+
+    ApplicantSeatPreference:
+      type: object
+      required: [team_season_id, franchise_name]
+      properties:
+        team_season_id: { type: string }
+        franchise_name: { type: string }
+        club_abbrev: { type: [string, 'null'] }
+        club_name: { type: [string, 'null'] }
+
+    HubApplicantActivity:
+      type: object
+      required: [source, id, user_id, status, created_at]
+      properties:
+        source:
+          type: string
+          enum: [signup, waitlist, invite_request]
+        id:
+          type: string
+        user_id:
+          type: string
+        display_name:
+          type: [string, 'null']
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PublicLeagueEnvelope:
+      type: object
+      required: [league, standings]
+      properties:
+        league:
+          type: object
+          required: [id, slug, name, visibility]
+          properties:
+            id:
+              type: string
+            slug:
+              type: string
+            name:
+              type: string
+            visibility:
+              type: string
+            public_code:
+              type: string
+              nullable: true
+        season:
+          oneOf:
+            - type: object
+              required: [id, label]
+              properties:
+                id:
+                  type: string
+                label:
+                  type: string
+            - type: 'null'
+        standings:
+          type: array
+          items:
+            $ref: '#/components/schemas/StandingsRow'
+        listing:
+          description: >
+            Present when the league has an active listing entry (is_listed = true).
+            Null when the league is not publicly recruiting.
+          oneOf:
+            - type: object
+              required: [is_listed, accepting_signups, accepting_waitlist]
+              properties:
+                is_listed:
+                  type: boolean
+                accepting_signups:
+                  type: boolean
+                accepting_waitlist:
+                  type: boolean
+                blurb:
+                  type: ["string", "null"]
+                platform:
+                  type: ["string", "null"]
+                competitiveness:
+                  type: ["string", "null"]
+                suggested_division:
+                  type: ["string", "null"]
+            - type: 'null'
+
+    Season:
+      type: object
+      required: [id, ordinal, label, game_title]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        settings_version_id:
+          type: ["string", "null"]
+          description: Immutable league settings version bound to this season.
+        ordinal:
+          type: integer
+          minimum: 1
+        label:
+          type: string
+        game_title:
+          type: string
+        starts_on:
+          type: ["string", "null"]
+        ends_on:
+          type: ["string", "null"]
+        salary_cap_cents:
+          type: ["integer", "null"]
+        roster_min:
+          type: ["integer", "null"]
+        roster_max:
+          type: ["integer", "null"]
+        games_per_matchup:
+          type: integer
+        points_win:
+          type: integer
+        points_ot_loss:
+          type: integer
+        points_reg_loss:
+          type: integer
+        tiebreakers:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+
+    # ------------------------------------------------------------------ Seats
+
+    InviteLink:
+      type: object
+      required: [id, token, league_id, created_at]
+      properties:
+        id:
+          type: string
+        token:
+          type: string
+        league_id:
+          type: string
+        max_uses:
+          type: ["integer", "null"]
+        use_count:
+          type: integer
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: ["string", "null"]
+          format: date-time
+        league_name:
+          type: ["string", "null"]
+
+    CreateInviteInput:
+      type: object
+      properties:
+        max_uses:
+          type: ["integer", "null"]
+          minimum: 1
+        expires_in_hours:
+          type: ["integer", "null"]
+          minimum: 1
+
+    JoinRequest:
+      type: object
+      required: [id, league_id, status, created_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        user_id:
+          type: string
+        display_name:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        reviewed_by:
+          type: ["string", "null"]
+        reviewed_at:
+          type: ["string", "null"]
+          format: date-time
+        note:
+          type: ["string", "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    Seat:
+      type: object
+      required: [team_season_id, franchise_id, seat_status]
+      properties:
+        team_season_id:
+          type: string
+        franchise_id:
+          type: string
+        franchise_name:
+          type: string
+        nhl_club_id:
+          type: ["string", "null"]
+        club_abbrev:
+          type: ["string", "null"]
+        club_name:
+          type: ["string", "null"]
+        conference:
+          type: ["string", "null"]
+        division:
+          type: ["string", "null"]
+        seat_status:
+          type: string
+          enum: [open, pending, filled, suspended, vacated]
+        gm:
+          oneOf:
+            - $ref: '#/components/schemas/AssignedGm'
+            - type: 'null'
+
+    AssignedGm:
+      type: object
+      required: [assignment_id, user_id]
+      properties:
+        assignment_id:
+          type: string
+        user_id:
+          type: string
+        display_name:
+          type: ["string", "null"]
+        gm_platform:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_gamertag:
+          type: ["string", "null"]
+        gm_xbox_gamertag:
+          type: ["string", "null"]
+        gm_psn_online_id:
+          type: ["string", "null"]
+        gm_identity_verified:
+          type: boolean
+        started_at:
+          type: string
+          format: date-time
+        role:
+          type: string
+
+    AssignGmInput:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+        role:
+          type: string
+          enum: [gm, assistant_commissioner]
+          default: gm
+        end_reason:
+          type: ["string", "null"]
+          description: Reason for closing the previous GM assignment (if any).
+
+    # ------------------------------------------------------------------ Rulebook
+
+    RulebookRevision:
+      type: object
+      required: [id, league_id, version, body_md, authored_by, effective_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        version:
+          type: string
+        body_md:
+          type: string
+        change_note:
+          type: ["string", "null"]
+        authored_by:
+          type: string
+        effective_at:
+          type: string
+          format: date-time
+
+    PublishRulebookInput:
+      type: object
+      required: [body_md]
+      properties:
+        body_md:
+          type: string
+          minLength: 1
+        change_note:
+          type: ["string", "null"]
+          maxLength: 500
+
+    # ------------------------------------------------------------------ Competition
+
+    GameStatus:
+      type: string
+      enum: [scheduled, in_window, reported, confirmed, disputed, forfeited, postponed, simulated, voided]
+
+    GameSide:
+      type: object
+      required: [team_season_id, franchise_id]
+      properties:
+        team_season_id:
+          type: string
+        franchise_id:
+          type: string
+        franchise_name:
+          type: ["string", "null"]
+        club_abbrev:
+          type: ["string", "null"]
+        goals:
+          type: ["integer", "null"]
+          minimum: 0
+        gm_display_name:
+          type: ["string", "null"]
+        gm_platform:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_gamertag:
+          type: ["string", "null"]
+        gm_xbox_gamertag:
+          type: ["string", "null"]
+        gm_psn_online_id:
+          type: ["string", "null"]
+        gm_identity_verified:
+          type: boolean
+
+    Game:
+      type: object
+      required: [id, season_id, status, home, away]
+      properties:
+        id:
+          type: string
+        season_id:
+          type: string
+        week_number:
+          type: ["integer", "null"]
+        status:
+          $ref: '#/components/schemas/GameStatus'
+        window_opens_at:
+          type: string
+          format: date-time
+        window_closes_at:
+          type: string
+          format: date-time
+        played_at:
+          type: ["string", "null"]
+          format: date-time
+        home:
+          $ref: '#/components/schemas/GameSide'
+        away:
+          $ref: '#/components/schemas/GameSide'
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/GameResult'
+            - type: 'null'
+
+    GameResult:
+      type: object
+      required: [id, game_id, home_goals, away_goals, decision, version, data_source]
+      properties:
+        id:
+          type: string
+        game_id:
+          type: string
+        home_goals:
+          type: integer
+          minimum: 0
+        away_goals:
+          type: integer
+          minimum: 0
+        decision:
+          type: string
+          enum: [regulation, overtime, shootout]
+        version:
+          type: integer
+          description: |
+            Optimistic-concurrency token. Return as ETag; require If-Match on
+            confirm/dispute/supersede. A stale value returns 409.
+        data_source:
+          type: string
+          enum: [manual, confirmed, ocr, csv_import, partner_api, system]
+        counts_toward_standings:
+          type: boolean
+        reported_by:
+          type: ["string", "null"]
+        verified_by:
+          type: ["string", "null"]
+        verified_at:
+          type: ["string", "null"]
+          format: date-time
+        superseded_by:
+          type: ["string", "null"]
+        supersede_reason:
+          type: ["string", "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    ResultInput:
+      type: object
+      required: [home_goals, away_goals, decision]
+      properties:
+        home_goals:
+          type: integer
+          minimum: 0
+        away_goals:
+          type: integer
+          minimum: 0
+        decision:
+          type: string
+          enum: [regulation, overtime, shootout]
+        supersede_result_id:
+          type: ["string", "null"]
+        supersede_reason:
+          type: ["string", "null"]
+          maxLength: 500
+
+    ConfirmInput:
+      type: object
+      required: [agree]
+      properties:
+        agree:
+          type: boolean
+        dispute_reason:
+          type: ["string", "null"]
+          maxLength: 500
+
+    # ------------------------------------------------------------------ Schedule
+
+    GenerateScheduleBody:
+      type: object
+      properties:
+        week_duration_days:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+        start_date:
+          type: string
+          format: date
+
+    GenerateScheduleResult:
+      type: object
+      required: [games_created, total_weeks, total_rounds]
+      properties:
+        games_created:
+          type: integer
+        total_weeks:
+          type: integer
+        total_rounds:
+          type: integer
+        season_start:
+          type: string
+          format: date-time
+        week_duration_days:
+          type: integer
+
+    WeekStatus:
+      type: object
+      required: [total, scheduled, in_window, reported, confirmed, disputed, forfeited, postponed, voided]
+      properties:
+        total:      { type: integer }
+        scheduled:  { type: integer }
+        in_window:  { type: integer }
+        reported:   { type: integer }
+        confirmed:  { type: integer }
+        disputed:   { type: integer }
+        forfeited:  { type: integer }
+        postponed:  { type: integer }
+        voided:     { type: integer }
+
+    WeekWindow:
+      type: object
+      required: [week_number, window_opens_at, window_closes_at, games]
+      properties:
+        week_number:
+          type: integer
+        window_opens_at:
+          type: string
+          format: date-time
+        window_closes_at:
+          type: string
+          format: date-time
+        games:
+          $ref: '#/components/schemas/WeekStatus'
+
+    WeekListEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeekWindow'
+
+    ShiftWindowBody:
+      type: object
+      required: [window_opens_at, window_closes_at, reason]
+      properties:
+        window_opens_at:
+          type: string
+          format: date-time
+        window_closes_at:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    PostponeGameBody:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    ForceResolveGameBody:
+      type: object
+      required: [resolution, reason]
+      properties:
+        resolution:
+          type: string
+          enum: [forfeit_home, forfeit_away, void]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    # ------------------------------------------------------------------ Availability
+
+    CommissionerInvite:
+      type: object
+      required: [id, league_id, token, created_by, uses, is_active, created_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        token:
+          type: string
+        created_by:
+          type: string
+        max_uses:
+          type: ["integer", "null"]
+          minimum: 1
+        uses:
+          type: integer
+          minimum: 0
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+        is_active:
+          type: boolean
+        revoked_at:
+          type: ["string", "null"]
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CommissionerInviteEnvelope:
+      type: object
+      required: [public_code, invite]
+      properties:
+        public_code:
+          type: ["string", "null"]
+        invite:
+          oneOf:
+            - $ref: '#/components/schemas/CommissionerInvite'
+            - type: 'null'
+
+    CommissionerInviteInput:
+      type: object
+      properties:
+        max_uses:
+          type: ["integer", "null"]
+          minimum: 1
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+
+    SetPublicCodeInput:
+      type: object
+      properties:
+        public_code:
+          type: ["string", "null"]
+          minLength: 5
+          maxLength: 12
+          pattern: '^[A-Z0-9]{5,12}$'
+
+    PublicCodeResult:
+      type: object
+      required: [public_code]
+      properties:
+        public_code:
+          type: ["string", "null"]
+
+    PublicCodeLookup:
+      type: object
+      required: [slug]
+      properties:
+        slug:
+          type: string
+
+    CommissionerInvitePublic:
+      type: object
+      required: [invite_id, token, league_id, league_name, usable]
+      properties:
+        invite_id:
+          type: string
+        token:
+          type: string
+        league_id:
+          type: string
+        league_name:
+          type: string
+        league_slug:
+          type: string
+        platform:
+          type: ["string", "null"]
+        usable:
+          type: boolean
+        reason:
+          type: ["string", "null"]
+        uses:
+          type: integer
+        max_uses:
+          type: ["integer", "null"]
+        expires_at:
+          type: ["string", "null"]
+          format: date-time
+
+    ClaimOutcome:
+      type: object
+      required: [outcome, league_id, invite_id]
+      properties:
+        outcome:
+          type: string
+          enum: [member, waitlist]
+        league_id:
+          type: string
+        invite_id:
+          type: string
+
+    AvailabilitySlot:
+      type: object
+      required: [dow, block]
+      properties:
+        dow:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: "0 = Sunday, 6 = Saturday"
+        block:
+          type: string
+          enum: [morning, afternoon, evening, night]
+
+    SetAvailabilityBody:
+      type: object
+      required: [timezone, slots]
+      properties:
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: IANA timezone string (e.g. America/New_York)
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilitySlot'
+          maxItems: 56
+
+    # ------------------------------------------------------------------ Discovery
+
+    OpenLeague:
+      type: object
+      required: [league_id, name, accepting_signups, accepting_waitlist, max_seats, seats_filled, seats_open, waitlist_length]
+      properties:
+        league_id:
+          type: string
+        slug:
+          type: ["string", "null"]
+        name:
+          type: string
+        logo_url:
+          type: ["string", "null"]
+        blurb:
+          type: ["string", "null"]
+        platform:
+          type: ["string", "null"]
+        competitiveness:
+          type: ["string", "null"]
+        suggested_division:
+          type: ["string", "null"]
+        accepting_signups:
+          type: boolean
+        accepting_waitlist:
+          type: boolean
+        active_season_id:
+          type: ["string", "null"]
+        max_seats:
+          type: integer
+        seats_filled:
+          type: integer
+        seats_open:
+          type: integer
+        waitlist_length:
+          type: integer
+        games_confirmed:
+          type: ["integer", "null"]
+        active_gms:
+          type: ["integer", "null"]
+        open_seat_options:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicantSeatOption'
+
+    LeagueSignupInput:
+      type: object
+      properties:
+        team_season_ids:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+        country_code:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Z]{2}$'
+        location:
+          type: string
+          maxLength: 100
+        stated_division:
+          type: string
+          enum: [bronze, silver, gold, diamond, platinum, elite, ultimate]
+        message:
+          type: string
+          maxLength: 500
+        preferred_club:
+          type: string
+          maxLength: 100
+
+    ApplicantSeatPreferenceInput:
+      type: object
+      properties:
+        team_season_ids:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+
+    LeagueSignup:
+      type: object
+      required: [id, league_id, user_id, created_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        user_id:
+          type: string
+        platform:
+          type: ["string", "null"]
+        platform_gamertag:
+          type: ["string", "null"]
+        identity_verified:
+          type: boolean
+        timezone:
+          type: ["string", "null"]
+        country_code:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        stated_division:
+          type: ["string", "null"]
+        message:
+          type: ["string", "null"]
+        preferred_club:
+          type: ["string", "null"]
+        team_season_ids:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PlayerSystem:
+      type: string
+      enum: [xbox, playstation]
+
+    UserProfile:
+      type: object
+      required:
+        [id, display_name, timezone, xbox_gamertag, psn_online_id,
+         systems_played, primary_identity, xbox_identity_verified_at,
+         playstation_identity_verified_at]
+      properties:
+        id:
+          type: string
+        display_name:
+          type: string
+        timezone:
+          type: string
+        xbox_gamertag:
+          type: ["string", "null"]
+        psn_online_id:
+          type: ["string", "null"]
+        systems_played:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/PlayerSystem'
+        primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        xbox_identity_verified_at:
+          type: ["string", "null"]
+          format: date-time
+        playstation_identity_verified_at:
+          type: ["string", "null"]
+          format: date-time
+
+    IdentityVerificationChallenge:
+      type: object
+      required: [challenge_id, platform, gamertag, code, expires_at, profile_url]
+      properties:
+        challenge_id:
+          type: string
+        platform:
+          $ref: '#/components/schemas/PlayerSystem'
+        gamertag:
+          type: string
+        code:
+          type: string
+          description: Short-lived code to place in the public console profile text.
+        expires_at:
+          type: string
+          format: date-time
+        profile_url:
+          type: string
+          description: Official public profile URL constructed by the server.
+
+    IdentityVerificationSubmission:
+      type: object
+      required: [challenge_id, platform, submitted_at, expires_at, review_path, status]
+      properties:
+        challenge_id: { type: string }
+        platform: { $ref: '#/components/schemas/PlayerSystem' }
+        submitted_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        review_path:
+          type: string
+          description: Relative in-app path to share with an eligible commissioner.
+        status: { type: string, enum: [pending_commissioner_review] }
+
+    IdentityVerificationReview:
+      type: object
+      required: [challenge_id, display_name, platform, gamertag, code, profile_url, expires_at, status]
+      properties:
+        challenge_id: { type: string }
+        display_name: { type: string }
+        platform: { $ref: '#/components/schemas/PlayerSystem' }
+        gamertag: { type: string }
+        code: { type: string }
+        profile_url: { type: string }
+        expires_at: { type: string, format: date-time }
+        submitted_at: { type: [string, 'null'], format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        superseded_at: { type: [string, 'null'], format: date-time }
+        status: { type: string, enum: [pending_commissioner_review, commissioner_verified, not_submitted, superseded, expired] }
+
+    IdentityVerificationApproval:
+      type: object
+      required: [challenge_id, status, profile]
+      properties:
+        challenge_id: { type: string }
+        status: { type: string, enum: [commissioner_verified] }
+        profile: { $ref: '#/components/schemas/UserProfile' }
+
+    UserProfileUpdate:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        timezone:
+          type: string
+          minLength: 1
+          maxLength: 100
+        xbox_gamertag:
+          type: ["string", "null"]
+          minLength: 1
+          maxLength: 100
+        psn_online_id:
+          type: ["string", "null"]
+          minLength: 1
+          maxLength: 100
+        systems_played:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/PlayerSystem'
+        primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+
+    WaitlistPositionInput:
+      type: object
+      required: [position]
+      properties:
+        position:
+          type: integer
+          minimum: 1
+          description: 1-based target position in the waiting queue.
+
+    DeclineApplicantInput:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 500
+          description: Optional note explaining why the applicant was declined.
+
+    WaitlistEntry:
+      type: object
+      required: [id, league_id, user_id, status, position, joined_at]
+      properties:
+        id:
+          type: string
+        league_id:
+          type: string
+        user_id:
+          type: string
+        signup_id:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [waiting, invited, placed, declined, withdrawn, expired]
+        position:
+          type: integer
+        joined_at:
+          type: string
+          format: date-time
+        already_joined:
+          type: boolean
+        team_season_ids:
+          type: array
+          items:
+            type: string
+
+    # ------------------------------------------------------------------ Discovery (commissioner)
+
+    LeagueListing:
+      type: object
+      required: [league_id, is_listed, accepting_signups, accepting_waitlist]
+      properties:
+        league_id:
+          type: string
+        is_listed:
+          type: boolean
+        accepting_signups:
+          type: boolean
+        accepting_waitlist:
+          type: boolean
+        blurb:
+          type: ['string', 'null']
+        platform:
+          type: ['string', 'null']
+          enum: [psn, playstation, xbox, both, crossplay, null]
+        competitiveness:
+          type: ['string', 'null']
+          enum: [casual, competitive, hardcore, null]
+        suggested_division:
+          type: ['string', 'null']
+        timezone_focus:
+          type: ['string', 'null']
+        listed_at:
+          type: ['string', 'null']
+          format: date-time
+        updated_at:
+          type: ['string', 'null']
+          format: date-time
+
+    UpdateLeagueListingInput:
+      type: object
+      properties:
+        is_listed:
+          type: boolean
+        accepting_signups:
+          type: boolean
+        accepting_waitlist:
+          type: boolean
+        blurb:
+          type: ['string', 'null']
+        platform:
+          type: ['string', 'null']
+          description: Canonical values plus legacy aliases accepted during client migration.
+          enum: [psn, playstation, xbox, both, crossplay, null]
+        competitiveness:
+          type: ['string', 'null']
+          enum: [casual, competitive, hardcore, null]
+        suggested_division:
+          type: ['string', 'null']
+        timezone_focus:
+          type: ['string', 'null']
+
+    LeagueApplicant:
+      type: object
+      required: [signup_id, league_id, user_id, created_at]
+      properties:
+        signup_id:
+          type: string
+        league_id:
+          type: string
+        user_id:
+          type: string
+        display_name:
+          type: ['string', 'null']
+        skill_division:
+          type: ['string', 'null']
+        country_code:
+          type: ['string', 'null']
+        location:
+          type: ['string', 'null']
+        timezone:
+          type: ['string', 'null']
+        platform:
+          type: ['string', 'null']
+        platform_gamertag:
+          type: ['string', 'null']
+        xbox_identity_verified_at:
+          type: ['string', 'null']
+          format: date-time
+        playstation_identity_verified_at:
+          type: ['string', 'null']
+          format: date-time
+        identity_verified:
+          type: boolean
+        xbox_gamertag:
+          type: ['string', 'null']
+        psn_online_id:
+          type: ['string', 'null']
+        systems_played:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerSystem'
+        primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        message:
+          type: ['string', 'null']
+        preferred_club:
+          type: ['string', 'null']
+        preferred_seats:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicantSeatPreference'
+        created_at:
+          type: string
+          format: date-time
+        waitlist_status:
+          type: ['string', 'null']
+        waitlist_position:
+          type: ['integer', 'null']
+
+    WaitlistApplicant:
+      type: object
+      required: [waitlist_entry_id, signup_id, league_id, position, status, user_id, joined_at]
+      properties:
+        waitlist_entry_id:
+          type: string
+        signup_id:
+          type: ['string', 'null']
+        league_id:
+          type: string
+        position:
+          type: integer
+        status:
+          type: string
+          enum: [waiting, invited, placed, declined, withdrawn, expired]
+        user_id:
+          type: string
+        display_name:
+          type: ['string', 'null']
+        skill_division:
+          type: ['string', 'null']
+        country_code:
+          type: ['string', 'null']
+        location:
+          type: ['string', 'null']
+        timezone:
+          type: ['string', 'null']
+        platform:
+          type: ['string', 'null']
+        platform_gamertag:
+          type: ['string', 'null']
+        xbox_identity_verified_at:
+          type: ['string', 'null']
+          format: date-time
+        playstation_identity_verified_at:
+          type: ['string', 'null']
+          format: date-time
+        identity_verified:
+          type: boolean
+        preferred_seats:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicantSeatPreference'
+        joined_at:
+          type: string
+          format: date-time
+        invited_at:
+          type: ['string', 'null']
+          format: date-time
+        invite_expires_at:
+          type: ['string', 'null']
+          format: date-time
+
+    ApplicantActionResult:
+      type: object
+      required: [signup_id, user_id, league_id, outcome]
+      properties:
+        signup_id:
+          type: ['string', 'null']
+        user_id:
+          type: string
+        league_id:
+          type: string
+        outcome:
+          type: string
+          enum: [accepted, declined]
+
+    # ------------------------------------------------------------------ Feedback
+
+    FeatureRequestInput:
+      type: object
+      required: [body]
+      properties:
+        email:
+          type: string
+          maxLength: 254
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+
+    FeatureRequestReceipt:
+      type: object
+      required: [id, created_at]
+      properties:
+        id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ------------------------------------------------------------------ DQ
+
+    DqFinding:
+      type: object
+      required: [id, checked_at, check_name, severity, detail]
+      properties:
+        id:
+          type: integer
+        checked_at:
+          type: string
+          format: date-time
+        check_name:
+          type: string
+        severity:
+          type: string
+          enum: [BLOCK, ALERT, WATCH]
+        league_id:
+          type: ['string', 'null']
+        season_id:
+          type: ['string', 'null']
+        entity_id:
+          type: ['string', 'null']
+        detail:
+          type: string
+          description: JSON string — the full row from the check view, serialised with row_to_json().
+        resolved_at:
+          type: ['string', 'null']
+          format: date-time
+        resolved_by:
+          type: ['string', 'null']
+
+    DqFindingsEnvelope:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DqFinding'
+        total:
+          type: integer
+
+    # ------------------------------------------------------------------ Competition (existing)
+
+    StandingsRow:
+      type: object
+      description: Derived. There is no write path for this resource.
+      required: [team_season_id, franchise_id, GP, W, L, OTL, PTS]
+      properties:
+        rank:
+          type: integer
+        team_season_id:
+          type: string
+        franchise_id:
+          type: string
+        franchise_name:
+          type: ["string", "null"]
+        club_abbrev:
+          type: ["string", "null"]
+        gm_display_name:
+          type: ["string", "null"]
+        gm_platform:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_primary_identity:
+          oneOf:
+            - $ref: '#/components/schemas/PlayerSystem'
+            - type: 'null'
+        gm_gamertag:
+          type: ["string", "null"]
+        gm_xbox_gamertag:
+          type: ["string", "null"]
+        gm_psn_online_id:
+          type: ["string", "null"]
+        gm_identity_verified:
+          type: boolean
+        GP:
+          type: integer
+        W:
+          type: integer
+        L:
+          type: integer
+        OTL:
+          type: integer
+        PTS:
+          type: integer
+        ROW:
+          type: integer
+        GF:
+          type: integer
+        GA:
+          type: integer
+        DIFF:
+          type: integer
+        unconfirmed_games:
+          type: integer
+        provenance:
+          type: string
+          enum: [confirmed, manual, ocr, reconciled, dispute]
+          description: |
+            Worst provenance across this team's games this season.
+            'dispute' = has at least one disputed game.
+            'manual'  = has unconfirmed (reported) results pending.
+            'ocr'     = all confirmed, some via screenshot/OCR parse.
+            'reconciled' = all confirmed via partner data feed.
+            'confirmed' = all confirmed by mutual GM agreement.

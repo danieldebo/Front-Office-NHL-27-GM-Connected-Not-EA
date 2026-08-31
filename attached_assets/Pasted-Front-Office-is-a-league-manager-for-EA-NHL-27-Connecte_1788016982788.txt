@@ -1,0 +1,59 @@
+Front Office is a league manager for EA NHL 27 Connected Franchise (online franchise:
+3–32 teams, full crossplay, unlimited seasons, commissioner-editable rules/sliders).
+
+BUG (fix first): GET /api/leagues/:id/settings returns 404 when a league has no settings
+row. The client never exits its loading state — Manage > Schedule hangs on "Loading league
+settings…" and Generate Schedule stays disabled. There is also no UI anywhere to create the
+first settings version, so every new league is a dead end.
+
+1. API: return 200 {"data": null} instead of 404 when no active settings exist. Client:
+   treat null as "no settings yet", stop the spinner, render the editor in create mode.
+
+2. Build the League Settings editor in the Manage > Settings tab. Seed it with a template
+   picker fed by the EXISTING GET /api/league-settings/templates. Applying a template fills
+   the form; every field stays editable. Save POSTs a new immutable version, marks it active,
+   and shows up in the Version History panel that already reads /settings/history.
+
+3. Add the same step to Create League (/leagues/new), collapsed as "League settings — start
+   from a template", defaulted to balanced_standard so the flow stays one click. On submit,
+   write settings version 1 so the schedule generator works immediately. Also move Platform
+   (Xbox / PlayStation / Crossplay) and Team count onto this page — they're league-level
+   facts that today are only reachable in the Discovery tab.
+
+FORM RULES — no raw JSON inputs. Every field gets: a label, one line of help text beneath it,
+a placeholder example that disappears on type, and a sensible prefilled default. Arrays are
+comma-separated text inputs, not JSON. If you keep a raw-JSON escape hatch, put it behind an
+"Advanced (raw JSON)" disclosure with live parse validation, an inline error, and a Format
+button; store the parsed object, never a string.
+
+Fields (control | default | help text | placeholder):
+- Platform         select Xbox/PlayStation/Crossplay | Crossplay | "Which consoles can join. NHL 27 supports full crossplay." | —
+- Team count       number 3–32 | 32 | "Connected Franchise supports 3 to 32 teams." | 32
+- Conferences      comma-separated | Eastern, Western | "Comma-separated. Leave blank for a single-table league." | Eastern, Western
+- Divisions        comma-separated | Atlantic, Metropolitan, Central, Pacific | "Comma-separated. Teams are split evenly across these." | Atlantic, Metropolitan, Central, Pacific
+- Salary cap       on/off toggle + money input | ON, $104,000,000 | "2026-27 NHL upper limit is $104M. Turn off for an uncapped league." | $104,000,000
+- Roster min / max number | 20 / 23 | "NHL active rosters carry 20–23 players." | 20 / 23
+- Roster source    select EA default / Custom | EA default | "Custom lets GMs upload their own rosters for approval." | —
+- Schedule format  select Round robin / Double round robin / Custom | Round robin | — | —
+- Games per matchup number 1–8 | 2 | "How many times each pair of teams plays per meeting." | 2
+- Week length      number days | 7 | "How long a scheduling week runs before the next slate opens." | 7
+- Playoff teams    number, ≤ team count | 16 | "Teams that qualify for the postseason." | 16
+- Series length    select 1/3/5/7 | 7 | "Games per playoff series. 1 = single elimination." | 7
+- Reseed each round toggle | off | "Re-rank surviving teams by seed after every round." | —
+- Gameplay preset  select Simulation / Competitive / Arcade | Competitive | — | —
+- Contact          select Reduced / Standard / Heavy | Standard | — | —
+- Fighting         select Off / Standard / Heavy | Standard | — | —
+- Rules notes      textarea | — | "House rules the sliders can't express." | "Strict offsides, no fighting after the whistle…"
+- Require verified identities toggle | off | "Members must confirm gamertag before claiming a seat." | —
+
+Validate but don't block: warn if team count isn't divisible by division count, or if
+playoff teams > team count. Fix the existing inconsistency — templates say roster_min 18,
+the Create Season form says 20. Use 20.
+
+Also correct the template presets: salary_cap_cents is 8800000000 ($88M, two seasons stale).
+Set capped templates to 10400000000.
+
+EFFICIENCY: plan first and list the files you'll touch before writing code. Reuse the
+existing templates and /settings/history endpoints. Don't refactor or restyle anything
+outside those files. If a DB migration is needed, output the SQL for me to run manually
+instead of running it yourself.
