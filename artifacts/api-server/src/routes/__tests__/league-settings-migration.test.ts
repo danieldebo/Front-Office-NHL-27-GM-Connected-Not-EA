@@ -178,6 +178,13 @@ describe.sequential("league settings migration backfill", () => {
          VALUES ($1, 'Invalid Migration League', $2) RETURNING id`,
         [user.rows[0]!.id, `migration-invalid-${crypto.randomUUID()}`],
       );
+      // games_per_matchup's CHECK (1-8) postdates this row's era — a legacy
+      // season from before the constraint existed could still have an
+      // out-of-range value sitting in production. Drop the constraint for
+      // this one INSERT (inside the transaction this test rolls back) to
+      // simulate that, rather than testing a state Postgres would now refuse
+      // to create at all.
+      await client.query(`ALTER TABLE season DROP CONSTRAINT season_games_per_matchup_check`);
       await client.query(
         `INSERT INTO season (
            league_id, ordinal, label, game_title, games_per_matchup,

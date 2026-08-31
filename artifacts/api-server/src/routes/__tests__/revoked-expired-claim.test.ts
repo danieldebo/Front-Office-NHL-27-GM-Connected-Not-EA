@@ -6,12 +6,19 @@
  *   (a) the invite has been explicitly revoked (is_active = false)
  *   (b) the invite's expires_at is in the past
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../server/auth/index.js", () => ({
+  getCurrentUser: vi.fn().mockReturnValue(null),
+}));
+
 import request from "supertest";
 import crypto from "crypto";
 import { pool } from "@workspace/db";
 import app from "../../app.js";
-import { createSession } from "../../lib/auth.js";
+import { getCurrentUser } from "../../server/auth/index.js";
+
+const mockGetCurrentUser = vi.mocked(getCurrentUser);
 
 // ── Unique prefix so parallel test runs don't collide ────────────────────────
 
@@ -23,7 +30,7 @@ let revokedInviteToken: string;
 let revokedInviteId: string;
 let expiredInviteToken: string;
 let expiredInviteId: string;
-let claimantSession: string;
+let claimantReplitId: string;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,7 +84,7 @@ beforeAll(async () => {
   );
 
   // 2. Single claimant used for both tests
-  const claimantReplitId = `test-claimant-rev-${RUN_ID}`;
+  claimantReplitId = `test-claimant-rev-${RUN_ID}`;
   await makeUser(claimantReplitId, `claimant-rev-${RUN_ID}`);
 
   // 3. League owned by the commissioner
@@ -112,12 +119,6 @@ beforeAll(async () => {
     [leagueId, expiredInviteToken, commissionerAppId],
   );
   expiredInviteId = expiredInvite!.id;
-
-  // 5. Session for the claimant
-  claimantSession = await createSession({
-    user: { id: claimantReplitId, name: `Claimant Rev ${RUN_ID}` },
-    access_token: "test-token-rev",
-  });
 });
 
 afterAll(async () => {
@@ -131,9 +132,6 @@ afterAll(async () => {
     await sql(`DELETE FROM league WHERE id = $1`, [leagueId]);
   }
   await sql(`DELETE FROM app_user WHERE replit_id LIKE $1`, [`test-%-rev-${RUN_ID}`]);
-  if (claimantSession) {
-    await sql(`DELETE FROM sessions WHERE sid = $1`, [claimantSession]);
-  }
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -141,10 +139,10 @@ afterAll(async () => {
 describe("POST /api/join/:token/claim — revoked invite", () => {
   it("returns 410 and leaves the claim table empty", async (ctx) => {
     if (!schemaReady) return ctx.skip();
+    mockGetCurrentUser.mockReturnValue({ id: claimantReplitId, name: claimantReplitId } as any);
 
     const res = await request(app)
       .post(`/api/join/${revokedInviteToken}/claim`)
-      .set("Authorization", `Bearer ${claimantSession}`)
       .send();
 
     expect(res.status).toBe(410);
@@ -162,10 +160,10 @@ describe("POST /api/join/:token/claim — revoked invite", () => {
 describe("POST /api/join/:token/claim — expired invite", () => {
   it("returns 410 and leaves the claim table empty", async (ctx) => {
     if (!schemaReady) return ctx.skip();
+    mockGetCurrentUser.mockReturnValue({ id: claimantReplitId, name: claimantReplitId } as any);
 
     const res = await request(app)
       .post(`/api/join/${expiredInviteToken}/claim`)
-      .set("Authorization", `Bearer ${claimantSession}`)
       .send();
 
     expect(res.status).toBe(410);

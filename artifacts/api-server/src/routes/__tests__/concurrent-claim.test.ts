@@ -5,12 +5,24 @@
  * with max_uses = 1 and verifies that the FOR UPDATE row lock in the endpoint
  * ensures exactly one claim succeeds and one is rejected (HTTP 410).
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// getCurrentUser(req) reads req.authUser, set by the real Clerk-backed
+// middleware. This test fires two genuinely concurrent requests as two
+// different users, so — unlike every other test file's single
+// mockReturnValue(...) — the mock here reads which user a given request is
+// "logged in as" from a header the test sets per-request.
+vi.mock("../../server/auth/index.js", () => ({
+  getCurrentUser: vi.fn((req: { headers: Record<string, string | string[] | undefined> }) => {
+    const replitId = req.headers["x-test-replit-id"];
+    return typeof replitId === "string" ? { id: replitId, name: replitId } : null;
+  }),
+}));
+
 import request from "supertest";
 import crypto from "crypto";
 import { pool } from "@workspace/db";
 import app from "../../app.js";
-import { createSession } from "../../lib/auth.js";
 
 // ── Unique prefix so parallel test runs don't collide ────────────────────────
 
@@ -104,15 +116,11 @@ beforeAll(async () => {
   );
   inviteId = invite!.id;
 
-  // 5. Sessions for both claimants (Bearer token approach — no cookie signing needed)
-  sidA = await createSession({
-    user: { id: replitIdA, name: `Claimant A ${RUN_ID}` },
-    access_token: "test-token-a",
-  });
-  sidB = await createSession({
-    user: { id: replitIdB, name: `Claimant B ${RUN_ID}` },
-    access_token: "test-token-b",
-  });
+  // 5. Each claimant is identified per-request by the x-test-replit-id
+  // header the mocked getCurrentUser reads (see the vi.mock above) — no
+  // session store involved.
+  sidA = replitIdA;
+  sidB = replitIdB;
 });
 
 afterAll(async () => {
@@ -136,9 +144,6 @@ afterAll(async () => {
     `DELETE FROM app_user WHERE replit_id LIKE $1`,
     [`test-%-${RUN_ID}`],
   );
-  // Clean up sessions
-  if (sidA) await sql(`DELETE FROM sessions WHERE sid = $1`, [sidA]);
-  if (sidB) await sql(`DELETE FROM sessions WHERE sid = $1`, [sidB]);
 });
 
 // ── The actual test ───────────────────────────────────────────────────────────
@@ -152,11 +157,11 @@ describe("POST /api/join/:token/claim — concurrent race condition", () => {
       const [resA, resB] = await Promise.all([
         request(app)
           .post(`/api/join/${inviteToken}/claim`)
-          .set("Authorization", `Bearer ${sidA}`)
+          .set("x-test-replit-id", sidA)
           .send(),
         request(app)
           .post(`/api/join/${inviteToken}/claim`)
-          .set("Authorization", `Bearer ${sidB}`)
+          .set("x-test-replit-id", sidB)
           .send(),
       ]);
 

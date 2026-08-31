@@ -179,26 +179,20 @@ describe("GET /api/leagues/open — listing round-trip", () => {
     expect(ids).not.toContain(leagueId);
   });
 
-  it("edge: league with no active season appears with null active_season_id when listed", async (ctx) => {
+  it("edge: a league with no active season cannot be listed", async (ctx) => {
     if (!schemaReady) return ctx.skip();
 
-    // List the no-season league
+    // leagues-manage.ts deliberately refuses this: applicants would see NULL
+    // seat counts in v_open_leagues, which is misleading, so listing requires
+    // an active season first.
     const putRes = await request(app)
       .put(`/api/leagues/${noSeasonLeagueId}/listing`)
       .send({ is_listed: true, accepting_signups: false, accepting_waitlist: true });
 
-    expect(putRes.status).toBe(200);
+    expect(putRes.status).toBe(400);
+    expect(putRes.body.detail).toMatch(/no active season/i);
 
-    const openRes = await request(app).get("/api/leagues/open");
-    expect(openRes.status).toBe(200);
-
-    const row = (openRes.body.data as Array<Record<string, unknown>>).find(
-      (r) => r.league_id === noSeasonLeagueId,
-    );
-    expect(row).toBeDefined();
-    // No active season: seat-related fields should be null
-    expect(row!.active_season_id).toBeNull();
-    expect(row!.max_seats).toBeNull();
-    expect(row!.seats_open).toBeNull();
+    const ids = await getOpenLeagueIds();
+    expect(ids).not.toContain(noSeasonLeagueId);
   });
 });

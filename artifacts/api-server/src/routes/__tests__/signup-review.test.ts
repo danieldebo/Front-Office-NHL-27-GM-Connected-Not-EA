@@ -65,7 +65,7 @@ async function makeSignupWithWaitlist(
 ): Promise<{ signupId: string; waitlistId: string }> {
   const [signup] = await sql<{ id: string }>(
     `INSERT INTO league_signup (league_id, user_id, stated_division, platform, message)
-     VALUES ($1, $2, 'gold', 'psn', 'Test applicant')
+     VALUES ($1, $2, 'gold', 'playstation', 'Test applicant')
      RETURNING id`,
     [leagueId, userId],
   );
@@ -255,7 +255,7 @@ describe("sign-up review authorization", () => {
           league_id: leagueId,
           user_id: applicantAppUserIds[0],
           skill_division: "gold",
-          platform: "psn",
+          platform: "playstation",
           waitlist_status: "waiting",
           waitlist_position: 1,
         }),
@@ -293,7 +293,7 @@ describe("sign-up review authorization", () => {
           position: 1,
           status: "waiting",
           user_id: applicantAppUserIds[0],
-          platform: "psn",
+          platform: "playstation",
         }),
       ]);
     } finally {
