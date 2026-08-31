@@ -279,6 +279,11 @@ function SeasonStartDatePill({ leagueId, season, isCommissioner }: {
         onSuccess: () => {
           setEditing(false);
           queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/seasons`] as any });
+          // The backend shifts every already-generated game window by the
+          // same delta when both the old and new dates are set — bust the
+          // schedule caches too so that shows up without a refresh.
+          queryClient.invalidateQueries({ queryKey: [`/api/seasons/${season.id}/weeks`] as any });
+          queryClient.invalidateQueries({ queryKey: [`/api/seasons/${season.id}/games`] as any });
         },
         onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to update start date'),
       }

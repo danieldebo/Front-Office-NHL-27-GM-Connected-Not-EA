@@ -441,14 +441,15 @@ router.patch(
       return;
     }
 
-    const seasonRow = await pool.query<{ id: string }>(
-      `SELECT id FROM season WHERE id = $1 AND league_id = $2`,
+    const seasonRow = await pool.query<{ id: string; starts_on: string | null }>(
+      `SELECT id, starts_on::text FROM season WHERE id = $1 AND league_id = $2`,
       [seasonId, leagueId]
     );
     if (!seasonRow.rows[0]) {
       notFound(res, "Season not found");
       return;
     }
+    const previousStartsOn = seasonRow.rows[0].starts_on;
 
     const parsed = UpdateSeasonBody.safeParse(req.body);
     if (!parsed.success) {
@@ -473,19 +474,57 @@ router.patch(
       return;
     }
 
-    const updated = await pool.query(
-      `UPDATE season SET starts_on = $2
-        WHERE id = $1
-        RETURNING id, league_id, settings_version_id, ordinal, label, game_title,
-                  starts_on, ends_on, salary_cap_cents,
-                  roster_min, roster_max, games_per_matchup,
-                  points_win, points_ot_loss, points_reg_loss,
-                  tiebreakers, is_active, keepers_per_team, keeper_deadline_at,
-                  FALSE AS starts_on_locked`,
-      [seasonId, parsed.data.starts_on]
-    );
+    // orval types a `format: date` field as Date (the zod validator coerces
+    // the wire string into one), so this is a real Date object, not the
+    // plain "YYYY-MM-DD" string previousStartsOn (cast ::text above) is —
+    // normalize both to the same UTC date-only string before comparing, or
+    // every comparison silently fails (Date !== string, always).
+    const nextStartsOn = parsed.data.starts_on;
+    const nextStartsOnStr = nextStartsOn ? nextStartsOn.toISOString().slice(0, 10) : null;
 
-    res.json(updated.rows[0]);
+    // Reschedule the whole board along with the date: every already-generated
+    // game window shifts by the same number of days, so "move the start to
+    // tomorrow" doesn't leave every matchup pointing at its old week. Only
+    // meaningful when both the old and new dates are real (not the season's
+    // first-time-set case, where there's no existing schedule shape to carry
+    // forward) and actually different.
+    const client = await pool.connect();
+    let updatedSeason: Record<string, unknown>;
+    try {
+      await client.query("BEGIN");
+
+      const updated = await client.query(
+        `UPDATE season SET starts_on = $2
+          WHERE id = $1
+          RETURNING id, league_id, settings_version_id, ordinal, label, game_title,
+                    starts_on, ends_on, salary_cap_cents,
+                    roster_min, roster_max, games_per_matchup,
+                    points_win, points_ot_loss, points_reg_loss,
+                    tiebreakers, is_active, keepers_per_team, keeper_deadline_at,
+                    FALSE AS starts_on_locked`,
+        [seasonId, nextStartsOnStr]
+      );
+      updatedSeason = updated.rows[0];
+
+      if (previousStartsOn && nextStartsOnStr && previousStartsOn !== nextStartsOnStr) {
+        await client.query(
+          `UPDATE game
+              SET window_opens_at = window_opens_at + (($2::date - $3::date) * INTERVAL '1 day'),
+                  window_closes_at = window_closes_at + (($2::date - $3::date) * INTERVAL '1 day')
+            WHERE season_id = $1`,
+          [seasonId, nextStartsOnStr, previousStartsOn]
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    res.json(updatedSeason);
   }
 );
 
