@@ -20,6 +20,8 @@ export interface Season {
   game_title: string;
   /** @nullable */
   starts_on?: string | null;
+  /** True once this season has any confirmed/forfeited/simulated game — starts_on can no longer be changed. */
+  starts_on_locked?: boolean;
   /** @nullable */
   ends_on?: string | null;
   /** @nullable */

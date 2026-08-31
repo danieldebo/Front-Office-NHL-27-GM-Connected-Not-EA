@@ -12,7 +12,7 @@ export default function Footer() {
   return (
     <>
       <footer className="site-footer">
-        <div className="wrap" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', fontFamily: 'var(--data)', fontSize: '12px', color: '#9FB1BF' }}>
+        <div className="wrap" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', flexWrap: 'wrap', fontFamily: 'var(--data)', fontSize: '12px', color: '#9FB1BF' }}>
           <span className="made" style={{ color: '#E8EEF3' }}>
             Created by <b style={{ color: 'var(--bulb)', fontFamily: 'var(--body)', fontWeight: 700 }}>DeBo</b>
           </span>
@@ -28,7 +28,7 @@ export default function Footer() {
           </button>
           <div
             className="tip"
-            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--slab-2)', border: '1px solid rgba(242,169,59,.25)', borderRadius: '3px', padding: '7px 12px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'var(--slab-2)', border: '1px solid rgba(242,169,59,.25)', borderRadius: '3px', padding: '7px 12px' }}
           >
             <span
               className="amt"

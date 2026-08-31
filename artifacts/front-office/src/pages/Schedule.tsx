@@ -14,10 +14,12 @@ import {
   useListWeeks,
   useListGames,
   useGenerateSchedule,
+  useUpdateSeason,
   useGetLeagueSettings,
   useListLeagueSettingsHistory,
   type Game,
   type LeagueSettingsVersion,
+  type Season,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
@@ -247,6 +249,75 @@ function GenerateScheduleForm({
   );
 }
 
+// ─────────────────────────────────────── Season start date pill
+function SeasonStartDatePill({ leagueId, season, isCommissioner }: {
+  leagueId: string;
+  season: Season;
+  isCommissioner: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const updateSeason = useUpdateSeason();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+
+  const locked = Boolean(season.starts_on_locked);
+  const canEdit = isCommissioner && !locked;
+
+  const handleEdit = () => {
+    if (!canEdit) return;
+    setValue(season.starts_on ? season.starts_on.slice(0, 10) : '');
+    setEditing(true);
+  };
+
+  const handleSave = () => {
+    updateSeason.mutate(
+      { leagueId, seasonId: season.id, data: { starts_on: value || null } },
+      {
+        onSuccess: () => {
+          setEditing(false);
+          queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/seasons`] as any });
+        },
+        onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to update start date'),
+      }
+    );
+  };
+
+  if (editing) {
+    return (
+      <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+        <input
+          type="date"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          style={{ fontFamily: 'var(--data)', fontSize: '11px', padding: '4px 8px', border: '1px solid var(--rule)', borderRadius: '3px' }}
+        />
+        <button className="btn" style={{ fontSize: '11px', padding: '4px 10px' }} onClick={handleSave} disabled={updateSeason.isPending}>
+          {updateSeason.isPending ? 'Saving…' : 'Save'}
+        </button>
+        <button className="btn ghost" style={{ fontSize: '11px', padding: '4px 10px' }} onClick={() => setEditing(false)} disabled={updateSeason.isPending}>
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <span
+      className="chip man"
+      style={{ fontSize: '10.5px', display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: canEdit ? 'pointer' : 'default' }}
+      onClick={handleEdit}
+      title={locked ? 'Locked — this season already has played games' : canEdit ? 'Click to edit' : undefined}
+      data-testid="pill-season-start-date"
+    >
+      {season.starts_on
+        ? `Starts ${new Date(season.starts_on).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+        : 'No start date set'}
+      {canEdit && <span aria-hidden="true" style={{ opacity: .6 }}>✎</span>}
+      {locked && <span aria-hidden="true" title="Locked" style={{ opacity: .6 }}>🔒</span>}
+    </span>
+  );
+}
+
 // ─────────────────────────────────────── Schedule tab content
 function ScheduleContent({
   leagueId,
@@ -306,20 +377,27 @@ function ScheduleContent({
 
   return (
     <div>
-      {/* Season selector */}
-      {seasons.length > 1 && (
-        <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.1em' }}>Season:</span>
-          {seasons.map(s => (
-            <button
-              key={s.id}
-              className={`btn ${s.id === selectedSeasonId ? '' : 'ghost'}`}
-              onClick={() => setSelectedSeasonId(s.id)}
-              style={{ fontSize: '12px', padding: '5px 12px' }}
-            >
-              {s.label || s.id.slice(0, 8)}
-            </button>
-          ))}
+      {/* Season selector + start date */}
+      {(seasons.length > 1 || activeSeason) && (
+        <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {seasons.length > 1 && (
+            <>
+              <span style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)', textTransform: 'uppercase', letterSpacing: '.1em' }}>Season:</span>
+              {seasons.map(s => (
+                <button
+                  key={s.id}
+                  className={`btn ${s.id === selectedSeasonId ? '' : 'ghost'}`}
+                  onClick={() => setSelectedSeasonId(s.id)}
+                  style={{ fontSize: '12px', padding: '5px 12px' }}
+                >
+                  {s.label || s.id.slice(0, 8)}
+                </button>
+              ))}
+            </>
+          )}
+          {activeSeason && (
+            <SeasonStartDatePill leagueId={leagueId} season={activeSeason} isCommissioner={isCommissioner} />
+          )}
         </div>
       )}
 

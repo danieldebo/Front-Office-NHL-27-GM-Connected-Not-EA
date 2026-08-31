@@ -107,7 +107,7 @@ export function useSetupChecklist(leagueId: string): SetupChecklist {
       why: 'How GMs actually get in.',
       done: inviteReady,
       blockedReason: null,
-      href: `/leagues/${leagueId}/manage?tab=links`,
+      href: `/leagues/${leagueId}/manage?tab=players`,
     },
     {
       key: 'schedule',

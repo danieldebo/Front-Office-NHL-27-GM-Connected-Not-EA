@@ -210,6 +210,7 @@ export * from './updateLeagueListingInput';
 export * from './updateLeagueListingInputCompetitiveness';
 export * from './updateLeagueListingInputPlatform';
 export * from './updatePartnersBody';
+export * from './updateSeasonInput';
 export * from './uploadBoxScoreBody';
 export * from './uploadBoxScoreBodyKind';
 export * from './userProfile';

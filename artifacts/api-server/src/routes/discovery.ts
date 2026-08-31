@@ -10,6 +10,7 @@ import { pool } from "@workspace/db";
 import { getCurrentUser } from "../server/auth";
 import { unauthorized, badRequest, conflict, notFound, forbidden } from "../server/errors";
 import { rateLimiter } from "../middlewares/rateLimiter";
+import { LEAGUE_MEMBERSHIP_CAP, countActiveLeagueMemberships } from "../server/core/leagueLimits";
 
 const router: IRouter = Router();
 
@@ -611,6 +612,11 @@ router.post(
         )).rows[0] ?? null;
     const applicant = signupRow.rows[0] ?? waitlistOnlyRow;
     if (!applicant) { notFound(res, "Applicant not found"); return; }
+
+    if ((await countActiveLeagueMemberships(applicant.user_id)) >= LEAGUE_MEMBERSHIP_CAP) {
+      conflict(res, `This applicant is already in ${LEAGUE_MEMBERSHIP_CAP} leagues — the maximum allowed — and can't be accepted.`);
+      return;
+    }
 
     const client = await pool.connect();
     try {

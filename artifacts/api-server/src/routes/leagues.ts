@@ -278,14 +278,20 @@ router.get(
     }
 
     const { rows } = await pool.query(
-      `SELECT id, league_id, settings_version_id, ordinal, label, game_title,
-              starts_on, ends_on, salary_cap_cents,
-              roster_min, roster_max, games_per_matchup,
-              points_win, points_ot_loss, points_reg_loss,
-              tiebreakers, is_active, keepers_per_team, keeper_deadline_at
-         FROM season
-        WHERE league_id = $1
-        ORDER BY ordinal ASC`,
+      `SELECT s.id, s.league_id, s.settings_version_id, s.ordinal, s.label, s.game_title,
+              s.starts_on, s.ends_on, s.salary_cap_cents,
+              s.roster_min, s.roster_max, s.games_per_matchup,
+              s.points_win, s.points_ot_loss, s.points_reg_loss,
+              s.tiebreakers, s.is_active, s.keepers_per_team, s.keeper_deadline_at,
+              EXISTS (
+                SELECT 1 FROM game g
+                JOIN game_result gr ON gr.game_id = g.id
+                WHERE g.season_id = s.id AND gr.superseded_by IS NULL
+                  AND g.status IN ('confirmed', 'forfeited', 'simulated')
+              ) AS starts_on_locked
+         FROM season s
+        WHERE s.league_id = $1
+        ORDER BY s.ordinal ASC`,
       [leagueId]
     );
 

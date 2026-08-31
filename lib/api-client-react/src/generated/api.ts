@@ -131,6 +131,7 @@ import type {
   UpdateLeagueInput,
   UpdateLeagueListingInput,
   UpdatePartnersBody,
+  UpdateSeasonInput,
   UploadBoxScoreBody,
   UserProfile,
   UserProfileUpdate,
@@ -2305,6 +2306,80 @@ export const useCreateSeason = <TError = ErrorType<Problem>,
         TContext
       > => {
       return useMutation(getCreateSeasonMutationOptions(options));
+    }
+
+export const getUpdateSeasonUrl = (leagueId: string,
+    seasonId: string,) => {
+
+
+
+
+  return `/api/leagues/${leagueId}/seasons/${seasonId}`
+}
+
+/**
+ * @summary Edit a season's start date (commissioner only, locked once games have been played)
+ */
+export const updateSeason = async (leagueId: string,
+    seasonId: string,
+    updateSeasonInput: UpdateSeasonInput, options?: RequestInit): Promise<Season> => {
+
+  return customFetch<Season>(getUpdateSeasonUrl(leagueId,seasonId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateSeasonInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateSeasonMutationOptions = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSeason>>, TError,{leagueId: string;seasonId: string;data: BodyType<UpdateSeasonInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSeason>>, TError,{leagueId: string;seasonId: string;data: BodyType<UpdateSeasonInput>}, TContext> => {
+
+const mutationKey = ['updateSeason'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSeason>>, {leagueId: string;seasonId: string;data: BodyType<UpdateSeasonInput>}> = (props) => {
+          const {leagueId,seasonId,data} = props ?? {};
+
+          return  updateSeason(leagueId,seasonId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSeasonMutationResult = NonNullable<Awaited<ReturnType<typeof updateSeason>>>
+    export type UpdateSeasonMutationBody = BodyType<UpdateSeasonInput>
+    export type UpdateSeasonMutationError = ErrorType<Problem>
+
+    /**
+ * @summary Edit a season's start date (commissioner only, locked once games have been played)
+ */
+export const useUpdateSeason = <TError = ErrorType<Problem>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSeason>>, TError,{leagueId: string;seasonId: string;data: BodyType<UpdateSeasonInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSeason>>,
+        TError,
+        {leagueId: string;seasonId: string;data: BodyType<UpdateSeasonInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateSeasonMutationOptions(options));
     }
 
 export const getListInvitesUrl = (leagueId: string,) => {

@@ -1009,6 +1009,56 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 
+  /leagues/{leagueId}/seasons/{seasonId}:
+    parameters:
+      - $ref: '#/components/parameters/LeagueId'
+      - name: seasonId
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [Leagues]
+      operationId: updateSeason
+      summary: Edit a season's start date (commissioner only, locked once games have been played)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSeasonInput'
+      responses:
+        '200':
+          description: Updated season.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Season'
+        '400':
+          description: Bad request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Season already has confirmed games — starts_on is locked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
   # ------------------------------------------------------------------ Seats
 
   /leagues/{leagueId}/invites:
@@ -3579,6 +3629,15 @@ components:
             type: string
           description: Overrides the league's default tiebreaker order for this season only. Defaults to the league's active settings.
 
+    UpdateSeasonInput:
+      type: object
+      required: [starts_on]
+      properties:
+        starts_on:
+          type: ["string", "null"]
+          format: date
+          description: Rejected with 409 once the season has any confirmed/forfeited/simulated game.
+
     LeagueHub:
       type: object
       description: Summary stats for the league hub slab.
@@ -3731,6 +3790,9 @@ components:
           type: string
         starts_on:
           type: ["string", "null"]
+        starts_on_locked:
+          type: boolean
+          description: True once this season has any confirmed/forfeited/simulated game — starts_on can no longer be changed.
         ends_on:
           type: ["string", "null"]
         salary_cap_cents:

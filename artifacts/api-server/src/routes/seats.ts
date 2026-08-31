@@ -28,6 +28,7 @@ import {
 } from "../server/errors";
 import { AssignGmBody, CreateInviteBody } from "@workspace/api-zod";
 import { canonicalGmIdentity } from "../server/core/playerIdentity";
+import { LEAGUE_MEMBERSHIP_CAP, countActiveLeagueMemberships } from "../server/core/leagueLimits";
 
 const router: IRouter = Router();
 
@@ -476,6 +477,11 @@ router.post(
       return;
     }
 
+    if ((await countActiveLeagueMemberships(jr.user_id)) >= LEAGUE_MEMBERSHIP_CAP) {
+      conflict(res, `This applicant is already in ${LEAGUE_MEMBERSHIP_CAP} leagues — the maximum allowed — and can't be added.`);
+      return;
+    }
+
     const reviewerAppUserId = await getAppUserId(user.id);
 
     const client = await pool.connect();
@@ -735,6 +741,11 @@ router.put(
     );
     if (!targetUserRow.rows[0]) {
       notFound(res, "Target user not found");
+      return;
+    }
+
+    if ((await countActiveLeagueMemberships(targetUserId)) >= LEAGUE_MEMBERSHIP_CAP) {
+      conflict(res, `This user is already in ${LEAGUE_MEMBERSHIP_CAP} leagues — the maximum allowed — and can't be added.`);
       return;
     }
 

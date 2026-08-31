@@ -144,10 +144,18 @@ describe("GM seat card — identity fields and career record", () => {
   it("keeps a league's combined record scoped to that league, while site_record spans every league the GM has ever managed in", async (ctx) => {
     if (!schemaReady || !cardColumnsReady) return ctx.skip();
 
-    const commissionerReplitId = `gmcard-comm2-${RUN_ID}`;
-    const [comm] = await sql<{ id: string }>(
+    // Two different commissioners so creating leagueA and leagueB back-to-back
+    // doesn't trip the per-user league-creation cooldown — the test only
+    // needs the GM shared across leagues, not the commissioner.
+    const commissionerAReplitId = `gmcard-comm2a-${RUN_ID}`;
+    const [commA] = await sql<{ id: string }>(
       `INSERT INTO app_user (replit_id, display_name, email) VALUES ($1,$2,$3) RETURNING id`,
-      [commissionerReplitId, `GM Card Commissioner 2 ${RUN_ID}`, `${commissionerReplitId}@test.invalid`],
+      [commissionerAReplitId, `GM Card Commissioner 2A ${RUN_ID}`, `${commissionerAReplitId}@test.invalid`],
+    );
+    const commissionerBReplitId = `gmcard-comm2b-${RUN_ID}`;
+    const [commB] = await sql<{ id: string }>(
+      `INSERT INTO app_user (replit_id, display_name, email) VALUES ($1,$2,$3) RETURNING id`,
+      [commissionerBReplitId, `GM Card Commissioner 2B ${RUN_ID}`, `${commissionerBReplitId}@test.invalid`],
     );
     const gmReplitId = `gmcard-gm-multi-${RUN_ID}`;
     const [gm] = await sql<{ id: string }>(
@@ -155,21 +163,22 @@ describe("GM seat card — identity fields and career record", () => {
       [gmReplitId, `GM Card Multi GM ${RUN_ID}`, `${gmReplitId}@test.invalid`],
     );
 
-    const leagueA = await makeLeagueWithTwoTeams(commissionerReplitId, comm!.id, `a-${RUN_ID}`);
-    const leagueB = await makeLeagueWithTwoTeams(commissionerReplitId, comm!.id, `b-${RUN_ID}`);
+    const leagueA = await makeLeagueWithTwoTeams(commissionerAReplitId, commA!.id, `a-${RUN_ID}`);
+    const leagueB = await makeLeagueWithTwoTeams(commissionerBReplitId, commB!.id, `b-${RUN_ID}`);
 
-    authAs(commissionerReplitId, comm!.id);
+    authAs(commissionerAReplitId, commA!.id);
     await request(app).put(`/api/team-seasons/${leagueA.teamA}/gm`).send({ user_id: gm!.id }).expect(200);
+    authAs(commissionerBReplitId, commB!.id);
     await request(app).put(`/api/team-seasons/${leagueB.teamA}/gm`).send({ user_id: gm!.id }).expect(200);
 
     const [seasonA] = await sql<{ id: string }>(`SELECT season_id AS id FROM team_season WHERE id = $1`, [leagueA.teamA]);
     const [seasonB] = await sql<{ id: string }>(`SELECT season_id AS id FROM team_season WHERE id = $1`, [leagueB.teamA]);
 
     // League A: GM's team wins one, loses one (as home and away respectively).
-    await playGame(seasonA!.id, leagueA.teamA, leagueA.teamB, 4, 2, comm!.id);
-    await playGame(seasonA!.id, leagueA.teamB, leagueA.teamA, 3, 1, comm!.id);
+    await playGame(seasonA!.id, leagueA.teamA, leagueA.teamB, 4, 2, commA!.id);
+    await playGame(seasonA!.id, leagueA.teamB, leagueA.teamA, 3, 1, commA!.id);
     // League B: GM's team wins one more.
-    await playGame(seasonB!.id, leagueB.teamA, leagueB.teamB, 5, 0, comm!.id);
+    await playGame(seasonB!.id, leagueB.teamA, leagueB.teamB, 5, 0, commB!.id);
 
     const seatsA = await request(app).get(`/api/leagues/${leagueA.leagueId}/seats`);
     const seatA = seatsA.body.data.find((s: { team_season_id: string }) => s.team_season_id === leagueA.teamA);

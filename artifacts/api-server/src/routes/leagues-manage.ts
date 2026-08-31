@@ -1,9 +1,10 @@
 /**
  * League + season write routes (commissioner-only mutations).
  *
- * POST  /leagues                     — create a league
- * PATCH /leagues/:leagueId           — update league settings
- * POST  /leagues/:leagueId/seasons   — create a season + 32 franchise seats
+ * POST  /leagues                              — create a league
+ * PATCH /leagues/:leagueId                    — update league settings
+ * POST  /leagues/:leagueId/seasons            — create a season + 32 franchise seats
+ * PATCH /leagues/:leagueId/seasons/:seasonId  — edit a season (currently: starts_on)
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { pool } from "@workspace/db";
@@ -15,14 +16,24 @@ import {
   forbidden,
   badRequest,
   conflict,
+  tooManyRequests,
 } from "../server/errors";
 import {
   CreateLeagueBody,
   UpdateLeagueBody,
   CreateSeasonBody,
+  UpdateSeasonBody,
 } from "@workspace/api-zod";
 import { ensureClubCatalog, provisionSeasonSeats } from "../server/seasonProvisioning";
 import { getTemplate } from "../server/leagueSettingsTemplates";
+import {
+  LEAGUE_MEMBERSHIP_CAP,
+  FREE_LEAGUE_CREATE_LIMIT,
+  countActiveLeagueMemberships,
+  countLeaguesCreated,
+  canCreateExtraLeagues,
+  leagueCreateCooldownRemainingSecs,
+} from "../server/core/leagueLimits";
 
 const router: IRouter = Router();
 
@@ -57,6 +68,24 @@ router.post("/leagues", async (req: Request, res: Response): Promise<void> => {
     return;
   }
   const appUserId = userRow.rows[0].id;
+
+  const totalMemberships = await countActiveLeagueMemberships(appUserId);
+  if (totalMemberships >= LEAGUE_MEMBERSHIP_CAP) {
+    conflict(res, `You're already in ${LEAGUE_MEMBERSHIP_CAP} leagues (created + joined combined) — the maximum allowed.`);
+    return;
+  }
+
+  const createdCount = await countLeaguesCreated(appUserId);
+  if (createdCount >= FREE_LEAGUE_CREATE_LIMIT && !(await canCreateExtraLeagues(appUserId))) {
+    forbidden(res, `You've created the maximum of ${FREE_LEAGUE_CREATE_LIMIT} leagues. Ask the site admin to unlock creating more.`);
+    return;
+  }
+
+  const cooldownSecs = await leagueCreateCooldownRemainingSecs(appUserId);
+  if (cooldownSecs > 0) {
+    tooManyRequests(res, cooldownSecs, `You can create another league in ${Math.ceil(cooldownSecs / 60)} minute(s).`);
+    return;
+  }
 
   // Check slug uniqueness
   const slugCheck = await pool.query(
@@ -364,6 +393,82 @@ router.post(
     } finally {
       client.release();
     }
+  }
+);
+
+// ────────────────────────────────────────────── Update season
+
+router.patch(
+  "/leagues/:leagueId/seasons/:seasonId",
+  async (req: Request, res: Response): Promise<void> => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      unauthorized(res, "Authentication required");
+      return;
+    }
+
+    const leagueId = req.params.leagueId as string;
+    const seasonId = req.params.seasonId as string;
+
+    const leagueRow = await pool.query<{ id: string; owner_user_id: string }>(
+      `SELECT id, owner_user_id FROM league WHERE id = $1`,
+      [leagueId]
+    );
+    if (!leagueRow.rows[0]) {
+      notFound(res, "League not found");
+      return;
+    }
+
+    if (!can(user, "season:write", { kind: "league", ownerId: leagueRow.rows[0].owner_user_id })) {
+      forbidden(res, "Only the league owner can edit a season");
+      return;
+    }
+
+    const seasonRow = await pool.query<{ id: string }>(
+      `SELECT id FROM season WHERE id = $1 AND league_id = $2`,
+      [seasonId, leagueId]
+    );
+    if (!seasonRow.rows[0]) {
+      notFound(res, "Season not found");
+      return;
+    }
+
+    const parsed = UpdateSeasonBody.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.message);
+      return;
+    }
+
+    // A commissioner can reschedule freely while nothing has actually been
+    // played yet; once a game in this season has a real result, the start
+    // date is locked so it can't retroactively contradict what happened.
+    const playedRow = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM game g
+         JOIN game_result gr ON gr.game_id = g.id
+        WHERE g.season_id = $1 AND gr.superseded_by IS NULL
+          AND g.status IN ('confirmed', 'forfeited', 'simulated')
+       ) AS exists`,
+      [seasonId]
+    );
+    if (playedRow.rows[0]?.exists) {
+      conflict(res, "This season already has confirmed games — the start date can no longer be changed.");
+      return;
+    }
+
+    const updated = await pool.query(
+      `UPDATE season SET starts_on = $2
+        WHERE id = $1
+        RETURNING id, league_id, settings_version_id, ordinal, label, game_title,
+                  starts_on, ends_on, salary_cap_cents,
+                  roster_min, roster_max, games_per_matchup,
+                  points_win, points_ot_loss, points_reg_loss,
+                  tiebreakers, is_active, keepers_per_team, keeper_deadline_at,
+                  FALSE AS starts_on_locked`,
+      [seasonId, parsed.data.starts_on]
+    );
+
+    res.json(updated.rows[0]);
   }
 );
 

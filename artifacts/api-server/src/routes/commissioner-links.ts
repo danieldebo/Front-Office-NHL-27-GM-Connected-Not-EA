@@ -24,6 +24,7 @@ import {
 } from "../server/errors";
 import { rateLimiter } from "../middlewares/rateLimiter";
 import { generateInviteToken } from "../server/inviteWords";
+import { LEAGUE_MEMBERSHIP_CAP, countActiveLeagueMemberships } from "../server/core/leagueLimits";
 
 const router: IRouter = Router();
 
@@ -518,6 +519,12 @@ router.post(
 
       const isFull = rosterMax !== null && takenSeats >= rosterMax;
       const outcome = isFull ? "waitlist" : "member";
+
+      if (outcome === "member" && (await countActiveLeagueMemberships(appUserId)) >= LEAGUE_MEMBERSHIP_CAP) {
+        await client.query("ROLLBACK");
+        conflict(res, `You're already in ${LEAGUE_MEMBERSHIP_CAP} leagues — the maximum allowed — so this invite can't be claimed as a member right now.`);
+        return;
+      }
 
       // (c) Insert claim record
       await client.query(

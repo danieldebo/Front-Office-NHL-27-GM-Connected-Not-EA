@@ -208,6 +208,7 @@ export type { UpdateLeagueListingInput } from "./generated/types/updateLeagueLis
 export type { UpdateLeagueListingInputCompetitiveness } from "./generated/types/updateLeagueListingInputCompetitiveness";
 export type { UpdateLeagueListingInputPlatform } from "./generated/types/updateLeagueListingInputPlatform";
 // UpdatePartnersBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
+export type { UpdateSeasonInput } from "./generated/types/updateSeasonInput";
 // UploadBoxScoreBody intentionally excluded — collides with Zod const of the same name in generated/api.ts
 export type { UploadBoxScoreBodyKind } from "./generated/types/uploadBoxScoreBodyKind";
 export type { UserProfile } from "./generated/types/userProfile";

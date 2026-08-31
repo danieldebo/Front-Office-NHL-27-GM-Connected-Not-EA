@@ -162,6 +162,7 @@ every domain query silently returns nothing.
 - **Auth adapter**: `artifacts/api-server/src/server/auth/index.ts` — the sole route-level identity bridge. Keep Clerk server-side and use cookies in the web app.
 - **Idempotency column**: DB column is `request_digest` (not `body_hash`). Middleware resolves `app_user.id` by `replit_id` before the DB lookup.
 - **Codegen patch**: `lib/api-spec/patch-api-zod-index.mjs` maintains `COLLIDING_NAMES`. Add every new body schema name when adding new OpenAPI operations, or expect TS2308 "only refers to a type" errors.
+- **Brand assets**: `artifacts/front-office/public/favicon.svg` (tab icon — a black puck with a yellow "27") and `public/og-image.png` (1200x630 social share card) are static files `index.html` points every route at, so updating either is just replacing the file — no code change, no per-page wiring. `og-image.png` was rendered (not hand-drawn) from an HTML/CSS source at exactly 1200x630 via headless Chromium (`playwright`, not a project dependency — run with `NODE_PATH` pointed at a global install) so it reuses the site's real fonts/colors pixel-for-pixel; regenerate the same way after a rebrand rather than editing the PNG directly. `favicon-512.png` is the PNG fallback for browsers that don't support SVG favicons, rendered the same way.
 
 ---
 
@@ -221,6 +222,7 @@ two places numeric order and dependency order diverge):
 | 2.14.0 | `db/schema-waitlist-decided-by.sql` | `waitlist_entry.decided_by` — who resolved a waitlist-only applicant, matching `league_signup.decided_by` |
 | 2.15.0 | `db/schema-join-requests.sql` | `join_request` + `invite_link` — seats.ts always queried these; never previously committed as a migration |
 | 2.16.0 | `db/schema-gm-card-profile.sql` | `app_user.first_nhl_game` + `profile_image_url`, surfaced on the GM seat card |
+| 2.17.0 | `db/schema-league-limits.sql` | `app_user.extra_leagues_approved` — manual admin gate for a user's 6th-10th league |
 
 ---
 
