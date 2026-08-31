@@ -1,0 +1,88 @@
+# Front Office — CI
+#
+# Runs on every push to main and every PR against it. Three independent jobs
+# (typecheck, each app's test suite) so a failure in one doesn't hide the
+# others, and so this catches exactly the kind of drift that caused real pain
+# once already: a change that typechecks but breaks a test, or a schema
+# change nothing actually re-verified against a real Postgres database.
+#
+# NOTE: an earlier, much more elaborate CI template lives at
+# ci/github-workflows-ci.yml. It was written for a different project layout
+# (npm instead of this pnpm workspace, a flat repo instead of artifacts/*,
+# scripts and secrets — db:migrate, deploy:production, ANON_SNAPSHOT_URL —
+# that don't exist here) and was never adapted, so it was never actually
+# wired up as a real workflow. This file is deliberately smaller: it only
+# does what this repo can actually back up today.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11'
+  # Fake-but-validly-formatted Clerk keys — clerkMiddleware() must be able to
+  # construct itself for app.ts to import at all, even though no test in
+  # either suite ever completes a real Clerk session.
+  CLERK_SECRET_KEY: sk_test_fakefakefakefakefakefakefakefakefakefake
+  CLERK_PUBLISHABLE_KEY: pk_test_ZmFrZS1mYWtlLWZha2UtZmFrZS5jbGVyay5hY2NvdW50cy5kZXYk
+
+jobs:
+  typecheck:
+    name: Typecheck (full monorepo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: ${{ env.PNPM_VERSION }} }
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+
+  front-office-tests:
+    name: front-office test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: ${{ env.PNPM_VERSION }} }
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @workspace/front-office run test
+
+  api-server-tests:
+    name: api-server test suite (real Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: frontoffice_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/frontoffice_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: ${{ env.PNPM_VERSION }} }
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Apply database schema
+        run: ./scripts/apply-schema.sh
+      - run: pnpm --filter @workspace/api-server run test

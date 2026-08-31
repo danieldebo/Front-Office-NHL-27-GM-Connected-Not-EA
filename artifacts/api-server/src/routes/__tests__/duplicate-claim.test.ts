@@ -5,12 +5,19 @@
  * HTTP 409 while the first call succeeds with HTTP 200 (outcome: "member"), and
  * that commissioner_invite.uses remains 1 after both attempts.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../server/auth/index.js", () => ({
+  getCurrentUser: vi.fn().mockReturnValue(null),
+}));
+
 import request from "supertest";
 import crypto from "crypto";
 import { pool } from "@workspace/db";
 import app from "../../app.js";
-import { createSession } from "../../lib/auth.js";
+import { getCurrentUser } from "../../server/auth/index.js";
+
+const mockGetCurrentUser = vi.mocked(getCurrentUser);
 
 // ── Unique prefix so parallel test runs don't collide ────────────────────────
 
@@ -20,7 +27,7 @@ const RUN_ID = crypto.randomBytes(4).toString("hex");
 let leagueId: string;
 let inviteToken: string;
 let inviteId: string;
-let claimantSession: string;
+let claimantReplitId: string;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -77,7 +84,7 @@ beforeAll(async () => {
   );
 
   // 2. Single claimant who will attempt to claim twice
-  const claimantReplitId = `test-claimant-dup-${RUN_ID}`;
+  claimantReplitId = `test-claimant-dup-${RUN_ID}`;
   await makeUser(claimantReplitId, `claimant-dup-${RUN_ID}`);
 
   // 3. League owned by the commissioner
@@ -103,12 +110,6 @@ beforeAll(async () => {
     [leagueId, inviteToken, commissionerAppId],
   );
   inviteId = invite!.id;
-
-  // 5. Session for the claimant
-  claimantSession = await createSession({
-    user: { id: claimantReplitId, name: `Claimant Dup ${RUN_ID}` },
-    access_token: "test-token-dup",
-  });
 });
 
 afterAll(async () => {
@@ -121,9 +122,6 @@ afterAll(async () => {
     await sql(`DELETE FROM league WHERE id = $1`, [leagueId]);
   }
   await sql(`DELETE FROM app_user WHERE replit_id LIKE $1`, [`test-%-dup-${RUN_ID}`]);
-  if (claimantSession) {
-    await sql(`DELETE FROM sessions WHERE sid = $1`, [claimantSession]);
-  }
 });
 
 // ── The actual test ───────────────────────────────────────────────────────────
@@ -133,20 +131,19 @@ describe("POST /api/join/:token/claim — duplicate claim guard", () => {
     "first claim returns 200 with outcome member; second claim from the same user returns 409",
     async (ctx) => {
       if (!schemaReady) return ctx.skip();
+      mockGetCurrentUser.mockReturnValue({ id: claimantReplitId, name: claimantReplitId } as any);
 
       // First claim — must succeed
       const firstRes = await request(app)
         .post(`/api/join/${inviteToken}/claim`)
-        .set("Authorization", `Bearer ${claimantSession}`)
         .send();
 
       expect(firstRes.status).toBe(200);
       expect(firstRes.body).toMatchObject({ outcome: "member" });
 
-      // Second claim with the same session — must be rejected
+      // Second claim with the same identity — must be rejected
       const secondRes = await request(app)
         .post(`/api/join/${inviteToken}/claim`)
-        .set("Authorization", `Bearer ${claimantSession}`)
         .send();
 
       expect(secondRes.status).toBe(409);

@@ -158,6 +158,7 @@ every domain query silently returns nothing.
 - **Connection pool**: bounded at `max: 10` (`@workspace/db`) — Replit restarts exhaust unpooled connections fast.
 - **Port**: read from `process.env.PORT`; never hardcode. Vite config uses it too.
 - **Drizzle push**: requires a TTY when other tables exist — can't run non-interactively. Apply schema changes with `executeSql` from the CodeExecution sandbox.
+- **Applying `db/*.sql`**: run `DATABASE_URL=... ./scripts/apply-schema.sh` — it applies every delta in dependency order (which is *not* the same as sorting by version number; several files run out of numeric order because of real FK/view dependencies) and skips whatever a given database already has. This exists because two environments working on this repo independently drifted onto incompatible schemas for a while — always run this after pulling changes that touch `db/`, rather than hand-applying files.
 - **Auth adapter**: `artifacts/api-server/src/server/auth/index.ts` — the sole route-level identity bridge. Keep Clerk server-side and use cookies in the web app.
 - **Idempotency column**: DB column is `request_digest` (not `body_hash`). Middleware resolves `app_user.id` by `replit_id` before the DB lookup.
 - **Codegen patch**: `lib/api-spec/patch-api-zod-index.mjs` maintains `COLLIDING_NAMES`. Add every new body schema name when adding new OpenAPI operations, or expect TS2308 "only refers to a type" errors.
@@ -183,12 +184,39 @@ every domain query silently returns nothing.
 | `design/open-leagues-mockup.html` | Open leagues UI reference. Phase 3 |
 | `design/team-admin-keepers-mockup.html` | Team admin / keeper UI reference. Phase 2 |
 | `db/schema.sql` | Full Postgres schema source of truth |
-| `db/schema-platform.sql` | Platform type enum delta (CP2) |
-| `db/schema-membership.sql` | Membership tables delta. Phase 2 |
-| `db/schema-keepers.sql` | Keeper tables delta. Phase 2 |
-| `db/schema-discovery.sql` | Discovery/marketplace tables delta. Phase 3 |
-| `db/data-quality-checks.sql` | DQ stored procedures — apply in CP6 |
+| `db/data-quality-checks.sql` | DQ stored procedures and `dq.run_all()` |
+| `scripts/apply-schema.sh` | Applies every file below in dependency order — **use this, don't hand-apply** |
 | `api/openapi.yaml` | External/partner API spec reference |
+
+Every `db/*.sql` delta, in the order `scripts/apply-schema.sh` actually applies
+them (version number is not apply order — see the script's comments for the
+two places numeric order and dependency order diverge):
+
+| Version | File | What it adds |
+|---|---|---|
+| 1.4.0 | `db/schema-discovery.sql` | Open-league discovery, ranked division, private admin rating, waitlist |
+| 1.8.0 | `db/schema-location.sql` | User location + country; surfaced on waitlist and applicant views |
+| 1.8.0 | `db/migration-1.8.0-decline-note.sql` | Optional commissioner note when declining an applicant |
+| 1.5.0 | `db/schema-platform.sql` | Platform type enum: xbox / playstation / crossplay |
+| 1.2.0 | `db/schema-membership.sql` | Membership provisioning, seat limit, relationship tiers |
+| 1.9.0 | `db/schema-user-profile.sql` | Canonical Xbox/PSN profile, systems played, identity history |
+| 1.7.0 | `db/schema-commissioner-links.sql` | Commissioner shareable link + reusable invite link |
+| 1.6.0 | `db/schema-feature-request.sql` | Feature request inbox |
+| 1.3.0 | `db/schema-keepers.sql` | Keeper limit, keeper designations with tenure, player registry, stat cards |
+| 1.1.0 | `db/schema-charity.sql` | Phase-3 charity/giving system (causes, pledges, giving events) — do not build against this; see "Out of scope" |
+| 2.0.0 | `db/migration-2.0.0-league-settings.sql` | Immutable versioned league operational settings |
+| 2.2.0 | `db/schema-league-settings-identity.sql` | Canonical platform vocabulary, `require_verified_identities` |
+| 2.1.0 | `db/schema-xbox-verification.sql` | Xbox Live identity verification |
+| 2.3.0 | `db/schema-season-inheritance.sql` | Points system + tiebreakers, per-league settings inheritance |
+| 2.4.0 | `db/schema-transactions.sql` | Trades, signings, waivers, roster status, Discord webhook URL |
+| 2.5.0 | `db/schema-keeper-deadline.sql` | Locks keeper edits to the commissioner after the deadline |
+| 2.6.0 | `db/schema-keeper-dq-registration.sql` | Wires the keeper DQ checks into `dq.run_all()` |
+| 2.7.0 | `db/schema-box-scores.sql` | Box score upload queue, commissioner review, auto-approve |
+| 2.8.0 | `db/schema-game-result-standings-flag.sql` | `game_result.counts_toward_standings` |
+| 2.9.0 | `db/schema-email-digest.sql` | Weekly digest settings, per-membership unsubscribe |
+| 2.10.0 | `db/schema-calendar-feed.sql` | Per-league / per-GM revocable `.ics` feed tokens |
+| 2.11.0 | `db/schema-league-partners.sql` | Charity/sponsor display fields (max 2 each) — display-only, distinct from `schema-charity.sql` |
+| 2.12.0 | `db/schema-replit-id.sql` | `app_user.replit_id` — the Clerk-to-domain-identity bridge every route relies on |
 
 ---
 
