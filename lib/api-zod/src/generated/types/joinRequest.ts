@@ -17,6 +17,8 @@ export interface JoinRequest {
   /** @nullable */
   reviewed_by?: string | null;
   /** @nullable */
+  reviewed_by_name?: string | null;
+  /** @nullable */
   reviewed_at?: Date | null;
   /** @nullable */
   note?: string | null;

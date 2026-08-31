@@ -253,6 +253,15 @@ paths:
       summary: List waitlist entries for a league (commissioner only)
       security:
         - sessionCookie: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, resolved, all]
+            default: active
+          description: active (default, the live queue) — resolved (past decisions) — all
       responses:
         '200':
           description: Waitlist entries ordered by position.
@@ -772,6 +781,15 @@ paths:
       summary: List sign-up applicants for a league (commissioner only)
       security:
         - sessionCookie: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, resolved, all]
+            default: pending
+          description: pending (default, the live queue) — resolved (past decisions) — all
       responses:
         '200':
           description: Sign-up applicants ordered by created_at ASC.
@@ -3798,6 +3816,8 @@ components:
           enum: [pending, approved, rejected]
         reviewed_by:
           type: ["string", "null"]
+        reviewed_by_name:
+          type: ["string", "null"]
         reviewed_at:
           type: ["string", "null"]
           format: date-time
@@ -4649,6 +4669,16 @@ components:
           type: ['string', 'null']
         waitlist_position:
           type: ['integer', 'null']
+        status:
+          type: string
+          enum: [pending, accepted, declined]
+        decided_at:
+          type: ['string', 'null']
+          format: date-time
+        decision_note:
+          type: ['string', 'null']
+        decided_by_name:
+          type: ['string', 'null']
 
     WaitlistApplicant:
       type: object
@@ -4690,6 +4720,13 @@ components:
         invite_expires_at:
           type: ['string', 'null']
           format: date-time
+        resolved_at:
+          type: ['string', 'null']
+          format: date-time
+        decline_note:
+          type: ['string', 'null']
+        decided_by_name:
+          type: ['string', 'null']
 
     ApplicantActionResult:
       type: object

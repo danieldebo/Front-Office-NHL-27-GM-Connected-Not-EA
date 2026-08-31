@@ -304,7 +304,7 @@ describe("sign-up review authorization", () => {
 });
 
 describe("POST /api/leagues/:id/signups/:signupId/accept", () => {
-  it("creates membership, marks the applicant placed, and removes the signup", async (ctx) => {
+  it("creates membership, marks the applicant placed, and records the signup as accepted", async (ctx) => {
     if (!schemaReady) return ctx.skip();
     mockGetCurrentUser.mockReturnValue({
       id: commissionerReplitId,
@@ -334,7 +334,7 @@ describe("POST /api/leagues/:id/signups/:signupId/accept", () => {
       }>(`SELECT status, signup_id FROM waitlist_entry WHERE id = $1`, [
         waitlistId,
       ]);
-      expect(waitlistRow).toMatchObject({ status: "placed", signup_id: null });
+      expect(waitlistRow).toMatchObject({ status: "placed", signup_id: signupId });
 
       const membershipRows = await sql<{ role: string }>(
         `SELECT role FROM league_membership
@@ -344,11 +344,13 @@ describe("POST /api/leagues/:id/signups/:signupId/accept", () => {
       expect(membershipRows).toHaveLength(1);
       expect(membershipRows[0]!.role).toBe("gm");
 
-      const signupRows = await sql<{ id: string }>(
-        `SELECT id FROM league_signup WHERE id = $1`,
+      const signupRows = await sql<{ status: string; decided_at: string | null }>(
+        `SELECT status, decided_at FROM league_signup WHERE id = $1`,
         [signupId],
       );
-      expect(signupRows).toHaveLength(0);
+      expect(signupRows).toHaveLength(1);
+      expect(signupRows[0]!.status).toBe("accepted");
+      expect(signupRows[0]!.decided_at).toBeTruthy();
     } finally {
       await sql(`DELETE FROM waitlist_entry WHERE id = $1`, [waitlistId]);
       await sql(`DELETE FROM league_signup WHERE id = $1`, [signupId]);
@@ -476,15 +478,18 @@ describe("POST /api/leagues/:id/signups/:signupId/decline", () => {
       ]);
       expect(waitlistRow).toMatchObject({
         status: "declined",
-        signup_id: null,
+        signup_id: signupId,
         decline_note: "Not the right fit for this season",
       });
 
-      const signupRows = await sql<{ id: string }>(
-        `SELECT id FROM league_signup WHERE id = $1`,
+      const signupRows = await sql<{ status: string; decision_note: string | null; decided_at: string | null }>(
+        `SELECT status, decision_note, decided_at FROM league_signup WHERE id = $1`,
         [signupId],
       );
-      expect(signupRows).toHaveLength(0);
+      expect(signupRows).toHaveLength(1);
+      expect(signupRows[0]!.status).toBe("declined");
+      expect(signupRows[0]!.decision_note).toBe("Not the right fit for this season");
+      expect(signupRows[0]!.decided_at).toBeTruthy();
     } finally {
       await sql(`DELETE FROM waitlist_entry WHERE id = $1`, [waitlistId]);
       await sql(`DELETE FROM league_signup WHERE id = $1`, [signupId]);
@@ -566,6 +571,56 @@ describe("POST /api/leagues/:id/signups/:signupId/decline", () => {
       });
     } finally {
       await sql(`DELETE FROM waitlist_entry WHERE id = $1`, [waitlistId]);
+    }
+  });
+});
+
+describe("sign-up decisions are kept as history, not deleted", () => {
+  it("a declined sign-up shows up under ?status=resolved, not the default pending queue, and the applicant can reapply", async (ctx) => {
+    if (!schemaReady || !declineNoteReady) return ctx.skip();
+    const applicantId = await makeUser(
+      `signup-review-history-${RUN_ID}`,
+      `Signup Review History Applicant ${RUN_ID}`,
+    );
+    const { signupId, waitlistId } = await makeSignupWithWaitlist(applicantId, 20);
+
+    try {
+      mockGetCurrentUser.mockReturnValue({ id: commissionerReplitId, name: "Commissioner" });
+
+      const declineRes = await request(app)
+        .post(`/api/leagues/${leagueId}/signups/${signupId}/decline`)
+        .send({ note: "Roster is full this season" });
+      expect(declineRes.status).toBe(200);
+
+      const pendingRes = await request(app).get(`/api/leagues/${leagueId}/signups`);
+      expect(pendingRes.status).toBe(200);
+      expect(pendingRes.body.data.some((r: { signup_id: string }) => r.signup_id === signupId)).toBe(false);
+
+      const resolvedRes = await request(app).get(`/api/leagues/${leagueId}/signups?status=resolved`);
+      expect(resolvedRes.status).toBe(200);
+      const resolvedRow = resolvedRes.body.data.find((r: { signup_id: string }) => r.signup_id === signupId);
+      expect(resolvedRow).toMatchObject({
+        status: "declined",
+        decision_note: "Roster is full this season",
+        decided_by_name: `Signup Review Commissioner ${RUN_ID}`,
+      });
+      expect(resolvedRow.decided_at).toBeTruthy();
+
+      // The old blanket UNIQUE(league_id, user_id) would reject this; the
+      // partial index (WHERE status = 'pending') must allow a fresh
+      // application after the first one was resolved.
+      const [reapplied] = await sql<{ id: string }>(
+        `INSERT INTO league_signup (league_id, user_id, stated_division, platform)
+         VALUES ($1, $2, 'gold', 'playstation') RETURNING id`,
+        [leagueId, applicantId],
+      );
+      expect(reapplied?.id).toBeTruthy();
+
+      await sql(`DELETE FROM league_signup WHERE id = $1`, [reapplied!.id]);
+    } finally {
+      await sql(`DELETE FROM waitlist_entry WHERE id = $1`, [waitlistId]);
+      await sql(`DELETE FROM league_signup WHERE id = $1`, [signupId]);
+      await sql(`DELETE FROM app_user WHERE id = $1`, [applicantId]);
     }
   });
 });

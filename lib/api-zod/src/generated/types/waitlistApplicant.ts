@@ -34,4 +34,10 @@ export interface WaitlistApplicant {
   invited_at?: Date | null;
   /** @nullable */
   invite_expires_at?: Date | null;
+  /** @nullable */
+  resolved_at?: Date | null;
+  /** @nullable */
+  decline_note?: string | null;
+  /** @nullable */
+  decided_by_name?: string | null;
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useAuth, useClerk } from '@clerk/react';
 import type { League } from '@workspace/api-client-react';
+import LeagueSwitcher from '@/components/LeagueSwitcher';
 
 export default function Header({ league }: { league?: League }) {
   const [location] = useLocation();
@@ -25,6 +26,7 @@ export default function Header({ league }: { league?: League }) {
             {league ? `Visibility: ${league.visibility} · Franchise 27` : 'Connected Franchise 27 Hub'}
           </div>
         </div>
+        {league && <LeagueSwitcher currentLeagueId={league.id} />}
         <button
           type="button"
           className="nav-toggle"

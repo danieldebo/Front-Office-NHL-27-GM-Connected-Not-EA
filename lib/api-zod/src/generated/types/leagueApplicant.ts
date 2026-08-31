@@ -5,6 +5,7 @@
  * Front Office API — league management, results, standings, and scheduling.
  * OpenAPI spec version: 0.3.0
  */
+import type { LeagueApplicantStatus } from './leagueApplicantStatus';
 import type { PlayerSystem } from './playerSystem';
 
 export interface LeagueApplicant {
@@ -40,4 +41,11 @@ export interface LeagueApplicant {
   waitlist_status?: string | null;
   /** @nullable */
   waitlist_position?: number | null;
+  status?: LeagueApplicantStatus;
+  /** @nullable */
+  decided_at?: Date | null;
+  /** @nullable */
+  decision_note?: string | null;
+  /** @nullable */
+  decided_by_name?: string | null;
 }

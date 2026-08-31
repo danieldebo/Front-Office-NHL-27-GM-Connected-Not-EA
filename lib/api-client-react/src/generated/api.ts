@@ -78,7 +78,9 @@ import type {
   ListJoinRequestsParams,
   ListLeagueSettingsTemplates200,
   ListLeagueSignups200,
+  ListLeagueSignupsParams,
   ListLeagueWaitlist200,
+  ListLeagueWaitlistParams,
   ListOpenLeagues200,
   ListOpenLeaguesParams,
   ListPendingBoxScores200,
@@ -696,20 +698,29 @@ export const useSignupForLeague = <TError = ErrorType<Problem>,
       return useMutation(getSignupForLeagueMutationOptions(options));
     }
 
-export const getListLeagueWaitlistUrl = (leagueId: string,) => {
+export const getListLeagueWaitlistUrl = (leagueId: string,
+    params?: ListLeagueWaitlistParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/leagues/${leagueId}/waitlist`
+  return stringifiedParams.length > 0 ? `/api/leagues/${leagueId}/waitlist?${stringifiedParams}` : `/api/leagues/${leagueId}/waitlist`
 }
 
 /**
  * @summary List waitlist entries for a league (commissioner only)
  */
-export const listLeagueWaitlist = async (leagueId: string, options?: RequestInit): Promise<ListLeagueWaitlist200> => {
+export const listLeagueWaitlist = async (leagueId: string,
+    params?: ListLeagueWaitlistParams, options?: RequestInit): Promise<ListLeagueWaitlist200> => {
 
-  return customFetch<ListLeagueWaitlist200>(getListLeagueWaitlistUrl(leagueId),
+  return customFetch<ListLeagueWaitlist200>(getListLeagueWaitlistUrl(leagueId,params),
   {
     ...options,
     method: 'GET'
@@ -722,23 +733,25 @@ export const listLeagueWaitlist = async (leagueId: string, options?: RequestInit
 
 
 
-export const getListLeagueWaitlistQueryKey = (leagueId: string,) => {
+export const getListLeagueWaitlistQueryKey = (leagueId: string,
+    params?: ListLeagueWaitlistParams,) => {
     return [
-    `/api/leagues/${leagueId}/waitlist`
+    `/api/leagues/${leagueId}/waitlist`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListLeagueWaitlistQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueWaitlist>>, TError = ErrorType<Problem>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListLeagueWaitlistQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueWaitlist>>, TError = ErrorType<Problem>>(leagueId: string,
+    params?: ListLeagueWaitlistParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListLeagueWaitlistQueryKey(leagueId);
+  const queryKey =  queryOptions?.queryKey ?? getListLeagueWaitlistQueryKey(leagueId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueWaitlist>>> = ({ signal }) => listLeagueWaitlist(leagueId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueWaitlist>>> = ({ signal }) => listLeagueWaitlist(leagueId,params, { signal, ...requestOptions });
 
 
 
@@ -756,11 +769,12 @@ export type ListLeagueWaitlistQueryError = ErrorType<Problem>
  */
 
 export function useListLeagueWaitlist<TData = Awaited<ReturnType<typeof listLeagueWaitlist>>, TError = ErrorType<Problem>>(
- leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ leagueId: string,
+    params?: ListLeagueWaitlistParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueWaitlist>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListLeagueWaitlistQueryOptions(leagueId,options)
+  const queryOptions = getListLeagueWaitlistQueryOptions(leagueId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -1816,20 +1830,29 @@ export const useUpdateLeagueListing = <TError = ErrorType<Problem>,
       return useMutation(getUpdateLeagueListingMutationOptions(options));
     }
 
-export const getListLeagueSignupsUrl = (leagueId: string,) => {
+export const getListLeagueSignupsUrl = (leagueId: string,
+    params?: ListLeagueSignupsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/leagues/${leagueId}/signups`
+  return stringifiedParams.length > 0 ? `/api/leagues/${leagueId}/signups?${stringifiedParams}` : `/api/leagues/${leagueId}/signups`
 }
 
 /**
  * @summary List sign-up applicants for a league (commissioner only)
  */
-export const listLeagueSignups = async (leagueId: string, options?: RequestInit): Promise<ListLeagueSignups200> => {
+export const listLeagueSignups = async (leagueId: string,
+    params?: ListLeagueSignupsParams, options?: RequestInit): Promise<ListLeagueSignups200> => {
 
-  return customFetch<ListLeagueSignups200>(getListLeagueSignupsUrl(leagueId),
+  return customFetch<ListLeagueSignups200>(getListLeagueSignupsUrl(leagueId,params),
   {
     ...options,
     method: 'GET'
@@ -1842,23 +1865,25 @@ export const listLeagueSignups = async (leagueId: string, options?: RequestInit)
 
 
 
-export const getListLeagueSignupsQueryKey = (leagueId: string,) => {
+export const getListLeagueSignupsQueryKey = (leagueId: string,
+    params?: ListLeagueSignupsParams,) => {
     return [
-    `/api/leagues/${leagueId}/signups`
+    `/api/leagues/${leagueId}/signups`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListLeagueSignupsQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueSignups>>, TError = ErrorType<Problem>>(leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListLeagueSignupsQueryOptions = <TData = Awaited<ReturnType<typeof listLeagueSignups>>, TError = ErrorType<Problem>>(leagueId: string,
+    params?: ListLeagueSignupsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListLeagueSignupsQueryKey(leagueId);
+  const queryKey =  queryOptions?.queryKey ?? getListLeagueSignupsQueryKey(leagueId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueSignups>>> = ({ signal }) => listLeagueSignups(leagueId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeagueSignups>>> = ({ signal }) => listLeagueSignups(leagueId,params, { signal, ...requestOptions });
 
 
 
@@ -1876,11 +1901,12 @@ export type ListLeagueSignupsQueryError = ErrorType<Problem>
  */
 
 export function useListLeagueSignups<TData = Awaited<ReturnType<typeof listLeagueSignups>>, TError = ErrorType<Problem>>(
- leagueId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ leagueId: string,
+    params?: ListLeagueSignupsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLeagueSignups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListLeagueSignupsQueryOptions(leagueId,options)
+  const queryOptions = getListLeagueSignupsQueryOptions(leagueId,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
