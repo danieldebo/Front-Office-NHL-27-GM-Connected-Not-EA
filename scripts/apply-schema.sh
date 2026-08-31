@@ -186,6 +186,7 @@ apply schema-signup-history.sql 2.13.0
 apply schema-waitlist-decided-by.sql 2.14.0
 apply schema-join-requests.sql 2.15.0
 apply schema-gm-card-profile.sql 2.16.0
+apply schema-league-limits.sql 2.17.0
 
 echo
 echo "== Done. Current schema_version: =="

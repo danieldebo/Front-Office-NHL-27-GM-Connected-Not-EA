@@ -88,6 +88,7 @@ describe("can() — read actions allow all authenticated users", () => {
 const commissionerActions: Action[] = [
   "league:write",
   "season:create",
+  "season:write",
   "game:manage",
   "schedule:generate",
   "seat:manage",

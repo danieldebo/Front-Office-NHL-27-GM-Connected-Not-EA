@@ -13,6 +13,7 @@ export type Action =
   | "league:write"           // update league settings
   | "season:read"
   | "season:create"          // commissioner creates a season
+  | "season:write"           // commissioner edits a season's editable fields (e.g. starts_on)
   | "game:read"
   | "game:manage"            // commissioner: shift window, postpone, force-resolve
   | "schedule:generate"      // commissioner: generate the season schedule
@@ -87,6 +88,7 @@ export function can(
 
     case "league:write":
     case "season:create":
+    case "season:write":
     case "game:manage":
     case "schedule:generate":
     case "seat:manage":

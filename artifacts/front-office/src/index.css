@@ -29,6 +29,7 @@
 
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;min-height:100%}
+html{scroll-behavior:smooth}
 body{
   background:var(--ice);
   color:var(--ink);
@@ -40,6 +41,8 @@ body{
 a{color:var(--crease);text-decoration:none}
 button{appearance:none;border:none;background:transparent;cursor:pointer}
 .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+::selection{background:var(--bulb);color:var(--ink)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
 /* ---------- custom utilities ---------- */
 .login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
@@ -68,8 +71,9 @@ button{appearance:none;border:none;background:transparent;cursor:pointer}
 .login-panel p { color: var(--steel); font-family: var(--data); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; margin: 0 0 30px; }
 .loading-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: var(--data); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--steel); }
 .clerk-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--ice); }
-.empty-state { text-align: center; padding: 80px 20px; background: var(--paper); border: 1px solid var(--rule); border-radius: 3px; margin-top: 40px; }
-.empty-state h2 { font-family: var(--display); font-size: 24px; text-transform: uppercase; margin-top: 0; }
+.empty-state { text-align: center; padding: 80px 20px; background: var(--paper); border: 1px dashed var(--rule); border-radius: 4px; margin-top: 40px; }
+.empty-state h2 { font-family: var(--display); font-size: 24px; text-transform: uppercase; margin-top: 0; letter-spacing: .02em; }
+.empty-state h2::before { content: '—'; display: block; color: var(--bulb); font-family: var(--data); font-size: 20px; margin-bottom: 10px; letter-spacing: .4em; }
 
 /* ---------- masthead ---------- */
 .masthead{
@@ -149,8 +153,18 @@ button{appearance:none;border:none;background:transparent;cursor:pointer}
 /* ---------- layout ---------- */
 .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,320px);gap:26px;padding:28px 0 60px}
 .cols>aside{min-width:0}
-.panel{background:var(--paper);border:1px solid var(--rule);border-radius:4px;margin-bottom:22px;min-width:0;overflow:hidden;box-shadow:var(--shadow-sm)}
-.panel-head{display:flex;align-items:baseline;gap:12px;padding:14px 16px 12px;border-bottom:1px solid var(--rule)}
+.panel{
+  background:var(--paper);border:1px solid var(--rule);border-radius:4px;margin-bottom:22px;min-width:0;overflow:hidden;
+  box-shadow:var(--shadow-sm);transition:box-shadow .18s var(--ease),border-color .18s var(--ease);
+}
+.panel:hover{box-shadow:var(--shadow-md);border-color:#C3CDD6}
+@media (prefers-reduced-motion:reduce){.panel{transition:none}}
+.panel-head{
+  display:flex;align-items:baseline;gap:12px;padding:14px 16px 12px;border-bottom:1px solid var(--rule);
+  background:linear-gradient(180deg,rgba(14,22,32,.025),transparent);position:relative;
+}
+.panel-head::before{content:'';position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 2px 2px 0;background:var(--crease)}
+.panel-head{padding-left:19px}
 .panel-head h2{font-family:var(--display);font-size:15px;letter-spacing:.09em;text-transform:uppercase;margin:0}
 .panel-head .note{font-family:var(--data);font-size:10.5px;letter-spacing:.05em;color:var(--steel);margin-left:auto}
 
@@ -163,7 +177,9 @@ thead th{
 thead th:first-child,thead th.l{text-align:left}
 tbody td{padding:9px 8px;text-align:right;border-bottom:1px solid #EDF1F4}
 tbody td.l{text-align:left}
+tbody tr{transition:background .12s var(--ease)}
 tbody tr:hover{background:#F6F9FB}
+@media (prefers-reduced-motion:reduce){tbody tr{transition:none}}
 .rank{color:var(--steel);width:26px}
 .club{font-family:var(--body);font-weight:600;font-size:13.5px;white-space:nowrap}
 .club .abbr{font-family:var(--data);font-size:11px;color:var(--steel);margin-right:7px}
@@ -177,7 +193,10 @@ tbody tr:hover{background:#F6F9FB}
   font-family:var(--data);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
   border:1px solid;border-radius:3px;padding:2px 6px;white-space:nowrap; display: inline-block;
   box-shadow:0 1px 0 rgba(14,22,32,.03);
+  animation:chipFadeIn .15s var(--ease);
 }
+@keyframes chipFadeIn{from{opacity:0;transform:translateY(1px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.chip{animation:none}}
 .chip.conf{color:#1F7A4C;border-color:#B7D9C6;background:linear-gradient(155deg,#F1F8F4,#E3F3E9)}
 .chip.man{color:var(--steel);border-color:var(--rule);background:#F5F8FA}
 .chip.ocr{color:#8A6100;border-color:#EBD3A1;background:linear-gradient(155deg,#FDF7EA,#FBEED2)}

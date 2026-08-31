@@ -1051,6 +1051,7 @@ export const ListSeasonsResponse = zod.object({
   "label": zod.string(),
   "game_title": zod.string(),
   "starts_on": zod.string().nullish(),
+  "starts_on_locked": zod.boolean().optional().describe('True once this season has any confirmed\/forfeited\/simulated game — starts_on can no longer be changed.'),
   "ends_on": zod.string().nullish(),
   "salary_cap_cents": zod.number().nullish(),
   "roster_min": zod.number().nullish(),
@@ -1115,6 +1116,46 @@ export const CreateSeasonResponse = zod.object({
   "label": zod.string(),
   "game_title": zod.string(),
   "starts_on": zod.string().nullish(),
+  "starts_on_locked": zod.boolean().optional().describe('True once this season has any confirmed\/forfeited\/simulated game — starts_on can no longer be changed.'),
+  "ends_on": zod.string().nullish(),
+  "salary_cap_cents": zod.number().nullish(),
+  "roster_min": zod.number().nullish(),
+  "roster_max": zod.number().nullish(),
+  "games_per_matchup": zod.number().optional(),
+  "points_win": zod.number().optional(),
+  "points_ot_loss": zod.number().optional(),
+  "points_reg_loss": zod.number().optional(),
+  "tiebreakers": zod.array(zod.string()).optional(),
+  "is_active": zod.boolean().optional(),
+  "keepers_per_team": zod.number().optional().describe('Commissioner-set keeper limit for this season. 0 disables keepers.'),
+  "keeper_deadline_at": zod.coerce.date().nullish().describe('After this passes, only the commissioner can change keepers. Null means no deadline.')
+})
+
+
+/**
+ * @summary Edit a season's start date (commissioner only, locked once games have been played)
+ */
+export const UpdateSeasonParams = zod.object({
+  "leagueId": zod.coerce.string(),
+  "seasonId": zod.coerce.string()
+})
+
+export const UpdateSeasonBody = zod.object({
+  "starts_on": zod.coerce.date().nullable().describe('Rejected with 409 once the season has any confirmed\/forfeited\/simulated game.')
+})
+
+
+
+
+export const UpdateSeasonResponse = zod.object({
+  "id": zod.string(),
+  "league_id": zod.string().optional(),
+  "settings_version_id": zod.string().nullish().describe('Immutable league settings version bound to this season.'),
+  "ordinal": zod.number().min(1),
+  "label": zod.string(),
+  "game_title": zod.string(),
+  "starts_on": zod.string().nullish(),
+  "starts_on_locked": zod.boolean().optional().describe('True once this season has any confirmed\/forfeited\/simulated game — starts_on can no longer be changed.'),
   "ends_on": zod.string().nullish(),
   "salary_cap_cents": zod.number().nullish(),
   "roster_min": zod.number().nullish(),

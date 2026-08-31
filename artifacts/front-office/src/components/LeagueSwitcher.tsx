@@ -8,19 +8,26 @@ import { useGetMyLeagues } from '@workspace/api-client-react';
 
 export const ACTIVE_LEAGUE_STORAGE_KEY = 'fo_active_league_id';
 
+const CREATE_NEW_VALUE = '__create_new__';
+
 export default function LeagueSwitcher({ currentLeagueId }: { currentLeagueId: string }) {
   const { data } = useGetMyLeagues();
   const leagues = data?.data ?? [];
   const [location, setLocation] = useLocation();
 
-  if (leagues.length < 2) return null;
-
+  // Always rendered (even for a single league) so "+ Create League" stays
+  // reachable — previously this returned null below 2 leagues, leaving no
+  // way to start a second one once you already had exactly one.
   return (
     <select
       value={currentLeagueId}
       aria-label="Switch league"
       onChange={(e) => {
         const nextId = e.target.value;
+        if (nextId === CREATE_NEW_VALUE) {
+          setLocation('/leagues/new');
+          return;
+        }
         if (nextId === currentLeagueId) return;
         try {
           window.localStorage.setItem(ACTIVE_LEAGUE_STORAGE_KEY, nextId);
@@ -51,6 +58,9 @@ export default function LeagueSwitcher({ currentLeagueId }: { currentLeagueId: s
           {l.name}
         </option>
       ))}
+      <option value={CREATE_NEW_VALUE} style={{ color: '#000', fontWeight: 600 }}>
+        + Create League
+      </option>
     </select>
   );
 }
