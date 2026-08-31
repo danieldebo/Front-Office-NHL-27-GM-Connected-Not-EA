@@ -193,6 +193,19 @@ describe("trades", () => {
     expect(res.status).toBe(403);
   });
 
+  it("rejects the proposer accepting their own trade", async (ctx) => {
+    if (!schemaReady) return ctx.skip();
+    authAs(gmAReplitId, gmAAppUserId);
+    const res = await request(app).post(`/api/leagues/${leagueId}/trades/${tradeId}/accept`);
+    expect(res.status).toBe(403);
+
+    const [event] = await sql<{ status: string }>(
+      `SELECT status FROM transaction_event WHERE id = $1`,
+      [tradeId],
+    );
+    expect(event?.status).toBe("proposed");
+  });
+
   it("accepts, then commissioner approval executes the move", async (ctx) => {
     if (!schemaReady) return ctx.skip();
     authAs(gmBReplitId, gmBAppUserId);
@@ -291,6 +304,35 @@ describe("releases and waivers", () => {
       .post(`/api/leagues/${leagueId}/waivers/${release.body.waiver_id}/claims`)
       .send({ team_season_id: teamC });
     expect(claimRes.status).toBe(400);
+    // The waiver from this release stays open — reused by the next test.
+  });
+
+  it("rejects a claim from a team in a different season of the same league", async (ctx) => {
+    if (!schemaReady) return ctx.skip();
+    authAs(commissionerReplitId, commissionerAppUserId);
+    const priorSeasonRes = await request(app)
+      .get(`/api/leagues/${leagueId}/waivers`);
+    expect(priorSeasonRes.status).toBe(200);
+    const openWaiver = priorSeasonRes.body.data.find((w: { player_id: string }) => w.player_id === freeAgentPlayerId);
+    expect(openWaiver).toBeTruthy();
+
+    const season2Res = await request(app)
+      .post(`/api/leagues/${leagueId}/seasons`)
+      .send({ label: "Season 2", game_title: "Hockey 27" });
+    expect(season2Res.status).toBe(201);
+    const season2Id = season2Res.body.id;
+
+    const [season2Team] = await sql<{ id: string }>(
+      `SELECT id FROM team_season WHERE season_id = $1 LIMIT 1`,
+      [season2Id],
+    );
+    await request(app).put(`/api/team-seasons/${season2Team!.id}/gm`).send({ user_id: gmAAppUserId });
+
+    authAs(gmAReplitId, gmAAppUserId);
+    const claimRes = await request(app)
+      .post(`/api/leagues/${leagueId}/waivers/${openWaiver.id}/claims`)
+      .send({ team_season_id: season2Team!.id });
+    expect(claimRes.status).toBe(404);
   });
 });
 

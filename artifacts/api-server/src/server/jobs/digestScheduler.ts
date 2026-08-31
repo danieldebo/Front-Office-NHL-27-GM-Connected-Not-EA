@@ -185,7 +185,7 @@ export async function runDigestTick(pool: Pool, now: Date = new Date()): Promise
         standings: standingsText,
         recent_results: recentText,
         upcoming_games: upcomingText,
-        unsubscribe_url: `/api/digest/unsubscribe/${recipient.digest_unsub_token}`,
+        unsubscribe_url: `${(process.env["CALLBACK_BASE_URL"] ?? "").replace(/\/$/, "")}/api/digest/unsubscribe/${recipient.digest_unsub_token}`,
       });
       await pool.query(`INSERT INTO outbox (topic, payload) VALUES ('email.digest', $1)`, [
         JSON.stringify({ to: recipient.email, subject: `${league.name} — Weekly Digest`, text }),

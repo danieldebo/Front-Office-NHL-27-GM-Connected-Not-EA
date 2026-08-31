@@ -3,6 +3,7 @@ import { useParams } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetLeague,
+  useGetLeagueSettings,
   useGetMyProfile,
   useListSeats,
   useListPlayers,
@@ -24,6 +25,7 @@ import {
   getGetCapPositionQueryKey,
 } from '@workspace/api-client-react';
 import Header from '@/components/Header';
+import { hasSettings } from '@/components/LeagueSettings';
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -46,10 +48,12 @@ export default function Transactions() {
   const queryClient = useQueryClient();
   const { data: league } = useGetLeague(leagueId || '');
   const { data: profile } = useGetMyProfile();
+  const { data: settingsResponse } = useGetLeagueSettings(leagueId || '');
+  const settings = hasSettings(settingsResponse) ? settingsResponse : undefined;
+  const isCommissioner = Boolean(settings?.can_manage);
   const { data: seatsResponse } = useListSeats(leagueId || '', { query: { enabled: Boolean(leagueId) } as any });
   const seats = seatsResponse?.data ?? [];
   const myTeam = seats.find(s => s.gm?.user_id === profile?.id);
-  const isCommissioner = league != null && profile != null; // server enforces the real check; this only toggles which forms render
 
   const { data: playersResponse } = useListPlayers(leagueId || '', undefined, { query: { enabled: Boolean(leagueId) } as any });
   const players = playersResponse?.data ?? [];

@@ -59,35 +59,51 @@ function backoffMs(attempts: number): number {
 }
 
 export async function drainOnce(pool: Pool): Promise<void> {
-  const { rows } = await pool.query<OutboxRow>(
-    `SELECT id, topic, payload, attempts FROM outbox
-      WHERE processed_at IS NULL AND next_attempt_at <= now()
-      ORDER BY id ASC
-      LIMIT 20
-      FOR UPDATE SKIP LOCKED`,
-  );
-  for (const row of rows) {
-    try {
-      await handle(pool, row);
-      await pool.query(`UPDATE outbox SET processed_at = now() WHERE id = $1`, [row.id]);
-    } catch (err) {
-      const permanent = err instanceof PermanentDeliveryError || row.attempts + 1 >= MAX_ATTEMPTS;
-      const message = err instanceof Error ? err.message : String(err);
-      if (permanent) {
-        logger.error({ topic: row.topic, id: row.id, err: message }, "outbox: giving up on delivery");
-        await pool.query(
-          `UPDATE outbox SET processed_at = now(), attempts = attempts + 1, last_error = $2 WHERE id = $1`,
-          [row.id, message],
-        );
-      } else {
-        await pool.query(
-          `UPDATE outbox SET attempts = attempts + 1, last_error = $2,
-                  next_attempt_at = now() + ($3 || ' milliseconds')::interval
-            WHERE id = $1`,
-          [row.id, message, backoffMs(row.attempts + 1)],
-        );
+  // The SELECT ... FOR UPDATE SKIP LOCKED and every row's outcome UPDATE share
+  // one transaction, so the row locks stay held for as long as handle() takes
+  // to run. Without this, a bare pool.query's implicit auto-commit releases
+  // the locks the instant the SELECT finishes — before the job actually
+  // executes — so a slow job (e.g. a registry sync overrunning the poll
+  // interval) could be picked up and run again by the next tick.
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<OutboxRow>(
+      `SELECT id, topic, payload, attempts FROM outbox
+        WHERE processed_at IS NULL AND next_attempt_at <= now()
+        ORDER BY id ASC
+        LIMIT 20
+        FOR UPDATE SKIP LOCKED`,
+    );
+    for (const row of rows) {
+      try {
+        await handle(pool, row);
+        await client.query(`UPDATE outbox SET processed_at = now() WHERE id = $1`, [row.id]);
+      } catch (err) {
+        const permanent = err instanceof PermanentDeliveryError || row.attempts + 1 >= MAX_ATTEMPTS;
+        const message = err instanceof Error ? err.message : String(err);
+        if (permanent) {
+          logger.error({ topic: row.topic, id: row.id, err: message }, "outbox: giving up on delivery");
+          await client.query(
+            `UPDATE outbox SET processed_at = now(), attempts = attempts + 1, last_error = $2 WHERE id = $1`,
+            [row.id, message],
+          );
+        } else {
+          await client.query(
+            `UPDATE outbox SET attempts = attempts + 1, last_error = $2,
+                    next_attempt_at = now() + ($3 || ' milliseconds')::interval
+              WHERE id = $1`,
+            [row.id, message, backoffMs(row.attempts + 1)],
+          );
+        }
       }
     }
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
 }
 
