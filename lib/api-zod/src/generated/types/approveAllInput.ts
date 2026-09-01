@@ -14,4 +14,12 @@ export interface ApproveAllInput {
      * only randomize the GM<->seat pairing on already-filled seats.
      */
   fill_source: ApproveAllInputFillSource;
+  /**
+     * Only meaningful alongside fill_source queue/members ('none'
+     * already reshuffles everyone). When true, already-assigned GMs
+     * are pooled in with the new candidates and the whole group is
+     * randomly redistributed across every seat in the season, not
+     * just the ones that were open.
+     */
+  reshuffle_existing?: boolean;
 }
