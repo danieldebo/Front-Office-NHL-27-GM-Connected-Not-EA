@@ -57,7 +57,7 @@ import OperationsTab from '@/components/OperationsTab';
 import TeamPicker from '@/components/TeamPicker';
 import LeagueLogoPicker from '@/components/LeagueLogoPicker';
 import { DEFAULT_PROFILE_ICON } from '@/components/profileIcons';
-import { toast } from '@/hooks/use-toast';
+import { toast, confirmToast } from '@/hooks/use-toast';
 
 // Helper components
 
@@ -209,12 +209,20 @@ const APPROVE_ALL_OPTIONS: { value: 'queue' | 'members' | 'none'; label: string;
 
 function ApproveAllPanel({ leagueId, onDone }: { leagueId: string; onDone: () => void }) {
   const [fillSource, setFillSource] = useState<'queue' | 'members' | 'none'>('queue');
+  const [reshuffleExisting, setReshuffleExisting] = useState(false);
   const approveAll = useApproveAllSeats();
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     const chosen = APPROVE_ALL_OPTIONS.find(o => o.value === fillSource)!;
-    if (!confirm(`Approve All & Randomize Teams?\n\n${chosen.label}\n${chosen.description}\n\nThis cannot be undone.`)) return;
-    approveAll.mutate({ leagueId, data: { fill_source: fillSource } }, {
+    const includeNote = fillSource !== 'none' && reshuffleExisting
+      ? '\n\nAlready-assigned GMs are included in the shuffle too.'
+      : '';
+    const ok = await confirmToast(
+      `${chosen.label}\n${chosen.description}${includeNote}\n\nThis cannot be undone.`,
+      { title: 'Approve All & Randomize Teams?', confirmLabel: 'Approve All' },
+    );
+    if (!ok) return;
+    approveAll.mutate({ leagueId, data: { fill_source: fillSource, reshuffle_existing: fillSource !== 'none' && reshuffleExisting } }, {
       onSuccess: (result) => {
         toast({
           title: 'Approve All complete',
@@ -222,7 +230,7 @@ function ApproveAllPanel({ leagueId, onDone }: { leagueId: string; onDone: () =>
         });
         onDone();
       },
-      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Approve All failed'),
+      onError: (err: unknown) => toast({ variant: 'destructive', title: 'Approve All failed', description: err instanceof Error ? err.message : undefined }),
     });
   };
 
@@ -251,6 +259,22 @@ function ApproveAllPanel({ leagueId, onDone }: { leagueId: string; onDone: () =>
             </span>
           </label>
         ))}
+        {fillSource !== 'none' && (
+          <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer', paddingLeft: '2px', borderTop: '1px solid var(--rule)', paddingTop: '10px', marginTop: '4px' }}>
+            <input
+              type="checkbox"
+              checked={reshuffleExisting}
+              onChange={(e) => setReshuffleExisting(e.target.checked)}
+              style={{ marginTop: '3px' }}
+            />
+            <span>
+              <div style={{ fontWeight: 600, fontSize: '13px' }}>Also include already-assigned teams</div>
+              <div style={{ fontFamily: 'var(--data)', fontSize: '11px', color: 'var(--steel)' }}>
+                Existing GMs get pooled in with the new fills and the whole league gets reshuffled together, instead of only placing new people into the empty seats.
+              </div>
+            </span>
+          </label>
+        )}
         <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
           <button
             className="btn"
@@ -286,7 +310,7 @@ function AddTeamPanel({ leagueId, seasonId, existingClubIds, onDone }: {
             if (!clubId) return;
             addTeam.mutate({ leagueId, seasonId, data: { nhl_club_id: clubId } }, {
               onSuccess: () => { setClubId(null); onDone(); },
-              onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to add team'),
+              onError: (err: unknown) => toast({ variant: 'destructive', title: 'Failed to add team', description: err instanceof Error ? err.message : undefined }),
             });
           }}
         >
@@ -320,7 +344,7 @@ function ReplaceClubControl({ seat, existingClubIds, onDone }: {
           if (!clubId) return;
           replaceClub.mutate({ teamSeasonId: seat.team_season_id, data: { nhl_club_id: clubId } }, {
             onSuccess: onDone,
-            onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to replace team'),
+            onError: (err: unknown) => toast({ variant: 'destructive', title: 'Failed to replace team', description: err instanceof Error ? err.message : undefined }),
           });
         }}
       >
@@ -344,7 +368,7 @@ function BrandingPanel({ league }: { league: League }) {
         queryClient.invalidateQueries({ queryKey: [`/api/leagues/${league.id}`] as any });
         queryClient.invalidateQueries({ queryKey: [`/api/leagues/open`] as any });
       },
-      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to update logo'),
+      onError: (err: unknown) => toast({ variant: 'destructive', title: 'Failed to update logo', description: err instanceof Error ? err.message : undefined }),
     });
   };
 
@@ -410,8 +434,8 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
     queryClient.invalidateQueries({ queryKey: [`/api/leagues/${leagueId}/waitlist`] as any });
   };
 
-  const handleRevoke = (seat: Seat) => {
-    if (!confirm(`Revoke GM assignment for ${seat.franchise_name}?`)) return;
+  const handleRevoke = async (seat: Seat) => {
+    if (!(await confirmToast(`Revoke GM assignment for ${seat.franchise_name}?`, { title: 'Revoke GM assignment?', confirmLabel: 'Revoke' }))) return;
     revokeGm.mutate({ teamSeasonId: seat.team_season_id }, {
       onSuccess: invalidateSeatData,
     });
@@ -427,15 +451,15 @@ function SeatsTab({ leagueId }: { leagueId: string }) {
         setAssigningSeatId(null);
         invalidateSeatData();
       },
-      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to assign GM'),
+      onError: (err: unknown) => toast({ variant: 'destructive', title: 'Failed to assign GM', description: err instanceof Error ? err.message : undefined }),
     });
   };
 
-  const handleRemoveTeam = (seat: Seat) => {
-    if (!confirm(`Remove ${seat.franchise_name} from this season? This cannot be undone.`)) return;
+  const handleRemoveTeam = async (seat: Seat) => {
+    if (!(await confirmToast(`Remove ${seat.franchise_name} from this season? This cannot be undone.`, { title: 'Remove team?', confirmLabel: 'Remove' }))) return;
     removeTeam.mutate({ teamSeasonId: seat.team_season_id }, {
       onSuccess: invalidateSeatData,
-      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to remove team — an open seat only'),
+      onError: (err: unknown) => toast({ variant: 'destructive', title: 'Failed to remove team', description: err instanceof Error ? err.message : 'An open seat only' }),
     });
   };
 
@@ -848,7 +872,7 @@ function PendingPlayers({ leagueId, leagueSlug, onViewHistory }: { leagueId: str
   const handleCopyInvite = (token: string) => {
     const url = `${window.location.origin}/join/${token}`;
     navigator.clipboard.writeText(url);
-    alert('Invite link copied!');
+    toast({ title: 'Invite link copied!' });
   };
 
   const commissionerInvite = commInviteData?.invite ?? null;
@@ -858,16 +882,16 @@ function PendingPlayers({ leagueId, leagueSlug, onViewHistory }: { leagueId: str
   const publicPageUrl = `${window.location.origin}/l/${leagueSlug}`;
 
   const handleCopyCommissionerInvite = () => {
-    if (commissionerInviteUrl) { navigator.clipboard.writeText(commissionerInviteUrl); alert('Invite link copied!'); }
+    if (commissionerInviteUrl) { navigator.clipboard.writeText(commissionerInviteUrl); toast({ title: 'Invite link copied!' }); }
   };
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(publicCode); alert('Public code copied!');
+    navigator.clipboard.writeText(publicCode); toast({ title: 'Public code copied!' });
   };
   const handleCopyPublicUrl = () => {
-    if (publicCodeUrl) { navigator.clipboard.writeText(publicCodeUrl); alert('Public URL copied!'); }
+    if (publicCodeUrl) { navigator.clipboard.writeText(publicCodeUrl); toast({ title: 'Public URL copied!' }); }
   };
   const handleCopyPublicPage = () => {
-    navigator.clipboard.writeText(publicPageUrl); alert('Public league page URL copied!');
+    navigator.clipboard.writeText(publicPageUrl); toast({ title: 'Public league page URL copied!' });
   };
 
   const handleSavePublicCode = () => {
@@ -889,15 +913,15 @@ function PendingPlayers({ leagueId, leagueSlug, onViewHistory }: { leagueId: str
     });
   };
 
-  const handleRotate = () => {
-    if (!confirm('Rotate the invite link? The old URL will stop working immediately.')) return;
+  const handleRotate = async () => {
+    if (!(await confirmToast('The old URL will stop working immediately.', { title: 'Rotate the invite link?', confirmLabel: 'Rotate' }))) return;
     rotateInvite.mutate({ leagueId }, {
       onSuccess: () => invalidateCommissionerInvite(),
     });
   };
 
-  const handleRevoke = () => {
-    if (!confirm('Revoke the invite link? Anyone with the old URL will no longer be able to join.')) return;
+  const handleRevoke = async () => {
+    if (!(await confirmToast('Anyone with the old URL will no longer be able to join.', { title: 'Revoke the invite link?', confirmLabel: 'Revoke' }))) return;
     revokeInvite.mutate({ leagueId }, {
       onSuccess: () => invalidateCommissionerInvite(),
     });
@@ -924,15 +948,15 @@ function PendingPlayers({ leagueId, leagueSlug, onViewHistory }: { leagueId: str
     const clamped = Math.max(1, Math.min(targetPos, waitingOnly.length));
     reorderWaitlist.mutate(
       { leagueId, userId: applicant.userId, data: { position: clamped } },
-      { onSuccess: () => invalidate(), onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to reorder') }
+      { onSuccess: () => invalidate(), onError: (err: unknown) => toast({ variant: 'destructive', title: 'Failed to reorder', description: err instanceof Error ? err.message : undefined }) }
     );
   };
 
-  const handleAccept = (applicant: MergedApplicant) => {
-    if (!confirm(`Accept ${applicant.displayName ?? 'this applicant'}?\n\nThey will be added as a league member. You can assign them to a franchise seat from the Seats tab.`)) return;
+  const handleAccept = async (applicant: MergedApplicant) => {
+    if (!(await confirmToast('They will be added as a league member. You can assign them to a franchise seat from the Seats tab.', { title: `Accept ${applicant.displayName ?? 'this applicant'}?`, confirmLabel: 'Accept' }))) return;
     acceptApplicant.mutate({ leagueId, signupId: applicant.reviewId }, {
       onSuccess: () => invalidate(),
-      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to accept applicant'),
+      onError: (err: unknown) => toast({ variant: 'destructive', title: 'Failed to accept applicant', description: err instanceof Error ? err.message : undefined }),
     });
   };
 
@@ -948,7 +972,7 @@ function PendingPlayers({ leagueId, leagueSlug, onViewHistory }: { leagueId: str
         setDeclineNote('');
         invalidate();
       },
-      onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to decline applicant'),
+      onError: (err: unknown) => toast({ variant: 'destructive', title: 'Failed to decline applicant', description: err instanceof Error ? err.message : undefined }),
     });
   };
 
@@ -1821,13 +1845,17 @@ function ScheduleTab({ leagueId }: { leagueId: string }) {
   const generate = useGenerateSchedule();
   const [genError, setGenError] = useState<string | null>(null);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!activeSeason || !seasonSettings) return;
     setGenError(null);
     const startDate = activeSeason.starts_on
       ? activeSeason.starts_on.slice(0, 10)
       : new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-    if (!confirm(`Generate schedule from season settings version ${seasonSettings.version}?\n\nStarts: ${startDate}\nFormat: ${seasonSettings.schedule_format.replaceAll('_', ' ')}\n\nThis cannot be undone.`)) return;
+    const ok = await confirmToast(
+      `Starts: ${startDate}\nFormat: ${seasonSettings.schedule_format.replaceAll('_', ' ')}\n\nThis cannot be undone.`,
+      { title: `Generate schedule from season settings version ${seasonSettings.version}?`, confirmLabel: 'Generate' },
+    );
+    if (!ok) return;
     generate.mutate(
       { seasonId: activeSeason.id, data: { start_date: startDate } },
       {

@@ -8,6 +8,7 @@ import Header from '@/components/Header';
 import { Form } from '@/components/ui/form';
 import TeamPicker from '@/components/TeamPicker';
 import { DEFAULT_PROFILE_ICON, PROFILE_ICON_OPTIONS } from '@/components/profileIcons';
+import { confirmToast } from '@/hooks/use-toast';
 
 const GM_CARD_DISPLAY_OPTIONS: { value: 'first_game' | 'favorite_team' | 'both'; label: string }[] = [
   { value: 'first_game', label: 'First NHL game' },
@@ -137,8 +138,12 @@ function XboxVerificationPanel() {
     window.history.replaceState(null, '', next);
   }, [queryClient]);
 
-  const handleUnlink = () => {
-    if (!confirm('Unlink your verified Xbox account? Your saved gamertag stays, but it goes back to self-reported.')) return;
+  const handleUnlink = async () => {
+    const ok = await confirmToast('Your saved gamertag stays, but it goes back to self-reported.', {
+      title: 'Unlink your verified Xbox account?',
+      confirmLabel: 'Unlink',
+    });
+    if (!ok) return;
     unlinkXbox.mutate(undefined, {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/xbox/link'] as any }),
     });

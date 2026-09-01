@@ -1754,8 +1754,11 @@ export const ApproveAllSeatsParams = zod.object({
   "leagueId": zod.coerce.string()
 })
 
+export const approveAllSeatsBodyReshuffleExistingDefault = false;
+
 export const ApproveAllSeatsBody = zod.object({
-  "fill_source": zod.enum(['queue', 'members', 'none']).describe('queue = pull from this league\'s signups\/waitlist, oldest first.\nmembers = any league member with no seat. none = don\'t autofill,\nonly randomize the GM<->seat pairing on already-filled seats.\n')
+  "fill_source": zod.enum(['queue', 'members', 'none']).describe('queue = pull from this league\'s signups\/waitlist, oldest first.\nmembers = any league member with no seat. none = don\'t autofill,\nonly randomize the GM<->seat pairing on already-filled seats.\n'),
+  "reshuffle_existing": zod.boolean().default(approveAllSeatsBodyReshuffleExistingDefault).describe('Only meaningful alongside fill_source queue\/members (\'none\'\nalready reshuffles everyone). When true, already-assigned GMs\nare pooled in with the new candidates and the whole group is\nrandomly redistributed across every seat in the season, not\njust the ones that were open.\n')
 })
 
 export const approveAllSeatsResponseDataItemGmOneGmCardDisplayDefault = `first_game`;

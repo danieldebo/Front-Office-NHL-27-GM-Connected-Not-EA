@@ -1,5 +1,6 @@
 import * as React from 'react';
 import type { ToastActionElement, ToastProps } from '@/components/ui/toast';
+import { ToastAction } from '@/components/ui/toast';
 
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = 5000;
@@ -152,7 +153,12 @@ function toast({ ...props }: Toast) {
       id,
       open: true,
       onOpenChange: (open) => {
-        if (!open) dismiss();
+        if (!open) {
+          // Let a caller (confirmToast, below) observe the close before we
+          // tear it down — dismiss() alone would silently swallow that.
+          props.onOpenChange?.(open);
+          dismiss();
+        }
       },
     },
   });
@@ -162,6 +168,48 @@ function toast({ ...props }: Toast) {
     dismiss,
     update,
   };
+}
+
+/**
+ * Toast-based replacement for window.confirm(). Resolves true only when the
+ * user clicks the action button; closing any other way (the X, a timeout,
+ * another toast evicting this one under TOAST_LIMIT) resolves false — same
+ * fail-safe direction as confirm()'s Cancel. duration: Infinity because a
+ * destructive confirmation shouldn't be able to silently expire out from
+ * under someone mid-read.
+ */
+function confirmToast(
+  message: React.ReactNode,
+  opts: { title?: string; confirmLabel?: string; variant?: ToasterToast['variant'] } = {},
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const { dismiss } = toast({
+      title: opts.title ?? 'Please confirm',
+      description: message,
+      variant: opts.variant,
+      duration: Infinity,
+      onOpenChange: (open) => {
+        if (!open) settle(false);
+      },
+      action: (
+        <ToastAction
+          altText={opts.confirmLabel ?? 'Confirm'}
+          onClick={() => {
+            settle(true);
+            dismiss();
+          }}
+        >
+          {opts.confirmLabel ?? 'Confirm'}
+        </ToastAction>
+      ),
+    });
+  });
 }
 
 function useToast() {
@@ -184,4 +232,4 @@ function useToast() {
   };
 }
 
-export { useToast, toast };
+export { useToast, toast, confirmToast };

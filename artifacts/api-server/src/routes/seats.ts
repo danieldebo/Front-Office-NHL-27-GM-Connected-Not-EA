@@ -1118,11 +1118,15 @@ router.post(
       return;
     }
 
-    const fillSource = (req.body as { fill_source?: unknown })?.fill_source;
+    const body = req.body as { fill_source?: unknown; reshuffle_existing?: unknown };
+    const fillSource = body?.fill_source;
     if (fillSource !== "queue" && fillSource !== "members" && fillSource !== "none") {
       badRequest(res, "fill_source must be one of: queue, members, none");
       return;
     }
+    // Only meaningful alongside queue/members — 'none' already reshuffles
+    // every currently-assigned GM, so the flag is a no-op there.
+    const reshuffleExisting = Boolean(body?.reshuffle_existing);
 
     const seasonRow = await pool.query<{ id: string }>(
       `SELECT id FROM season WHERE league_id = $1 AND is_active = TRUE LIMIT 1`,
@@ -1207,16 +1211,79 @@ router.post(
           candidateIds = candidates.rows.map((r) => r.user_id);
         }
 
-        const pairs = Math.min(openSeatIds.length, candidateIds.length);
-        for (let i = 0; i < pairs; i++) {
-          const seatId = openSeatIds[i]!;
-          const userId = candidateIds[i]!;
-          await client.query(
-            `INSERT INTO gm_assignment (team_season_id, user_id, role) VALUES ($1, $2, 'gm')`,
-            [seatId, userId]
+        const newCandidateIds = candidateIds.slice(0, openSeatIds.length);
+
+        if (reshuffleExisting) {
+          // Pool every currently-assigned GM together with the new
+          // candidates, then shuffle across EVERY seat in the season (not
+          // just the open ones) — an existing GM can land on a different
+          // team in the same pass that fills the empty seats.
+          const existingAssignments = await client.query<{
+            assignment_id: string; team_season_id: string; user_id: string; role: string;
+          }>(
+            `SELECT ga.id AS assignment_id, ga.team_season_id, ga.user_id, ga.role
+               FROM gm_assignment ga
+               JOIN team_season ts ON ts.id = ga.team_season_id
+              WHERE ts.season_id = $1 AND ga.ended_at IS NULL`,
+            [seasonId]
           );
-          await client.query(`UPDATE team_season SET seat_status = 'filled' WHERE id = $1`, [seatId]);
-          filled++;
+          type Placement =
+            | { kind: "existing"; assignmentId: string; userId: string; role: string; previousSeatId: string }
+            | { kind: "new"; userId: string };
+          const pool: Placement[] = [
+            ...existingAssignments.rows.map((r) => ({
+              kind: "existing" as const,
+              assignmentId: r.assignment_id,
+              userId: r.user_id,
+              role: r.role,
+              previousSeatId: r.team_season_id,
+            })),
+            ...newCandidateIds.map((userId) => ({ kind: "new" as const, userId })),
+          ];
+          const shuffledPool = shuffle(pool);
+          const allSeatIds = shuffle(seatsRow.rows.map((r) => r.id));
+          const placements = Math.min(shuffledPool.length, allSeatIds.length);
+
+          // Open every seat first so one vacated by a moved GM doesn't stay
+          // "filled" if this pass doesn't happen to land anyone on it.
+          await client.query(`UPDATE team_season SET seat_status = 'open' WHERE season_id = $1`, [seasonId]);
+
+          for (let i = 0; i < placements; i++) {
+            const seatId = allSeatIds[i]!;
+            const placement = shuffledPool[i]!;
+            if (placement.kind === "existing") {
+              if (placement.previousSeatId !== seatId) {
+                await client.query(
+                  `UPDATE gm_assignment SET ended_at = now(), end_reason = 'approve_all_randomize' WHERE id = $1`,
+                  [placement.assignmentId]
+                );
+                await client.query(
+                  `INSERT INTO gm_assignment (team_season_id, user_id, role) VALUES ($1, $2, $3)`,
+                  [seatId, placement.userId, placement.role]
+                );
+                randomized++;
+              }
+            } else {
+              await client.query(
+                `INSERT INTO gm_assignment (team_season_id, user_id, role) VALUES ($1, $2, 'gm')`,
+                [seatId, placement.userId]
+              );
+              filled++;
+            }
+            await client.query(`UPDATE team_season SET seat_status = 'filled' WHERE id = $1`, [seatId]);
+          }
+        } else {
+          const pairs = Math.min(openSeatIds.length, newCandidateIds.length);
+          for (let i = 0; i < pairs; i++) {
+            const seatId = openSeatIds[i]!;
+            const userId = newCandidateIds[i]!;
+            await client.query(
+              `INSERT INTO gm_assignment (team_season_id, user_id, role) VALUES ($1, $2, 'gm')`,
+              [seatId, userId]
+            );
+            await client.query(`UPDATE team_season SET seat_status = 'filled' WHERE id = $1`, [seatId]);
+            filled++;
+          }
         }
       } else {
         // fill_source = 'none' — reshuffle which seat each currently-assigned

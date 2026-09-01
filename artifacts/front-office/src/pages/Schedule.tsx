@@ -25,6 +25,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Header from '@/components/Header';
 import { gmIdentityLabel } from '@/components/gmIdentity';
 import LeagueSettings, { hasSettings } from '@/components/LeagueSettings';
+import { toast, confirmToast } from '@/hooks/use-toast';
 
 // ─────────────────────────────────────── status chip colour map
 const STATUS_CHIP: Record<string, string> = {
@@ -169,15 +170,16 @@ function GenerateScheduleForm({
   const [error, setError] = useState<string | null>(null);
   const generate = useGenerateSchedule();
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setError(null);
-    if (!confirm(
-      `Generate this season's schedule from active league settings?\n\n` +
+    const ok = await confirmToast(
       `• Season starts: ${startDate}\n` +
       `• Format: ${settings.schedule_format.replaceAll('_', ' ')}\n` +
       `• Window duration: ${weekDurationDays} days\n\n` +
-      `This cannot be undone.`
-    )) return;
+      `This cannot be undone.`,
+      { title: "Generate this season's schedule from active league settings?", confirmLabel: 'Generate' },
+    );
+    if (!ok) return;
 
     generate.mutate(
       {
@@ -285,7 +287,7 @@ function SeasonStartDatePill({ leagueId, season, isCommissioner }: {
           queryClient.invalidateQueries({ queryKey: [`/api/seasons/${season.id}/weeks`] as any });
           queryClient.invalidateQueries({ queryKey: [`/api/seasons/${season.id}/games`] as any });
         },
-        onError: (err: unknown) => alert(err instanceof Error ? err.message : 'Failed to update start date'),
+        onError: (err: unknown) => toast({ variant: 'destructive', title: 'Failed to update start date', description: err instanceof Error ? err.message : undefined }),
       }
     );
   };
