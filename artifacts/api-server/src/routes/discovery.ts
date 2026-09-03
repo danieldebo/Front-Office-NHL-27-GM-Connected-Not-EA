@@ -120,42 +120,49 @@ router.get(
       const aliases = normalised[platform.toLowerCase()];
       if (aliases) {
         params.push(aliases);
-        conditions.push(`LOWER(platform) = ANY($${params.length}::text[])`);
+        conditions.push(`LOWER(v.platform) = ANY($${params.length}::text[])`);
       }
     }
     if (competitiveness) {
       params.push(competitiveness.toLowerCase());
-      conditions.push(`LOWER(competitiveness) = $${params.length}`);
+      conditions.push(`LOWER(v.competitiveness) = $${params.length}`);
     }
     if (seats_open === "true" || seats_open === "1") {
-      conditions.push(`seats_open > 0`);
+      conditions.push(`v.seats_open > 0`);
     }
     // health_min filter is a no-op for now (health grade not in view), kept for API compat
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
+    // season_starts_on is read straight from `season` rather than trusted off
+    // v_open_leagues: the view is defined in db/*.sql and can drift out of sync
+    // with what's actually deployed to a given database (schema_version can
+    // claim a migration is applied while the view itself never picked up the
+    // column) — joining the real table directly means this endpoint can't be
+    // taken out by that class of drift again.
     const { rows } = await pool.query(
       `SELECT
-          league_id,
-          slug,
-          name,
-          logo_url,
-          blurb,
-          platform,
-          competitiveness,
-          suggested_division,
-          accepting_signups,
-          accepting_waitlist,
-          active_season_id,
-          season_starts_on,
-          max_seats,
-          seats_filled,
-          seats_open,
-          waitlist_length,
-          games_confirmed,
-          active_gms
-       FROM v_open_leagues
+          v.league_id,
+          v.slug,
+          v.name,
+          v.logo_url,
+          v.blurb,
+          v.platform,
+          v.competitiveness,
+          v.suggested_division,
+          v.accepting_signups,
+          v.accepting_waitlist,
+          v.active_season_id,
+          s.starts_on AS season_starts_on,
+          v.max_seats,
+          v.seats_filled,
+          v.seats_open,
+          v.waitlist_length,
+          v.games_confirmed,
+          v.active_gms
+       FROM v_open_leagues v
+       LEFT JOIN season s ON s.id = v.active_season_id
        ${where}
-       ORDER BY seats_open DESC, games_confirmed DESC NULLS LAST`,
+       ORDER BY v.seats_open DESC, v.games_confirmed DESC NULLS LAST`,
       params
     );
 
