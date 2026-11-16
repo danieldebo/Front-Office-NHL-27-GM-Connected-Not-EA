@@ -16,6 +16,21 @@ proxy. The macOS steps are the same but have not been run on a Mac yet.
 3. `createdb frontoffice_dev`
 4. `cp .env.local.example .env.local`, then fill in the two Clerk keys from
    your own Clerk application's Development instance.
+5. In the Clerk dashboard, open **Sessions > Customize session token** and save
+   these claims, so the API gets your email and name on every request:
+
+   ```json
+   {
+     "email": "{{user.primary_email_address}}",
+     "firstName": "{{user.first_name}}",
+     "lastName": "{{user.last_name}}",
+     "imageUrl": "{{user.image_url}}"
+   }
+   ```
+
+   Replit's Clerk instance had these already. Without them a first sign-in
+   still works: the API reads the profile from Clerk's API once to create your
+   account. Production needs the same claims on its Clerk instance.
 
 ## Every day
 
