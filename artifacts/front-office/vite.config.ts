@@ -27,6 +27,12 @@ if (!basePath) {
   );
 }
 
+// Outside Replit nothing routes /api to the API server, so Vite has to.
+// Set API_PROXY_TARGET (e.g. http://localhost:4101) to turn the proxy on;
+// scripts/dev-local.sh does this. Unset on Replit and in production builds,
+// where this changes nothing.
+const apiProxyTarget = process.env.API_PROXY_TARGET;
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -69,6 +75,9 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
+    ...(apiProxyTarget
+      ? { proxy: { '/api': { target: apiProxyTarget, xfwd: true } } }
+      : {}),
     fs: {
       strict: true,
     },
