@@ -51,3 +51,13 @@ Enum-vs-reference-table (M1), multi-currency (M3 — single-currency USD for v1,
 constrain it), `updated_at` on mutable rows (M4 — add it, cheap), and the
 JSON-key casing nit (L4) are noted and fine to handle inline as you touch those
 areas. Don't make a project of them.
+
+## Already fixed in `clerkIdentityMiddleware.ts` — do not revert (Nov 2026)
+
+- **First sign-in without custom claims:** when the session token has no
+  `email` claim and no `app_user` row exists yet, the middleware reads the
+  profile from Clerk's API (5 s timeout) and creates the row. A failed or
+  email-less lookup is remembered for 5 minutes so it does not hit Clerk on
+  every request. Do not remove this in favour of claims alone: a new Clerk
+  instance ships without the custom claims, and every API write then failed
+  with "User profile not found. Complete onboarding first."
